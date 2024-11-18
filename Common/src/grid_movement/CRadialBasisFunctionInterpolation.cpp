@@ -274,7 +274,9 @@ void CRadialBasisFunctionInterpolation::SetDeformation(CGeometry* geometry, CCon
   for (auto iNode = 0ul; iNode < ControlNodes->size(); iNode++) {
     
      /*--- Setting nonzero displacement of the moving markers, else setting zero displacement for static markers---*/
-    if (config->GetMarker_All_Moving((*ControlNodes)[iNode]->GetMarker())) {    
+    // cout << config->GetMarker_All_Moving((*ControlNodes)[iNode]->GetMarker()) << "\t" << config->GetMarker_All_DV((*ControlNodes)[iNode]->GetMarker()) << endl;
+    if (config->GetMarker_All_Moving((*ControlNodes)[iNode]->GetMarker()) || config->GetMarker_All_DV((*ControlNodes)[iNode]->GetMarker())) {   //TODO check which combinations of conditions are made in CLinearElasticity.cpp 
+
       for (auto iDim = 0u; iDim < nDim; iDim++) {
         CtrlNodeDeformation[iNode*nDim + iDim] = SU2_TYPE::GetValue(geometry->vertex[(*ControlNodes)[iNode]->GetMarker()][(*ControlNodes)[iNode]->GetVertex()]->GetVarCoord()[iDim] * VarIncrement);
       }
@@ -497,12 +499,12 @@ void CRadialBasisFunctionInterpolation::UpdateBoundCoords(CGeometry* geometry, C
   
   /*--- Applying the surface deformation, which are stored in the deformation vector ---*/
   for(auto jNode = 0ul; jNode < ControlNodes->size(); jNode++){ 
-    if(config->GetMarker_All_Moving((*ControlNodes)[jNode]->GetMarker())){
+    if(config->GetMarker_All_Moving((*ControlNodes)[jNode]->GetMarker()) || config->GetMarker_All_DV((*ControlNodes)[jNode]->GetMarker())){
       for(auto iDim = 0u; iDim < nDim; iDim++){
           geometry->nodes->AddCoord((*ControlNodes)[jNode]->GetIndex(), iDim, CtrlNodeDeformation[jNode*nDim + iDim]); 
       }
     }
-  } 
+  }
 }
 
 
