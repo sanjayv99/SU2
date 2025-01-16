@@ -44,6 +44,10 @@ class CRadialBasisFunctionNode{
   su2double error[3];         /*!< \brief Nodal data reduction error. */
   su2double new_coord[3];     /*!< \brief New coordinate position. */
   su2double var_coord[3];     /*!< \brief Variation in coordinates. */
+
+  string nodetype;
+  bool control = false;
+
     
   public:
 
@@ -107,5 +111,12 @@ class CRadialBasisFunctionNode{
 
   inline su2double* GetVarCoord(){ return var_coord;}
 
+  inline void setNodetype(const string& type) { nodetype = type;}
+
+  inline const string& getNodetype(){return nodetype;}
+
+  inline void setControl(){control = true;}
+
+  inline bool GetControl(){return control;}
 
 };

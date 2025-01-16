@@ -30,6 +30,9 @@
 #include "CRadialBasisFunctionNode.hpp"
 #include "../../include/toolboxes/CSymmetricMatrix.hpp"
 #include "../../include/adt/CADTPointsOnlyClass.hpp"
+
+#include <unordered_set>
+#include <variant>
 /*!
  * \class CRadialBasisFunctionInterpolation
  * \brief Class for moving the volumetric numerical grid using Radial Basis Function interpolation.
@@ -76,7 +79,21 @@ protected:
   su2double MaxErrorGlobal{0.0};          /*!< \brief Maximum error data reduction algorithm.*/
   su2double DataReductionTolerance{0.0};
   su2double DataRedTol_IL{0.0};
-  
+
+
+  // newly introduced:
+  vector<string> CtrlTypeVec;
+  vector<CRadialBasisFunctionNode*> nodes;
+  //TODO  change int to unsigned long for next 2 entries
+  unordered_map<string, vector<unsigned long>> node_type_indices;
+  unordered_set<unsigned long> control_node_indices;
+  unordered_map<string, unsigned long> ctrl_node_type_cnt = {
+    {"displaced", 0},
+    {"edge", 0},
+    {"surface", 0}
+  };
+  unordered_map<string, unordered_set<unsigned long>> ctrl_nodes_type;
+
 public:
 
   /*!
@@ -146,7 +163,7 @@ public:
   * \brief Gathering of all control node coordinates.
   * \param[in] geometry - Geometrical definition of the problem.
   */
-  void SetCtrlNodeCoords(CGeometry* geometry);
+  void SetCtrlNodeCoords(CGeometry* geometry, CConfig* config);
 
   /*!
   * \brief Build the deformation vector with surface displacements of the control nodes.
@@ -183,12 +200,12 @@ public:
   * \brief Addition of control node to the reduced set.
   * \param[in] maxErrorNode - Node with maximum error to be added.
   */
-  void AddControlNode(vector<unsigned short>& maxErrorVector, vector<unsigned long>& maxErrorNodes, su2double& maxErrorLocal);
+  void AddControlNode(vector<unsigned short>& maxErrorVector, vector<unsigned long>& maxErrorNodes);
 
   /*! 
   * \brief Compute global number of control nodes.
   */
-  void Get_nCtrlNodes();
+  void Get_nCtrlNodes(CConfig* config);
 
   /*! 
   * \brief Compute interpolation error.
@@ -270,15 +287,43 @@ public:
     return a->GetIndex() == b->GetIndex();
   }
 
-  void GetDoubleEdgeNode(const su2double* maxError, vector<unsigned long>& maxErrorNodes, vector<unsigned short>& maxErrorVector);
-  void CompareError(su2double* error, unsigned long iNode, unsigned short iNodes, su2double& maxError, unsigned long& idx, unsigned short& vec_idx);
+  void GetDoubleEdgeNode(const su2double* maxError, vector<unsigned long>& maxErrorNodes);
+  void CompareError(su2double* error, unsigned long iNode, su2double& maxError, unsigned long& idx);
 
   void GetIL_EdgeDeformation(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type, const su2double radius, unsigned short iLayer);
   void SetNodes(vector<CRadialBasisFunctionNode*>* reducedNodes, vector<CRadialBasisFunctionNode*>* Nodes, unsigned short index);
   void ResetError(vector<unsigned long>& maxErrorNodes, vector<unsigned short>& maxErrorVector, su2double& maxErrorLocal);
   void GetFreeDeformation(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type, const su2double radius, vector<CRadialBasisFunctionNode*>* targetNodes);
+  void GetFreeDeformation2(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type, const su2double radius, string& target_type, int error = 0);
   void GetIL_EdgeVar(CGeometry* geometry, CConfig* config, unsigned short iLayer);
   su2double GetDistance(CGeometry* geometry, CConfig* config, unsigned short nDim, const su2double *a, const su2double *b);
 
   void SetCorrectionSurf(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type);
+
+  void GetProjection(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type, const su2double radius);
+  void SetBoundNodesNew(CGeometry* geometry, CConfig* config);
+
+  void GetProjection2(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type, const su2double radius, CADTPointsOnlyClass* BoundADT, string& target_type);
+  void GetProjectionNode(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type, const su2double radius, CADTPointsOnlyClass* BoundADT, CRadialBasisFunctionNode* node, su2double* projection);
+  unique_ptr<CADTPointsOnlyClass> CreateADT(CGeometry* geometry, const string& types);
+
+  inline unsigned long Get_nCtrlNode(const string& type){
+    auto it = ctrl_node_type_cnt.find(type);
+    return(it!= ctrl_node_type_cnt.end()) ? it->second : 0;
+  }
+
+
+  template <typename T>
+  vector<unsigned long> ConvertToVector(const T& container) {
+    return vector<unsigned long>(container.begin(), container.end());
+  }
+
+  template <typename T>
+  inline vector<unsigned long> GetIndices(unordered_map<string, T>& ctrl_nodes, const string& type) {
+    return ConvertToVector(ctrl_nodes[type]);
+  }
+
+  void GetNodalError2(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type, const su2double radius, su2double* localError, CRadialBasisFunctionNode* node, CADTPointsOnlyClass* BoundADT);
+
+  void GetFreeDeformationNode(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type, const su2double radius, CRadialBasisFunctionNode* node);
 };
