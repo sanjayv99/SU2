@@ -88,7 +88,7 @@ void CRadialBasisFunctionInterpolation::SetVolume_Deformation(CGeometry* geometr
   }
 
   /*--- Looping over the number of deformation iterations ---*/
-  for (auto iNonlinear_Iter = 0ul; iNonlinear_Iter < 1 /*Nonlinear_Iter*/; iNonlinear_Iter++) {
+  for (auto iNonlinear_Iter = 0ul; iNonlinear_Iter <  Nonlinear_Iter; iNonlinear_Iter++) {
     
     /*--- Compute min volume in the entire mesh. ---*/
 
