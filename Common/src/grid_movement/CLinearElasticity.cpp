@@ -99,7 +99,37 @@ particular, the linear elasticity equations hold only for small deformations. --
     if (Derivative) {
       SetBoundaryDerivatives(geometry, config, ForwardProjectionDerivative);
     }
+    ofstream rhs("rhs.txt");
 
+    for(auto x : LinSysSol){rhs << SU2_TYPE::GetValue(x) << endl;}
+    rhs.close();
+    
+    
+    // su2double m2[72][72];
+    // for( auto row = 0ul; row < nPoint; row++){
+    //   for (auto col = 0ul; col < nPoint; col++){
+    //     for (auto block_row = 0u; block_row < nDim; block_row++){
+    //       for (auto block_col = 0u; block_col < nDim; block_col++){
+            
+    //         auto row_idx = row*nDim + block_row;
+    //         auto col_idx = col*nDim + block_col;
+    //         // if(col_idx >= row_idx){
+    //         //   K_matrix(row_idx, col_idx) = StiffMatrix.GetBlock(row, col, block_row, block_col); 
+    //         // }
+    //         m2[row_idx][ col_idx] = StiffMatrix.GetBlock(row,col, block_row, block_col);
+    //       }
+    //     }
+    //   }
+    // }
+
+    // ofstream mat("A.txt");
+    // for( auto row = 0ul; row < nPoint*2; row++){
+    //   for (auto col = 0ul; col < nPoint*2; col++){
+    //     mat << m2[row][col] << "\t";
+    //   }
+    //   mat << endl;
+    // }
+    // mat.close();
     /*--- Communicate any prescribed boundary displacements via MPI,
     so that all nodes have the same solution and r.h.s. entries
     across all partitions. ---*/
@@ -114,7 +144,8 @@ particular, the linear elasticity equations hold only for small deformations. --
     
     /*--- To keep legacy behavior ---*/
     System.SetToleranceType(LinearToleranceType::RELATIVE);
-
+    
+    
     /*--- If we want no derivatives or the direct derivatives, we solve the system using the
     * normal matrix vector product and preconditioner. For the mesh sensitivities using
     * the discrete adjoint method we solve the system using the transposed matrix. ---*/
@@ -126,6 +157,10 @@ particular, the linear elasticity equations hold only for small deformations. --
     }
     su2double Residual = System.GetResidual();
 
+    ofstream sol("solution.txt");
+    for(auto i=0ul; i < nPoint*nDim; i++){
+      sol << SU2_TYPE::GetValue(LinSysSol[i]) << endl;
+    }
     /*--- Update the grid coordinates and cell volumes using the solution
     of the linear system (usol contains the x, y, z displacements). ---*/
 
@@ -221,19 +256,24 @@ void CLinearElasticity::UpdateGridCoord_Derivatives(CGeometry* geometry, CConfig
         }
       }
     }
+    ofstream sens("ela_res.txt");
     for (iMarker = 0; iMarker < config->GetnMarker_All(); iMarker++) {
       if (config->GetSolid_Wall(iMarker) || (config->GetMarker_All_DV(iMarker) == YES)) {
         for (iVertex = 0; iVertex < geometry->nVertex[iMarker]; iVertex++) {
           iPoint = geometry->vertex[iMarker][iVertex]->GetNode();
           if (geometry->nodes->GetDomain(iPoint)) {
+            sens << iPoint << "\t";
             for (iDim = 0; iDim < nDim; iDim++) {
               total_index = iPoint * nDim + iDim;
               geometry->SetSensitivity(iPoint, iDim, LinSysSol[total_index]);
+              sens <<  SU2_TYPE::GetValue(LinSysSol[total_index]) << "\t";
             }
+            sens  << endl;
           }
         }
       }
     }
+    sens.close();
   } else if (config->GetSmoothGradient() && ForwardProjectionDerivative) {
     for (iPoint = 0; iPoint < geometry->GetnPoint(); iPoint++) {
       for (iDim = 0; iDim < nDim; iDim++) {
@@ -1345,7 +1385,6 @@ void CLinearElasticity::SetBoundaryDisplacements(CGeometry* geometry, CConfig* c
         ((config->GetMarker_All_DV(iMarker) == YES) && (Kind_SU2 == SU2_COMPONENT::SU2_DOT))) {
       for (iVertex = 0; iVertex < geometry->nVertex[iMarker]; iVertex++) {
         iPoint = geometry->vertex[iMarker][iVertex]->GetNode();
-        
         VarCoord = geometry->vertex[iMarker][iVertex]->GetVarCoord();
         
         for (iDim = 0; iDim < nDim; iDim++) {
@@ -1454,13 +1493,17 @@ void CLinearElasticity::SetBoundaryDerivatives(CGeometry* geometry, CConfig* con
     }
     if (LinSysRes.norm() == 0.0) cout << "Warning: Derivatives are zero!" << endl;
   } else if ((Kind_SU2 == SU2_COMPONENT::SU2_DOT) && !ForwardProjectionDerivative) {
+    ofstream res("b.txt");
+    
     for (iPoint = 0; iPoint < nPoint; iPoint++) {
       for (iDim = 0; iDim < nDim; iDim++) {
         total_index = iPoint * nDim + iDim;
         LinSysRes[total_index] = SU2_TYPE::GetValue(geometry->GetSensitivity(iPoint, iDim));
         LinSysSol[total_index] = SU2_TYPE::GetValue(geometry->GetSensitivity(iPoint, iDim));
+        res << total_index << "\t" << SU2_TYPE::GetValue(geometry->GetSensitivity(iPoint, iDim)) << endl;
       }
     }
+    res.close();
   } else if (config->GetSmoothGradient() && ForwardProjectionDerivative) {
     for (iMarker = 0; iMarker < config->GetnMarker_All(); iMarker++) {
       if ((config->GetMarker_All_DV(iMarker) == YES)) {
@@ -1476,4 +1519,5 @@ void CLinearElasticity::SetBoundaryDerivatives(CGeometry* geometry, CConfig* con
     }
     if (LinSysRes.norm() == 0.0) cout << "Warning: Derivatives are zero!" << endl;
   }
+
 }

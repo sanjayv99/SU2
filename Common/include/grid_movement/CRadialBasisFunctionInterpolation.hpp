@@ -51,7 +51,11 @@ protected:
   su2activematrix CtrlCoords;             /*!< \brief Coordinates of the control nodes.*/
 
   su2double MaxErrorGlobal{0.0};          /*!< \brief Maximum error data reduction algorithm.*/
+  vector<su2double> lhs;
+  vector<su2double> sensitivity;
+  su2double* sensitivity_update;
 
+  
   
 public:
 
@@ -105,7 +109,7 @@ public:
   * \param[in] radius - Support radius of the radial basis function.
   */
 
-  void SolveRBF_System(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type, const su2double radius);
+  void SolveRBF_System(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type, const su2double radius, bool Derivative, vector<unsigned long>& internalNodes);
 
   /*!
   * \brief Obtaining the interpolation coefficients of the control nodes.
@@ -115,7 +119,7 @@ public:
   * \param[in] radius - Support radius of the radial basis function.
   */
 
-  void GetInterpCoeffs(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type, const su2double radius);
+  void GetInterpCoeffs(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type, const su2double radius, bool Derivative, vector<unsigned long>& internalNodes);
 
 
   /*!
@@ -131,6 +135,8 @@ public:
   */
   void SetDeformation(CGeometry* geometry, CConfig* config);
 
+  void SetDerivativeDeformation(CGeometry* geometry, CConfig* config, vector<unsigned long>& internalNodes);
+
   /*!
   * \brief Computation of the interpolation matrix and inverting in.
   * \param[in] geometry - Geometrical definition of the problem.
@@ -138,8 +144,9 @@ public:
   * \param[in] radius - Support radius of the radial basis function.
   * \param[in] invInterpMat - Inverse of the interpolation matrix.
   */
-  void ComputeInterpolationMatrix(CGeometry* geometry, const RADIAL_BASIS& type, const su2double radius, su2passivematrix& invInterpMat);
-
+  void GetInterpMat_sequential(CGeometry* geometry, const RADIAL_BASIS& type, const su2double radius, CSymmetricMatrix& invInterpMat);
+  void GetInterpMat_parallel(CGeometry* geometry, const RADIAL_BASIS& type, const su2double radius, CSymmetricMatrix& interpMat);//TODO fix
+  void GetInvInterpMat(CGeometry* geometry, const RADIAL_BASIS& type, const su2double radius, su2passivematrix& invInterpMat);
   /*!
   * \brief Computation of interpolation coefficients
   * \param[in] invInterpMat - Inverse of interpolation matrix
@@ -244,4 +251,7 @@ public:
   inline static bool HasEqualIndex(CRadialBasisFunctionNode* a, CRadialBasisFunctionNode* b){
     return a->GetIndex() == b->GetIndex();
   }
+
+  void UpdateGridCoord_Derivatives(CGeometry* geometry, CConfig* config, bool ForwardProjectionDerivative);
+  void ComputeSensitivity(CGeometry* geometry, const RADIAL_BASIS& type, const su2double radius, su2passivematrix &invInterpMat, vector<unsigned long>& internalNodes);
 };

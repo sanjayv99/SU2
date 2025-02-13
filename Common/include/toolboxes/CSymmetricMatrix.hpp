@@ -79,4 +79,9 @@ class CSymmetricMatrix {
   void Invert(bool is_spd = false);
 
   su2passivematrix StealData();
+
+  void Broadcast(const int rank, const int MASTER_NODE);
+  void CholeskyDecomposeParallel(const int n, const int rank, const int size);
+  void ComputeLInverse(CSymmetricMatrix& L_inv, const int rank, const int size);
+  void ComputeAInverse(const CSymmetricMatrix& L_inv, const int rank, const int size);
 };

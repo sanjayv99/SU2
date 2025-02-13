@@ -49,6 +49,111 @@ extern "C" void dsymm_(const char*, const char*, const int*, const int*, const p
 
 void CSymmetricMatrix::Initialize(int N) { mat.resize(N, N); }
 
+//TODO place elsewhere
+void CSymmetricMatrix::Broadcast(const int rank, const int MASTER_NODE) {
+  SU2_MPI::Bcast(mat.data(), mat.size(), MPI_DOUBLE, MASTER_NODE, SU2_MPI::GetComm());
+}
+
+
+void CSymmetricMatrix::CholeskyDecomposeParallel(const int n, const int rank, const int size) {
+
+  std::vector<passivedouble> column(n);
+
+  for (auto i = 0; i < n; i++) {
+    if (i % size == rank) {
+        auto res = std::sqrt(Get(i, i));
+        Set(i, i, res);
+        for (auto j = i + 1; j < n; j++) {
+            res = Get(j, i) / Get(i, i);
+            Set(j, i, res);
+        }
+    }
+
+    // Broadcast the diagonal element and the column values
+    for (auto j = i; j < n; j++) {
+        column[j] = Get(j, i);
+    }
+    SU2_MPI::Bcast(column.data() + i, n - i, MPI_DOUBLE, i % size, SU2_MPI::GetComm());
+
+    for (auto j = i; j < n; j++) {
+        Set(j, i, column[j]);
+    }
+
+    for (auto j = i + 1; j < n; j++) {
+        if (j % size == rank) {
+            for (auto k = j; k < n; k++) {
+                auto res = Get(k, j) - Get(k, i) * Get(j, i);
+                Set(k, j, res);
+            }
+        }
+        for (auto k = j; k < n; k++) {
+            column[k] = Get(k, j);
+        }
+        SU2_MPI::Bcast(column.data() + j, n - j, MPI_DOUBLE, j % size, SU2_MPI::GetComm());
+
+        for (auto k = j; k < n; k++) {
+            Set(k, j, column[k]);
+        }
+    }
+  }
+}
+
+void CSymmetricMatrix::ComputeLInverse(CSymmetricMatrix& L_inv, const int rank, const int size) {
+  auto n = Size();
+  L_inv.Initialize(n);
+  std::vector<passivedouble> column(n);
+
+  for (auto j = 0; j < n; ++j) {
+      if (j % size == rank) {
+          L_inv(j, j) = 1.0 / Get(j, j);
+          for (auto i = j + 1; i < n; ++i) {
+              passivedouble sum = 0.0;
+              for (int k = j; k < i; ++k) {
+                  sum -= Get(i, k) * L_inv(k, j);
+              }
+              L_inv(i, j) = sum / Get(i, i);
+          }
+      }
+
+      // Broadcast the entire column of L_inv
+      for (auto i = j; i < n; ++i) {
+          column[i] = L_inv(i, j);
+      }
+      SU2_MPI::Bcast(column.data() + j, n - j, MPI_DOUBLE, j % size, SU2_MPI::GetComm());
+
+      for (auto i = j; i < n; ++i) {
+          L_inv(i, j) = column[i];
+      }
+  }
+}
+
+void CSymmetricMatrix::ComputeAInverse(const CSymmetricMatrix& L_inv, const int rank, const int size) {
+  auto n = Size();
+  std::vector<passivedouble> column(n);
+
+  for (auto j = 0; j < n; ++j) {
+      if (j % size == rank) {
+          for (auto i = j; i < n; ++i) {
+              passivedouble sum = 0.0;
+              for (auto k = i; k < n; ++k) {
+                  sum += L_inv(k, i) * L_inv(k, j);
+              }
+              Set(i,j,sum);
+          }
+      }
+
+      // Broadcast the entire column of A_inv
+      for (auto i = j; i < n; ++i) {
+          column[i] = Get(i, j);
+      }
+      SU2_MPI::Bcast(column.data() + j, n - j, MPI_DOUBLE, j % size, SU2_MPI::GetComm());
+
+      for (auto i = j; i < n; ++i) {
+          Set(i,j, column[i]);
+      }
+  }
+}
+
 void CSymmetricMatrix::CholeskyDecompose() {
 #ifndef HAVE_LAPACK
   int j;
@@ -73,34 +178,50 @@ void CSymmetricMatrix::CholeskyDecompose() {
 void CSymmetricMatrix::CalcInv(bool is_spd) {
 #ifndef HAVE_LAPACK
   const int sz = Size();
-
+  
   /*--- Compute inverse from decomposed matrices. ---*/
   if (is_spd) {
-    CholeskyDecompose();
+    #ifdef HAVE_MPI
+      int rank = SU2_MPI::GetRank();
+      int size = SU2_MPI::GetSize();
 
-    /*--- Initialize inverse matrix. ---*/
-    CSymmetricMatrix inv(sz);
+      CholeskyDecomposeParallel(Size(), rank, size);
 
-    /*--- Compute L inverse. ---*/
-    /*--- Solve smaller and smaller systems. ---*/
-    for (int j = 0; j < sz; ++j) {
-      /*--- Forward substitution. ---*/
-      inv(j, j) = 1.0 / Get(j, j);
+      CSymmetricMatrix L_inv;
+      ComputeLInverse(L_inv, rank, size);
 
-      for (int i = j + 1; i < sz; ++i) {
-        passivedouble sum = 0.0;
-        for (int k = j; k < i; ++k) sum -= Get(i, k) * inv(k, j);
-        inv(i, j) = sum / Get(i, i);
+      ComputeAInverse(L_inv, rank, size);
+
+    #else
+      CholeskyDecompose();
+
+      /*--- Initialize inverse matrix. ---*/
+      CSymmetricMatrix inv(sz);
+
+      /*--- Compute L inverse. ---*/
+      /*--- Solve smaller and smaller systems. ---*/
+      for (int j = 0; j < sz; ++j) {
+        /*--- Forward substitution. ---*/
+        inv(j, j) = 1.0 / Get(j, j);
+
+        for (int i = j + 1; i < sz; ++i) {
+          passivedouble sum = 0.0;
+          for (int k = j; k < i; ++k) sum -= Get(i, k) * inv(k, j);
+          inv(i, j) = sum / Get(i, i);
+        }
+      }  // L inverse in inv
+
+      /*--- Multiply inversed matrices overwrite mat. ---*/
+      for (int j = 0; j < sz; ++j) {
+        for (int i = j; i < sz; ++i) {
+          passivedouble sum = 0.0;
+          for (int k = i; k < sz; ++k) sum += inv(k, i) * inv(k, j);
+          Set(i, j, sum);
+        }
       }
-    }  // L inverse in inv
+    #endif
 
-    /*--- Multiply inversed matrices overwrite mat. ---*/
-    for (int j = 0; j < sz; ++j)
-      for (int i = j; i < sz; ++i) {
-        passivedouble sum = 0.0;
-        for (int k = i; k < sz; ++k) sum += inv(k, i) * inv(k, j);
-        Set(i, j, sum);
-      }
+    
   } else {
     auto inv = StealData();
     CBlasStructure::inverse(sz, inv);
@@ -154,6 +275,7 @@ void CSymmetricMatrix::Invert(const bool is_spd) {
   CalcInv(is_spd);
 #endif
 }
+
 
 void CSymmetricMatrix::MatMatMult(const char side, const su2passivematrix& mat_in, su2passivematrix& mat_out) const {
   /*--- Left side: mat_out = this * mat_in. ---*/
