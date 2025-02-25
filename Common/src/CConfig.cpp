@@ -2387,6 +2387,8 @@ void CConfig::SetConfig_Options() {
   addDoubleOption("RBF_GREEDY_TOLERANCE", RBF_GreedyTolerance, 1E-2);
   /* DESCRIPTION: Tolerance for the data reduction methods used in RBF mesh deformation. */
   addDoubleOption("RBF_GREEDY_CORRECTION_FACTOR", RBF_GreedyCorrectionFactor, 1E-2);
+  /* DESCRIPTION: Write control nodes in RBF mesh deformation to an ASCII file. */
+  addBoolOption("WRITE_RBF_CONTROL", Wrt_RBFCtrlNodes, false);
 
   /*!\par CONFIG_CATEGORY: FEM flow solver definition \ingroup Config*/
   /*--- Options related to the finite element flow solver---*/
