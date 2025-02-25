@@ -356,7 +356,7 @@ void CRadialBasisFunctionInterpolation::GetInterpMat_parallel(CGeometry* geometr
   unsigned long nr_elems = (end_row*(end_row+1) - start_row*(start_row+1))/2;
   
   // Finding RBF evaluations
-  vector<su2double> rbf_vals(nr_elems);
+  vector<passivedouble> rbf_vals(nr_elems);
   unsigned long cnt = 0;
 
   for (auto row_i = start_row; row_i < end_row; row_i++){
@@ -379,7 +379,7 @@ void CRadialBasisFunctionInterpolation::GetInterpMat_parallel(CGeometry* geometr
   }
   
   // gathering all in a single vector
-  vector<su2double> rbf_vals_all(N_lowerTriangle);
+  vector<passivedouble> rbf_vals_all(N_lowerTriangle);
   
   if (rank == MASTER_NODE) {
     // Master process receives data from all processes
@@ -402,7 +402,7 @@ void CRadialBasisFunctionInterpolation::GetInterpMat_parallel(CGeometry* geometr
     unsigned long cnt = 0;
     for (auto row_i =0ul; row_i < nCtrlNodesGlobal; row_i++) {
       for (auto col_i = 0ul; col_i <= row_i; col_i++) {
-        interpMat(row_i, col_i) = rbf_vals_all[cnt++];
+        interpMat.Set(row_i, col_i, rbf_vals_all[cnt++]);
       }
     }
   }
