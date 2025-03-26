@@ -41,29 +41,13 @@ void CRadialBasisFunctionInterpolation::SetVolume_Deformation(CGeometry* geometr
 
 
   // {
-  //   int i = 0;
-  //   while(0==i){
-  //     sleep(2);
-
-  // }
-  // }                                                
-  // CSymmetricMatrix test;
-  // test.Initialize(4);                                            
-  // if(rank==MASTER_NODE){
-  //   vector<su2double> vals = {4, 12, -16, 0, 12, 37, -43, 0, -16, -43, 98, 0, 0, 0, 0, 25};
-  //   int cnt = 0;
-  //   for(int i = 0; i < 4;i++){
-  //     for (int j = 0; j < 4; j++){
-  //       test.Set(i, j, vals[cnt++]);
+  //   if (rank==MASTER_NODE){
+  //     int i = 0;
+  //     while(0==i){
+  //       sleep(5);
   //     }
   //   }
-  //   // test.Invert(true);
-
   // }
-
-  
-  // test.test(rank, size);
-
 
   
   // SU2_MPI::Barrier(SU2_MPI::GetComm());
@@ -96,11 +80,6 @@ void CRadialBasisFunctionInterpolation::SetVolume_Deformation(CGeometry* geometr
   
   SetCtrlNodes(config);
 
-  // write file with control node order:
-  ofstream ctrl("ctrlNodes.txt");
-  for(auto x : *ControlNodes){ ctrl << x->GetIndex() << endl;}
-  ctrl.close();
-
   /*--- Looping over the number of deformation iterations ---*/
   for (auto iNonlinear_Iter = 0ul; iNonlinear_Iter < Nonlinear_Iter; iNonlinear_Iter++) {
     
@@ -112,7 +91,7 @@ void CRadialBasisFunctionInterpolation::SetVolume_Deformation(CGeometry* geometr
     
 
     /*--- Solving the RBF system, resulting in the interpolation coefficients ---*/
-    SolveRBF_System(geometry, config, kindRBF, radius, Derivative, internalNodes);
+    SolveRBF_System(geometry, config, kindRBF, radius, Derivative, internalNodes, ForwardProjectionDerivative);
    
     /*--- Updating the coordinates of the grid ---*/
     if (!Derivative) {
@@ -134,18 +113,32 @@ void CRadialBasisFunctionInterpolation::SetVolume_Deformation(CGeometry* geometr
 
       ComputenNonconvexElements(geometry, Screen_Output);
     }
-
+   
     if (rank == MASTER_NODE && Screen_Output) {
       cout << "Non-linear iter.: " << iNonlinear_Iter + 1 << "/" << Nonlinear_Iter << ". ";
       if (nDim == 2)
         cout << "Min. area: " << MinVolume <<  "." << endl;
       else
         cout << "Min. volume: " << MinVolume <<  "." << endl;
-    }
+    }  
+    
   }
+
+  if( (config->GetKind_SU2() == SU2_COMPONENT::SU2_DEF) && (config->GetWrt_RBFCtrlNodes()) && (rank == MASTER_NODE)){
+    string str = "rbf_ctrl.dat";
+
+    ofstream ctrl_file;
+    ctrl_file.open(str.c_str(), ios::out);
+
+    for (auto iNode : *ControlNodes) {
+      ctrl_file << iNode->GetIndex() << endl;
+    }    
+    ctrl_file.close();
+  }
+  
 }
 
-void CRadialBasisFunctionInterpolation::SolveRBF_System(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type, const su2double radius, bool Derivative, vector<unsigned long>& internalNodes){
+void CRadialBasisFunctionInterpolation::SolveRBF_System(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type, const su2double radius, bool Derivative, vector<unsigned long>& internalNodes, bool ForwardProjectionDerivative){
   
   /*--- In case of data reduction an iterative greedy algorithm is applied 
           to perform the interpolation with a reduced set of control nodes.
@@ -153,120 +146,149 @@ void CRadialBasisFunctionInterpolation::SolveRBF_System(CGeometry* geometry, CCo
   
   if(config->GetRBF_DataReduction()){
     
-    /*--- Error tolerance for the data reduction tolerance ---*/
-    const su2double dataReductionTolerance = config->GetRBF_DataRedTolerance(); 
+      /*--- Local maximum error node and corresponding maximum error  ---*/
+      unsigned long maxErrorNodeLocal;
+      su2double maxErrorLocal{0};
 
-    /*--- Local maximum error node and corresponding maximum error  ---*/
-    unsigned long maxErrorNodeLocal;
-    su2double maxErrorLocal{0};
-
-    /*--- Obtaining the initial maximum error nodes, which are found based on the maximum applied deformation. */
-    if(ControlNodes->empty()){
-      GetInitMaxErrorNode(geometry, config, maxErrorNodeLocal, maxErrorLocal); 
-      SU2_MPI::Allreduce(&maxErrorLocal, &MaxErrorGlobal, 1, MPI_DOUBLE, MPI_MAX, SU2_MPI::GetComm());
-    }
-
-    /*--- Number of greedy iterations. ---*/
-    unsigned short greedyIter = 0;
-
-    /*--- While the maximum error is above the tolerance, data reduction algorithm is continued. ---*/
-    while(MaxErrorGlobal > dataReductionTolerance || greedyIter == 0){ 
-      
-      /*--- In case of a nonzero local error, control nodes are added ---*/
-      if(maxErrorLocal> 0){
-        AddControlNode(maxErrorNodeLocal);
+      /*--- Obtaining the initial maximum error nodes, which are found based on the maximum applied deformation. */
+      if(ControlNodes->empty()){
+        GetInitMaxErrorNode(geometry, config, Derivative, maxErrorNodeLocal, maxErrorLocal); 
+        SU2_MPI::Allreduce(&maxErrorLocal, &MaxErrorGlobal, 1, MPI_DOUBLE, MPI_MAX, SU2_MPI::GetComm());
       }
 
-      /*--- Obtaining the global number of control nodes. ---*/
-      Get_nCtrlNodesGlobal();
+      /*--- Number of greedy iterations. ---*/
+      unsigned short greedyIter = 0;
+      
+      /*--- Error tolerance for the data reduction tolerance ---*/
+      const su2double dataReductionTolerance = config->GetRBF_DataRedTolerance() * MaxErrorGlobal; 
 
-      /*--- Obtaining the interpolation coefficients. ---*/
-      GetInterpCoeffs(geometry, config, type, radius, Derivative, internalNodes);
+      su2passivematrix invInterpMat;
+      /*--- While the maximum error is above the tolerance, data reduction algorithm is continued. ---*/
+      while(MaxErrorGlobal > dataReductionTolerance || greedyIter == 0){ 
+        
+        /*--- In case of a nonzero local error, control nodes are added ---*/
+        if(maxErrorLocal> 0){
+          AddControlNode(maxErrorNodeLocal);
+        }
 
-      /*--- Determining the interpolation error, of the non-control boundary nodes. ---*/
-      GetInterpError(geometry, config, type, radius, maxErrorNodeLocal, maxErrorLocal); 
-      SU2_MPI::Allreduce(&maxErrorLocal, &MaxErrorGlobal, 1, MPI_DOUBLE, MPI_MAX, SU2_MPI::GetComm());
+        /*--- Obtaining the global number of control nodes. ---*/
+        Get_nCtrlNodesGlobal();
+        
+        /*--- Obtaining the control nodes coordinates and distributing over all processes. ---*/
+        SetCtrlNodeCoords(geometry);
 
-      if(rank == MASTER_NODE) cout << "Greedy iteration: " << greedyIter << ". Max error: " << MaxErrorGlobal << ". Global nr. of ctrl nodes: "  << nCtrlNodesGlobal << "\n" << endl;
-      greedyIter++;
+        /*--- Obtaining the deformation of the control nodes. ---*/
+        if (!Derivative){
+          SetBoundaryDisplacements(geometry, config);
+        }else{
+          SetCtrlNodeDerivatives(geometry, config, ForwardProjectionDerivative);
+        } 
 
-    }  
+        /*--- Computation of the (inverse) interpolation matrix. ---*/
+        
+        GetInvInterpMat(geometry, type, radius, invInterpMat);
+        
+        /*--- Obtaining the interpolation coefficients. ---*/
+        ComputeInterpCoeffs(invInterpMat);
+
+        /*--- Determining the interpolation error, of the non-control boundary nodes. ---*/
+        GetInterpError(geometry, config, type, radius, Derivative, maxErrorNodeLocal, maxErrorLocal); 
+        SU2_MPI::Allreduce(&maxErrorLocal, &MaxErrorGlobal, 1, MPI_DOUBLE, MPI_MAX, SU2_MPI::GetComm());
+
+        if(rank == MASTER_NODE) cout << "Greedy iteration: " << greedyIter << ". Max error: " << MaxErrorGlobal << ". Global nr. of ctrl nodes: "  << nCtrlNodesGlobal << "\n" << endl;
+        
+        //TODO  debug output
+        if (Derivative){
+          ofstream res_out("greedy_out.txt");
+          for (auto x =0ul; x < ControlNodes->size(); x++){
+            res_out << (*ControlNodes)[x]->GetIndex() << "\t" << SU2_TYPE::GetValue(CtrlNodeDeformation[x*nDim]) << "\t" << SU2_TYPE::GetValue(CtrlNodeDeformation[x*nDim+1]) << endl;
+          }
+
+          for (auto x : BoundNodes){
+            res_out << x->GetIndex() << "\t" << SU2_TYPE::GetValue(geometry->GetSensitivity(x->GetIndex(), 0))  +  x->GetError()[0] << "\t" <<  SU2_TYPE::GetValue(geometry->GetSensitivity(x->GetIndex(), 1)) + x->GetError()[1] << endl;
+          }
+          res_out.close();
+        }
+        
+        greedyIter++;
+
+      } 
+
+      if (Derivative){
+        SetInternalNodeDerivatives(geometry, config, internalNodes, ForwardProjectionDerivative);
+        ComputeSensitivity(geometry, config, type, radius, invInterpMat, internalNodes); //TODO Investigate possibility of doing correction for the non-selected nodes. 
+      }
+
   }else{
-
     /*--- Obtaining the interpolation coefficients. ---*/
-    GetInterpCoeffs(geometry, config, type, radius, Derivative, internalNodes);
+    GetInterpCoeffs(geometry, config, type, radius, Derivative, internalNodes, ForwardProjectionDerivative);
   }
 }
 
-void CRadialBasisFunctionInterpolation::GetInterpCoeffs(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type, const su2double radius, bool Derivative, vector<unsigned long>& internalNodes){
+void CRadialBasisFunctionInterpolation::GetInterpCoeffs(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type, const su2double radius, bool Derivative, vector<unsigned long>& internalNodes, bool ForwardProjectionDerivative){
   
   /*--- Obtaining the control nodes coordinates and distributing over all processes. ---*/
   SetCtrlNodeCoords(geometry);
 
   /*--- Obtaining the deformation of the control nodes. ---*/
   if (!Derivative){
-    SetDeformation(geometry, config);
+    SetBoundaryDisplacements(geometry, config);
   }else{
-    SetDerivativeDeformation(geometry, config, internalNodes);
+    SetInternalNodeDerivatives(geometry, config, internalNodes, ForwardProjectionDerivative);
   } 
 
   /*--- Computation of the (inverse) interpolation matrix. ---*/
   su2passivematrix invInterpMat;
   GetInvInterpMat(geometry, type, radius, invInterpMat);
-   
+
   if(!Derivative){
     /*--- Obtaining the interpolation coefficients. ---*/
     ComputeInterpCoeffs(invInterpMat);
   }else{
-    ComputeSensitivity(geometry, type, radius, invInterpMat, internalNodes);
+    ComputeSensitivity(geometry, config, type, radius, invInterpMat, internalNodes);
   }
 }
 
-void CRadialBasisFunctionInterpolation::ComputeSensitivity(CGeometry* geometry, const RADIAL_BASIS& type, const su2double radius,su2passivematrix &invInterpMat, vector<unsigned long>& internalNodes){
+void CRadialBasisFunctionInterpolation::ComputeSensitivity(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type, const su2double radius,su2passivematrix &invInterpMat, vector<unsigned long>& internalNodes){
 
-  su2double inter_res[nCtrlNodesGlobal*nDim];
+  //from here
+  vector<su2double> inter_res(nCtrlNodesGlobal * nDim, 0.0);
+
+  //loop over all global control nodes
   for (auto iNode = 0ul; iNode < nCtrlNodesGlobal; iNode++){
     for (auto iDim =0u; iDim < nDim; iDim++){
-      inter_res[iNode*nDim+iDim] = 0;
+      
+      // loop over the local internal nodes
       for (auto jNode =0ul; jNode < internalNodes.size(); jNode++){
 
         auto dist = GeometryToolbox::Distance(nDim, CtrlCoords[iNode*nDim], geometry->nodes->GetCoord(internalNodes[jNode]));
         auto rbf_eval = SU2_TYPE::GetValue(CRadialBasisFunction::Get_RadialBasisValue(type, radius, dist));
-
+        
+        // CtrlNodeDeformation vector contains the internal node sensitivities. 
+        // Phi_c,i * d_i
         inter_res[iNode*nDim+iDim] += rbf_eval * CtrlNodeDeformation[jNode*nDim+iDim];
       }
     }
   }
 
-  sensitivity_update = new su2double[nCtrlNodesGlobal*nDim];
+  // Summing contributions of all processes
+  vector<su2double> inter_res_sum(nCtrlNodesGlobal * nDim);
+  SU2_MPI::Allreduce(inter_res.data(), inter_res_sum.data(), nCtrlNodesGlobal*nDim, MPI_DOUBLE, MPI_SUM, SU2_MPI::GetComm());
 
-  for (auto iNode = 0ul; iNode < nCtrlNodesGlobal; iNode++){
+  // arrays storing global and local sensitivity deltas
+  sensitivity_update.resize(nCtrlNodesGlobal * nDim);
+  vector<su2double> sens_update_local(nCtrlNodesGlobal*nDim, 0.0);
+  
+  // inv(Phi_cc) *inter_res
+  for (auto iNode = rank; iNode < nCtrlNodesGlobal; iNode += size){
     for (auto iDim =0u; iDim < nDim; iDim++){
-      sensitivity_update[iNode*nDim+iDim] = 0;
       for (auto jNode = 0ul; jNode < nCtrlNodesGlobal; jNode++){
-        sensitivity_update[iNode*nDim+iDim] += invInterpMat(iNode, jNode) * inter_res[jNode*nDim+iDim];
+        sens_update_local[iNode*nDim+iDim] += invInterpMat(iNode, jNode) * inter_res_sum[jNode*nDim+iDim];
       }
     }
   }
 
-   for (auto iNode = 0ul; iNode < nCtrlNodesGlobal; iNode++){
-    auto iPoint = (*ControlNodes)[iNode]->GetIndex();
-    for (auto iDim = 0u; iDim < nDim; iDim++){
-      sensitivity_update[iNode*nDim+iDim] +=  SU2_TYPE::GetValue(geometry->GetSensitivity(iPoint, iDim));
-    }
-  }
-
-
-
-  cout << "newly found sensitivity" << endl;
-  ofstream sens_new("sens_new.txt");
-  for (auto iNode =0ul; iNode < nCtrlNodesGlobal; iNode++){
-    for (auto iDim = 0u; iDim < nDim; iDim++){  
-      sens_new << sensitivity_update[iNode*nDim+iDim] << endl;;
-    }
-  }
-
-  sens_new.close();
+  SU2_MPI::Allreduce(sens_update_local.data(), sensitivity_update.data(), nCtrlNodesGlobal*nDim, MPI_DOUBLE, MPI_SUM, SU2_MPI::GetComm());
 }
 
 void CRadialBasisFunctionInterpolation::SetBoundNodes(CGeometry* geometry, CConfig* config){
@@ -327,17 +349,31 @@ void CRadialBasisFunctionInterpolation::GetInvInterpMat(CGeometry* geometry, con
   #else
     GetInterpMat_sequential(geometry, type, radius, interpMat);    
   #endif
-
+  
   const bool kernelIsSPD = (type == RADIAL_BASIS::WENDLAND_C2) || (type == RADIAL_BASIS::GAUSSIAN) ||
                           (type == RADIAL_BASIS::INV_MULTI_QUADRIC);
 
   interpMat.Invert(kernelIsSPD); 
 
   invInterpMat = interpMat.StealData();
+
+  if (rank == MASTER_NODE){
+    ofstream out;
+    out.open("rbf_mat_inv.txt");
+    if (out.is_open()) {
+      for (auto row_i = 0ul; row_i < nCtrlNodesGlobal; row_i++){
+        for (auto col_i = 0ul; col_i < nCtrlNodesGlobal; col_i++){
+          out << invInterpMat(row_i, col_i) << "\t";
+        }  
+        out << endl;
+      }
+      out.close();
+    } 
+  }
 }
 
 void CRadialBasisFunctionInterpolation::GetInterpMat_parallel(CGeometry* geometry, const RADIAL_BASIS& type, const su2double radius, CSymmetricMatrix& interpMat){
-
+  
   /*--- Initialization of the interpolation matrix ---*/
   interpMat.Initialize(nCtrlNodesGlobal);
 
@@ -347,16 +383,21 @@ void CRadialBasisFunctionInterpolation::GetInterpMat_parallel(CGeometry* geometr
   // Average number of elements per process
   unsigned long N_perProcess = ceil(N_lowerTriangle/size);
 
-  // For balancing the number of elements per process, the start and end rows are determined //TODO  include equation
+  // For balancing the number of elements per process, the start and end rows are determined.
+  // The number of elements in a lower triangle matrix of size n x n is given by: T_n = n(n+1)/2
+  // Starting and ending row is determined by solving this equations for the number of elements (rank*N_perProcess) up to that row:
+  // row(row+1)/2 = rank*N_perProcess. Using quadratic formula results in: row = (-1 + sqrt(1+8*N_perProcess*rank))/2.
+  // Ceil is used to obtain integer numbers.
+
   unsigned long start_row = ceil((-1 + sqrt(1+8*N_perProcess*(rank))) / 2);
   unsigned long end_row = ceil((-1 + sqrt(1+8*N_perProcess*(rank+1))) / 2);
   if (end_row > nCtrlNodesGlobal)  end_row = nCtrlNodesGlobal;  
   
   // Number of elements to be evaluated
-  unsigned long nr_elems = (end_row*(end_row+1) - start_row*(start_row+1))/2;
+  int nr_elems = (end_row*(end_row+1) - start_row*(start_row+1))/2;
   
   // Finding RBF evaluations
-  vector<passivedouble> rbf_vals(nr_elems);
+  vector<su2double> rbf_vals(nr_elems);
   unsigned long cnt = 0;
 
   for (auto row_i = start_row; row_i < end_row; row_i++){
@@ -365,50 +406,30 @@ void CRadialBasisFunctionInterpolation::GetInterpMat_parallel(CGeometry* geometr
       rbf_vals[cnt++] = SU2_TYPE::GetValue(CRadialBasisFunction::Get_RadialBasisValue(type, radius, dist));
     }
   }
-
-  // Gathering the number of elements on the master node
-  vector<unsigned long> recv_cnts(size);
-  SU2_MPI::Gather(&nr_elems, 1, MPI_UNSIGNED_LONG, recv_cnts.data(), 1, MPI_UNSIGNED_LONG, MASTER_NODE, SU2_MPI::GetComm());
+  // Gathering the number of elements on all nodes
+  int recv_cnts[size];
+  SU2_MPI::Allgather(&nr_elems, 1, MPI_INT, recv_cnts, 1, MPI_INT, SU2_MPI::GetComm());
 
   // Determining the starting index/displacement for each process
-  vector<unsigned long> disp(size, 0);
-  if (rank == MASTER_NODE) {
-    for (int i = 1; i < size; i++) {
+  int disp[size];
+  disp[0] = 0;
+  for (int i = 1; i < size; i++) {
       disp[i] = disp[i-1] + recv_cnts[i-1];
-    }
-  }
-  
-  // gathering all in a single vector
-  vector<passivedouble> rbf_vals_all(N_lowerTriangle);
-  
-  if (rank == MASTER_NODE) {
-    // Master process receives data from all processes
-    for (int i = 0; i < size; i++) {
-      if (i == MASTER_NODE) {
-        // Copy data from the master process itself
-        std::copy(rbf_vals.begin(), rbf_vals.end(), rbf_vals_all.begin() + disp[i]);
-      } else {
-        // Receive data from other processes
-        SU2_MPI::Recv(rbf_vals_all.data() + disp[i], recv_cnts[i], MPI_DOUBLE, i, 0, SU2_MPI::GetComm(), MPI_STATUS_IGNORE);
-      }
-    }
-  } else {
-    // Other processes send their data to the master process
-    SU2_MPI::Send(rbf_vals.data(), nr_elems, MPI_DOUBLE, MASTER_NODE, 0, SU2_MPI::GetComm());
   }
 
-  // fill the lower triangular part
-  if (rank == MASTER_NODE) {
-    unsigned long cnt = 0;
-    for (auto row_i =0ul; row_i < nCtrlNodesGlobal; row_i++) {
-      for (auto col_i = 0ul; col_i <= row_i; col_i++) {
-        interpMat.Set(row_i, col_i, rbf_vals_all[cnt++]);
-      }
+  // global rbf evaluations are stored in rbf_vals_all
+  vector<su2double> rbf_vals_all(N_lowerTriangle);
+
+  // Allgather the RBF evaluations
+  SU2_MPI::Allgatherv(rbf_vals.data(), nr_elems, MPI_DOUBLE, rbf_vals_all.data(), recv_cnts, disp, MPI_DOUBLE, SU2_MPI::GetComm());
+
+  // fill the lower triangular part of the interpolation matrix  
+  cnt = 0;
+  for (auto row_i = 0ul; row_i < nCtrlNodesGlobal; row_i++) {
+    for (auto col_i = 0ul; col_i <= row_i; col_i++) {
+      interpMat.Set(row_i, col_i, SU2_TYPE::GetValue(rbf_vals_all[cnt++]));
     }
   }
-
-  // Distribute the lower triangular part to all processes
-  interpMat.Broadcast(rank, MASTER_NODE);
 }
 
 void CRadialBasisFunctionInterpolation::GetInterpMat_sequential(CGeometry* geometry, const RADIAL_BASIS& type, const su2double radius, CSymmetricMatrix& interpMat){
@@ -431,143 +452,74 @@ void CRadialBasisFunctionInterpolation::GetInterpMat_sequential(CGeometry* geome
       /*--- Evaluation of RBF ---*/
       interpMat(iNode, jNode) = SU2_TYPE::GetValue(CRadialBasisFunction::Get_RadialBasisValue(type, radius, dist));
     }
-  }      
+  }
 }
 
 
-void CRadialBasisFunctionInterpolation::SetDeformation(CGeometry* geometry, CConfig* config){
+void CRadialBasisFunctionInterpolation::SetBoundaryDisplacements(CGeometry* geometry, CConfig* config){
 
+  
   /* --- Initialization of the deformation vector ---*/
-  vector<su2double> CtrlNodeDeformation_local(ControlNodes->size()*nDim, 0.0); 
-  // CtrlNodeDeformation.resize(ControlNodes->size()*nDim, 0.0);
+  CtrlNodeDeformation.resize(ControlNodes->size()*nDim, 0.0); 
+
   /*--- If requested (no by default) impose the surface deflections in
     increments and solve the grid deformation with
     successive small deformations. ---*/
   const su2double VarIncrement = 1.0 / ((su2double)config->GetGridDef_Nonlinear_Iter());
 
+  SU2_COMPONENT Kind_SU2 = config->GetKind_SU2();
+
   /*--- Loop over the control nodes ---*/
   for (auto iNode = 0ul; iNode < ControlNodes->size(); iNode++) {
     
      /*--- Setting nonzero displacement of the moving markers, else setting zero displacement for static markers---*/
-    // cout << config->GetMarker_All_Moving((*ControlNodes)[iNode]->GetMarker()) << "\t" << config->GetMarker_All_DV((*ControlNodes)[iNode]->GetMarker()) << endl;
-    if (config->GetMarker_All_Moving((*ControlNodes)[iNode]->GetMarker()) || config->GetMarker_All_DV((*ControlNodes)[iNode]->GetMarker())) {   //TODO check which combinations of conditions are made in CLinearElasticity.cpp 
-
+    auto iMarker = (*ControlNodes)[iNode]->GetMarker();
+    if (((config->GetMarker_All_Moving(iMarker) == YES) && (Kind_SU2 == SU2_COMPONENT::SU2_CFD)) ||
+        ((config->GetMarker_All_DV(iMarker) == YES) && (Kind_SU2 == SU2_COMPONENT::SU2_DEF)) ||
+        ((config->GetDirectDiff() == D_DESIGN) && (Kind_SU2 == SU2_COMPONENT::SU2_CFD) &&
+         (config->GetMarker_All_DV(iMarker) == YES)) /*NOTE: This feature has not been tested for RBF interpolation*/ ||
+        ((config->GetMarker_All_DV(iMarker) == YES) && (Kind_SU2 == SU2_COMPONENT::SU2_DOT))) {
       for (auto iDim = 0u; iDim < nDim; iDim++) {
-        CtrlNodeDeformation_local[iNode*nDim + iDim] = SU2_TYPE::GetValue(geometry->vertex[(*ControlNodes)[iNode]->GetMarker()][(*ControlNodes)[iNode]->GetVertex()]->GetVarCoord()[iDim] * VarIncrement);
-        // CtrlNodeDeformation[iNode*nDim + iDim] = SU2_TYPE::GetValue(geometry->vertex[(*ControlNodes)[iNode]->GetMarker()][(*ControlNodes)[iNode]->GetVertex()]->GetVarCoord()[iDim] * VarIncrement);
-      }
-    }
-    
-    else{
-      for (auto iDim = 0u; iDim < nDim; iDim++) {
-        CtrlNodeDeformation_local[iNode*nDim + iDim] = 0.0;
-        // CtrlNodeDeformation[iNode*nDim + iDim] = 0.0;
+        CtrlNodeDeformation[iNode*nDim + iDim] = SU2_TYPE::GetValue(geometry->vertex[(*ControlNodes)[iNode]->GetMarker()][(*ControlNodes)[iNode]->GetVertex()]->GetVarCoord()[iDim] * VarIncrement);
       }
     }
   }
-
-
-  #ifdef HAVE_MPI
-    
-    /*--- Local number of control nodes ---*/
-    int defSizeLocal = CtrlNodeDeformation_local.size();
-
-    /*--- Array containing the local number of control nodes ---*/
-    int defSizesLocal[size];
-
-    /*--- gathering local control node coordinate sizes on all processes. ---*/
-    SU2_MPI::Allgather(&defSizeLocal, 1, MPI_INT, defSizesLocal, 1, MPI_INT, SU2_MPI::GetComm()); 
-
-    int disps[size] = {0};
-    for(auto iProc = 1; iProc < size; iProc++){
-      disps[iProc] = disps[iProc-1]+defSizesLocal[iProc-1];
-    }
-
-    /*--- resizing the global deformation vector ---*/
-    CtrlNodeDeformation.resize(nCtrlNodesGlobal*nDim);
-
-    SU2_MPI::Allgatherv(CtrlNodeDeformation_local.data(), defSizeLocal, MPI_DOUBLE, CtrlNodeDeformation.data(), defSizesLocal, disps, MPI_DOUBLE, SU2_MPI::GetComm()); 
-  #else
-    CtrlNodeDeformation = move(CtrlNodeDeformation_local);
-  #endif     
 }
 
-void CRadialBasisFunctionInterpolation::SetDerivativeDeformation(CGeometry* geometry, CConfig* config, vector<unsigned long>& internalNodes){
+void CRadialBasisFunctionInterpolation::SetInternalNodeDerivatives(CGeometry* geometry, CConfig* config, vector<unsigned long>& internalNodes, bool ForwardProjectionDerivative) {
+  
+  SU2_COMPONENT Kind_SU2 = config->GetKind_SU2();
+  
+  if ((Kind_SU2 == SU2_COMPONENT::SU2_DOT) && !ForwardProjectionDerivative) {
+    CtrlNodeDeformation.resize(internalNodes.size() * nDim, 0.0); 
 
-  /* --- Initialization of the deformation vector ---*/
-  CtrlNodeDeformation.resize(internalNodes.size()*nDim, 0.0); 
-
-  ofstream der("derivatives_rbf.txt");
-  for(auto iNode =0ul; iNode < geometry->GetnPoint(); iNode++){
-    der << iNode << "\t";
-    for (auto iDim = 0u; iDim < nDim; iDim++) {
-      der <<  SU2_TYPE::GetValue(geometry->GetSensitivity(iNode, iDim)) << "\t";
+    for (auto iNode = 0ul; iNode < internalNodes.size(); iNode++){
+      for (auto iDim =0u; iDim < nDim; iDim++){
+        CtrlNodeDeformation[iNode * nDim + iDim] = SU2_TYPE::GetValue(geometry->GetSensitivity(internalNodes[iNode], iDim));
+      }
     }
-    der << endl;
+  } else {
+    SU2_MPI::Error("Missing feature in RBF interpolation", CURRENT_FUNCTION);
   }
+}
 
-  der.close();
+void CRadialBasisFunctionInterpolation::SetCtrlNodeDerivatives(CGeometry* geometry, CConfig* config, bool ForwardProjectionDerivative){
   
+  SU2_COMPONENT Kind_SU2 = config->GetKind_SU2();
 
-  for (auto iNode = 0ul; iNode < internalNodes.size(); iNode++){
-    for (auto iDim =0u; iDim<nDim; iDim++){
-      CtrlNodeDeformation[iNode*nDim + iDim] = SU2_TYPE::GetValue(geometry->GetSensitivity(internalNodes[iNode], iDim));
-    }
-  }
+  if ((Kind_SU2 == SU2_COMPONENT::SU2_DOT) && !ForwardProjectionDerivative) {
+    CtrlNodeDeformation.resize(ControlNodes->size() * nDim, 0.0);
 
-  // /*--- Loop over the control nodes ---*/
-  // for (auto iNode = 0ul; iNode < ControlNodes->size(); iNode++) {
-    
-  //    /*--- Setting nonzero displacement of the moving markers, else setting zero displacement for static markers---*/
-  //   // cout << config->GetMarker_All_Moving((*ControlNodes)[iNode]->GetMarker()) << "\t" << config->GetMarker_All_DV((*ControlNodes)[iNode]->GetMarker()) << endl;
-  //   // if (config->GetMarker_All_Moving((*ControlNodes)[iNode]->GetMarker()) || config->GetMarker_All_DV((*ControlNodes)[iNode]->GetMarker())) {   //TODO check which combinations of conditions are made in CLinearElasticity.cpp 
-
-  //     for (auto iDim = 0u; iDim < nDim; iDim++) {
-  //       CtrlNodeDeformation[iNode*nDim + iDim] = SU2_TYPE::GetValue(geometry->GetSensitivity((*ControlNodes)[iNode]->GetIndex(), iDim));
-  //     }
-  //   // }
-    
-  // //   else{ //TODO Will never get in this loop? 
-  // //     for (auto iDim = 0u; iDim < nDim; iDim++) {
-  // //       CtrlNodeDeformation[iNode*nDim + iDim] = 0.0;
-  // //     }
-  // //   }
-  // }
-  
-  
-  /*--- In case of a parallel computation, the deformation of all control nodes is send to the master process ---*/
-  #ifdef HAVE_MPI
-    
-    /*--- Local number of control nodes ---*/
-    unsigned long Local_nControlNodes = ControlNodes->size();
-
-    /*--- Array containing the local number of control nodes ---*/
-    unsigned long Local_nControlNodesArr[size];
-
-    /*--- gathering local control node coordinate sizes on all processes. ---*/
-    SU2_MPI::Allgather(&Local_nControlNodes, 1, MPI_UNSIGNED_LONG, Local_nControlNodesArr, 1, MPI_UNSIGNED_LONG, SU2_MPI::GetComm()); 
-
-    /*--- Gathering all deformation vectors on the master node ---*/
-    if(rank==MASTER_NODE){
-
-      /*--- resizing the global deformation vector ---*/
-      CtrlNodeDeformation.resize(nCtrlNodesGlobal*nDim);
-
-      /*--- Receiving the local deformation vector from other processes ---*/
-      unsigned long start_idx = 0;
-      for (auto iProc = 0; iProc < size; iProc++) {
-        if (iProc != MASTER_NODE) {
-          SU2_MPI::Recv(&CtrlNodeDeformation[0] + start_idx, Local_nControlNodesArr[iProc]*nDim, MPI_DOUBLE, iProc, 0, SU2_MPI::GetComm(), MPI_STATUS_IGNORE); 
+    for (auto iNode = 0ul; iNode < ControlNodes->size(); iNode++){
+      if ((config->GetMarker_All_DV((*ControlNodes)[iNode]->GetMarker()) == YES) && (Kind_SU2 == SU2_COMPONENT::SU2_DOT)) {  
+        for (auto iDim = 0u; iDim < nDim; iDim++){
+          CtrlNodeDeformation[iNode * nDim + iDim] = SU2_TYPE::GetValue(geometry->GetSensitivity((*ControlNodes)[iNode]->GetIndex(), iDim));
         }
-        start_idx += Local_nControlNodesArr[iProc]*nDim;
-      }      
-
-    }else{
-
-      /*--- Sending the local deformation vector to the master node ---*/
-      SU2_MPI::Send(CtrlNodeDeformation.data(), Local_nControlNodes*nDim, MPI_DOUBLE, MASTER_NODE, 0, SU2_MPI::GetComm());  
+      }
     }
-  #endif   
+  } else {
+    SU2_MPI::Error("Missing feature in RBF interpolation", CURRENT_FUNCTION);
+  }
 }
 
 void CRadialBasisFunctionInterpolation::SetInternalNodes(CGeometry* geometry, CConfig* config, vector<unsigned long>& internalNodes){ 
@@ -599,7 +551,6 @@ void CRadialBasisFunctionInterpolation::SetInternalNodes(CGeometry* geometry, CC
     }
   }
 
-  
 
   /*--- In case of a parallel computation, the nodes on the send/receive markers are included as internal nodes
           if they are not already a boundary node with known deformation ---*/
@@ -631,12 +582,10 @@ void CRadialBasisFunctionInterpolation::SetInternalNodes(CGeometry* geometry, CC
     /*--- Obtaining unique set of internal nodes ---*/
     internalNodes.resize(std::distance(internalNodes.begin(), unique(internalNodes.begin(), internalNodes.end())));
   #endif
+
 }
 
 void CRadialBasisFunctionInterpolation::ComputeInterpCoeffs(su2passivematrix& invInterpMat) {
-
-  /*--- Broadcast the deformation vector to all processes ---*/
-  CtrlNodeDeformation.resize(nCtrlNodesGlobal*nDim);
 
   /*--- resizing the interpolation coefficient vector ---*/
   InterpCoeff.resize(nDim * nCtrlNodesGlobal);
@@ -644,26 +593,31 @@ void CRadialBasisFunctionInterpolation::ComputeInterpCoeffs(su2passivematrix& in
   /*--- Each process computes a portion of the result ---*/
   vector<su2double> interpCoeffLocal(nDim * nCtrlNodesGlobal, 0.0);
 
-  for (auto iNode = rank; iNode < nCtrlNodesGlobal; iNode += size) {
-    for (auto iDim = 0u; iDim < nDim; iDim++) {
-      for (auto jNode = 0ul; jNode < nCtrlNodesGlobal; jNode++) {
-        interpCoeffLocal[iNode * nDim + iDim] += invInterpMat(iNode, jNode) * CtrlNodeDeformation[jNode * nDim + iDim];
+
+  unsigned long nCtrlNode = ControlNodes->size();
+  unsigned long nCtrlNodes[size];
+  SU2_MPI::Allgather(&nCtrlNode, 1, MPI_UNSIGNED_LONG, nCtrlNodes, 1, MPI_UNSIGNED_LONG, SU2_MPI::GetComm()); 
+  
+  unsigned long start_idx = 0;
+  for (auto iProc = 0; iProc < rank; iProc++){
+    start_idx += nCtrlNodes[iProc];
+  }
+
+  for (auto iNode = 0; iNode < ControlNodes->size(); iNode++){
+    for (auto iDim = 0u; iDim < nDim; iDim++){
+      for (auto jNode = 0; jNode < nCtrlNodesGlobal; jNode++ ){
+        // interpCoeffLocal has sums of global vector, CtrlNodeDeformation vector should be the local one
+        interpCoeffLocal[jNode*nDim + iDim] += invInterpMat(jNode, iNode + start_idx) * CtrlNodeDeformation[iNode*nDim+iDim];
       }
     }
   }
-
+  
   /*--- Gather the results from all processes on the master node ---*/
   #ifdef HAVE_MPI
-    SU2_MPI::Reduce(interpCoeffLocal.data(), InterpCoeff.data(), interpCoeffLocal.size(), MPI_DOUBLE, MPI_SUM, MASTER_NODE, SU2_MPI::GetComm());
+    SU2_MPI::Allreduce(interpCoeffLocal.data(), InterpCoeff.data(), interpCoeffLocal.size(), MPI_DOUBLE, MPI_SUM, SU2_MPI::GetComm());
   #else
     InterpCoeff = move(interpCoeffLocal);
   #endif
-
-  /*--- Broadcast the interpolation coefficients to all processes ---*/
-  #ifdef HAVE_MPI
-    SU2_MPI::Bcast(InterpCoeff.data(), InterpCoeff.size(), MPI_DOUBLE, MASTER_NODE, SU2_MPI::GetComm());
-  #endif
-
 }
 
 void CRadialBasisFunctionInterpolation::UpdateGridCoord(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type, const su2double radius, const vector<unsigned long>& internalNodes){
@@ -680,24 +634,43 @@ void CRadialBasisFunctionInterpolation::UpdateGridCoord(CGeometry* geometry, CCo
 
   /*--- In case of data reduction, perform the correction for nonzero error nodes ---*/
   if(config->GetRBF_DataReduction() && BoundNodes.size() > 0){
-    SetCorrection(geometry, config, type, internalNodes);
+    SetCorrection(geometry, config, type, internalNodes); 
   }
 }
 
 void CRadialBasisFunctionInterpolation::UpdateGridCoord_Derivatives(CGeometry* geometry, CConfig* config, bool ForwardProjectionDerivative){
-  ofstream sens("rbf_res.txt");
-  for (auto iNode = 0ul; iNode < ControlNodes->size(); iNode++) {
-    if (config->GetMarker_All_DV((*ControlNodes)[iNode]->GetMarker())) {   //TODO check which combinations of conditions are made in CLinearElasticity.cpp 
-      for (auto iDim = 0u; iDim < nDim; iDim++) {
-        auto total_index = iNode*nDim + iDim;
-        // CtrlNodeDeformation[iNode*nDim + iDim] = SU2_TYPE::GetValue(geometry->GetSensitivity((*ControlNodes)[iNode]->GetIndex(), iDim));
-        // geometry->SetSensitivity((*ControlNodes)[iNode]->GetIndex(), iDim, SU2_TYPE::GetValue(sensitivity[total_index]));
-        geometry->SetSensitivity((*ControlNodes)[iNode]->GetIndex(), iDim, SU2_TYPE::GetValue(sensitivity_update[iNode*nDim+iDim]));
-        sens << (*ControlNodes)[iNode]->GetIndex() << "\t" << SU2_TYPE::GetValue(sensitivity_update[iNode*nDim+iDim]) << endl;
+  
+  
+  SU2_COMPONENT Kind_SU2 = config->GetKind_SU2();
+
+  if ((Kind_SU2 == SU2_COMPONENT::SU2_DOT) && !ForwardProjectionDerivative) {
+  
+    unsigned long nCtrlNode = ControlNodes->size();
+    unsigned long nCtrlNodes[size];
+    SU2_MPI::Allgather(&nCtrlNode, 1, MPI_UNSIGNED_LONG, nCtrlNodes, 1, MPI_UNSIGNED_LONG, SU2_MPI::GetComm()); 
+
+    unsigned long start_idx = 0;
+    for (auto iProc = 0; iProc < rank; iProc++){
+      start_idx += nCtrlNodes[iProc]*nDim;
+    }
+    
+    for (auto iNode = 0ul; iNode < ControlNodes->size(); iNode++) {
+      auto iMarker = (*ControlNodes)[iNode]->GetMarker();
+      if (config->GetSolid_Wall(iMarker) || (config->GetMarker_All_DV(iMarker) == YES)) {
+              
+        auto iPoint = (*ControlNodes)[iNode]->GetIndex();
+        for (auto iDim = 0u; iDim < nDim; iDim++) {      
+          
+          // summation of current sensitivity and the computed update
+          su2double sens_new =  geometry->GetSensitivity(iPoint, iDim) + sensitivity_update[start_idx + iNode*nDim+iDim];
+          geometry->SetSensitivity(iPoint, iDim, sens_new);
+        }
       }
     }
+  } else {
+    SU2_MPI::Error("Missing feature in RBF interpolation", CURRENT_FUNCTION);
   }
-  sens.close();
+
 }
 
 void CRadialBasisFunctionInterpolation::UpdateInternalCoords(CGeometry* geometry, const RADIAL_BASIS& type, const su2double radius, const vector<unsigned long>& internalNodes){
@@ -765,37 +738,37 @@ void CRadialBasisFunctionInterpolation::UpdateBoundCoords(CGeometry* geometry, C
 
     }
   }
-  
-  unsigned long nCtrlNode = ControlNodes->size();
-  unsigned long nCtrlNodes[size];
-  SU2_MPI::Allgather(&nCtrlNode, 1, MPI_UNSIGNED_LONG, nCtrlNodes, 1, MPI_UNSIGNED_LONG, SU2_MPI::GetComm()); 
 
-  unsigned long start_idx = 0;
-  for (auto iProc = 0; iProc < rank; iProc++){
-    start_idx += nCtrlNodes[iProc]*nDim;
-  }
-  
   /*--- Applying the surface deformation, which are stored in the deformation vector ---*/
   for(auto jNode = 0ul; jNode < ControlNodes->size(); jNode++){ 
     if(config->GetMarker_All_Moving((*ControlNodes)[jNode]->GetMarker()) || config->GetMarker_All_DV((*ControlNodes)[jNode]->GetMarker())){
       for(auto iDim = 0u; iDim < nDim; iDim++){
-          geometry->nodes->AddCoord((*ControlNodes)[jNode]->GetIndex(), iDim, CtrlNodeDeformation[start_idx + jNode*nDim + iDim]); 
+          geometry->nodes->AddCoord((*ControlNodes)[jNode]->GetIndex(), iDim, CtrlNodeDeformation[jNode*nDim + iDim]); 
       }
     }
   }
 }
 
-void CRadialBasisFunctionInterpolation::GetInitMaxErrorNode(CGeometry* geometry, CConfig* config, unsigned long& maxErrorNodeLocal, su2double& maxErrorLocal){
+void CRadialBasisFunctionInterpolation::GetInitMaxErrorNode(CGeometry* geometry, CConfig* config, bool Derivative,  unsigned long& maxErrorNodeLocal, su2double& maxErrorLocal){
 
   /*--- Set max error to zero ---*/
   maxErrorLocal = 0.0;
 
   /*--- Loop over the nodes ---*/  
-  for(auto iNode = 0ul; iNode < BoundNodes.size(); iNode++){
+  for (auto iNode = 0ul; iNode < BoundNodes.size(); iNode++){
 
+    su2double normSquaredDeformation = 0;
     /*--- Compute to squared norm of the deformation ---*/
-    su2double normSquaredDeformation = GeometryToolbox::SquaredNorm(nDim, geometry->vertex[BoundNodes[iNode]->GetMarker()][BoundNodes[iNode]->GetVertex()]->GetVarCoord());    
-
+    if (Derivative){
+      auto iPoint = BoundNodes[iNode]->GetIndex();
+      for (auto iDim = 0u; iDim < nDim; iDim++){
+        passivedouble sens_i = SU2_TYPE::GetValue(geometry->GetSensitivity(iPoint, iDim));
+        normSquaredDeformation += sens_i * sens_i;
+      }
+    } else {
+      normSquaredDeformation = GeometryToolbox::SquaredNorm(nDim, geometry->vertex[BoundNodes[iNode]->GetMarker()][BoundNodes[iNode]->GetVertex()]->GetVarCoord());    
+    }
+    
     /*--- In case squared norm deformation is larger than the error, update the error ---*/
     if(normSquaredDeformation > maxErrorLocal){
       maxErrorLocal = normSquaredDeformation;
@@ -842,7 +815,7 @@ void CRadialBasisFunctionInterpolation::SetCtrlNodeCoords(CGeometry* geometry){
 };
 
 
-void CRadialBasisFunctionInterpolation::GetInterpError(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type, const su2double radius, unsigned long& maxErrorNodeLocal, su2double& maxErrorLocal){
+void CRadialBasisFunctionInterpolation::GetInterpError(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type, const su2double radius, bool Derivative, unsigned long& maxErrorNodeLocal, su2double& maxErrorLocal){
   /*--- Array containing the local error ---*/
   su2double localError[nDim];
 
@@ -853,7 +826,7 @@ void CRadialBasisFunctionInterpolation::GetInterpError(CGeometry* geometry, CCon
   for(auto iNode = 0ul; iNode < BoundNodes.size(); iNode++){
 
     /*--- Compute nodal error ---*/
-    GetNodalError(geometry, config, type, radius, iNode, localError);
+    GetNodalError(geometry, config, type, radius, iNode, Derivative, localError);
 
     /*--- Setting error ---*/
     BoundNodes[iNode]->SetError(localError, nDim);
@@ -867,24 +840,33 @@ void CRadialBasisFunctionInterpolation::GetInterpError(CGeometry* geometry, CCon
   }  
 }
 
-void CRadialBasisFunctionInterpolation::GetNodalError(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type, const su2double radius, unsigned long iNode, su2double* localError){ 
+void CRadialBasisFunctionInterpolation::GetNodalError(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type, const su2double radius, unsigned long iNode, bool Derivative, su2double* localError){ 
   
   /*--- If requested (no by default) impose the surface deflections in increments ---*/
   const su2double VarIncrement = 1.0 / ((su2double)config->GetGridDef_Nonlinear_Iter());
   
   /*--- If node is part of a moving boundary then the error is defined as the difference
            between the found and prescribed displacements. Thus, here the displacement is substracted from the error ---*/
-  if(config->GetMarker_All_Moving(BoundNodes[iNode]->GetMarker())){
-    auto displacement = geometry->vertex[BoundNodes[iNode]->GetMarker()][BoundNodes[iNode]->GetVertex()]->GetVarCoord();
 
-    for(auto iDim = 0u; iDim < nDim; iDim++){
-      localError[iDim] = -displacement[iDim] * VarIncrement;
+  if (Derivative) {
+    for (auto iDim =0u; iDim < nDim; iDim++) {
+      localError[iDim] = -geometry->GetSensitivity(BoundNodes[iNode]->GetIndex(), iDim) * VarIncrement;
     }
   }else{
-    for(auto iDim = 0u; iDim < nDim; iDim++){
-      localError[iDim] = 0; 
+  
+    if(config->GetMarker_All_Moving(BoundNodes[iNode]->GetMarker())){
+      auto displacement = geometry->vertex[BoundNodes[iNode]->GetMarker()][BoundNodes[iNode]->GetVertex()]->GetVarCoord();
+
+      for(auto iDim = 0u; iDim < nDim; iDim++){
+        localError[iDim] = -displacement[iDim] * VarIncrement;
+      }
+    }else{
+      for(auto iDim = 0u; iDim < nDim; iDim++){
+        localError[iDim] = 0; 
+      }
     }
   }
+
 
   /*--- Resulting displacement from the RBF interpolation is added to the error ---*/
 

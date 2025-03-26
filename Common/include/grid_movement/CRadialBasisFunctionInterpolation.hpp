@@ -45,16 +45,14 @@ protected:
   
   
   vector<su2double> CtrlNodeDeformation;  /*!< \brief Control Node Deformation.*/ 
+
   vector<su2double> InterpCoeff;          /*!< \brief Control node interpolation coefficients.*/
 
   unsigned long nCtrlNodesGlobal{0};      /*!< \brief Total number of control nodes.*/
   su2activematrix CtrlCoords;             /*!< \brief Coordinates of the control nodes.*/
 
   su2double MaxErrorGlobal{0.0};          /*!< \brief Maximum error data reduction algorithm.*/
-  vector<su2double> lhs;
-  vector<su2double> sensitivity;
-  su2double* sensitivity_update;
-
+  vector<su2double> sensitivity_update;
   
   
 public:
@@ -109,7 +107,7 @@ public:
   * \param[in] radius - Support radius of the radial basis function.
   */
 
-  void SolveRBF_System(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type, const su2double radius, bool Derivative, vector<unsigned long>& internalNodes);
+  void SolveRBF_System(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type, const su2double radius, bool Derivative, vector<unsigned long>& internalNodes, bool ForwardProjectionDerivative);
 
   /*!
   * \brief Obtaining the interpolation coefficients of the control nodes.
@@ -119,7 +117,7 @@ public:
   * \param[in] radius - Support radius of the radial basis function.
   */
 
-  void GetInterpCoeffs(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type, const su2double radius, bool Derivative, vector<unsigned long>& internalNodes);
+  void GetInterpCoeffs(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type, const su2double radius, bool Derivative, vector<unsigned long>& internalNodes, bool ForwardProjectionDerivative);
 
 
   /*!
@@ -133,10 +131,12 @@ public:
   * \param[in] geometry - Geometrical definition of the problem.
   * \param[in] config - Definition of the particular problem.
   */
-  void SetDeformation(CGeometry* geometry, CConfig* config);
+  void SetBoundaryDisplacements(CGeometry* geometry, CConfig* config);
 
-  void SetDerivativeDeformation(CGeometry* geometry, CConfig* config, vector<unsigned long>& internalNodes);
-
+  void SetCtrlNodeDerivatives(CGeometry* geometry, CConfig* config, bool ForwardProjectionDerivative);
+ 
+  void SetInternalNodeDerivatives(CGeometry* geometry, CConfig* config, vector<unsigned long>& internalNodes, bool ForwardProjectionDerivative);
+ 
   /*!
   * \brief Computation of the interpolation matrix and inverting in.
   * \param[in] geometry - Geometrical definition of the problem.
@@ -160,7 +160,7 @@ public:
   * \param[in] maxErrorNodeLocal - Local maximum error node.
   * \param[in] maxErrorLocal - Local maximum error.
   */
-  void GetInitMaxErrorNode(CGeometry* geometry, CConfig* config, unsigned long& maxErrorNodeLocal, su2double& maxErrorLocal);
+  void GetInitMaxErrorNode(CGeometry* geometry, CConfig* config, bool Derivative, unsigned long& maxErrorNodeLocal, su2double& maxErrorLocal);
 
   /*! 
   * \brief Addition of control node to the reduced set.
@@ -182,7 +182,7 @@ public:
   * \param[in] maxErrorNodeLocal - Local maximum error node.
   * \param[in] maxErrorLocal - Local maximum error.
   */
-  void GetInterpError(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type, const su2double radius, unsigned long& maxErrorNodeLocal, su2double& maxErrorLocal);
+  void GetInterpError(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type, const su2double radius, bool Derivative, unsigned long& maxErrorNodeLocal, su2double& maxErrorLocal);
 
   /*! 
   * \brief Compute error of single node.
@@ -193,7 +193,7 @@ public:
   * \param[in] iNode - Local node in consideration.
   * \param[in] localError - Local error.
   */
-  void GetNodalError(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type, const su2double radius, unsigned long iNode, su2double* localError);
+  void GetNodalError(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type, const su2double radius, unsigned long iNode, bool Derivative, su2double* localError);
 
   /*!
   * \brief Updating the grid coordinates.
@@ -253,5 +253,5 @@ public:
   }
 
   void UpdateGridCoord_Derivatives(CGeometry* geometry, CConfig* config, bool ForwardProjectionDerivative);
-  void ComputeSensitivity(CGeometry* geometry, const RADIAL_BASIS& type, const su2double radius, su2passivematrix &invInterpMat, vector<unsigned long>& internalNodes);
+  void ComputeSensitivity(CGeometry* geometry, CConfig* config /*TODO this was added*/,  const RADIAL_BASIS& type, const su2double radius, su2passivematrix &invInterpMat, vector<unsigned long>& internalNodes);
 };

@@ -49,15 +49,9 @@ extern "C" void dsymm_(const char*, const char*, const int*, const int*, const p
 
 void CSymmetricMatrix::Initialize(int N) { mat.resize(N, N); }
 
-//TODO place elsewhere
-void CSymmetricMatrix::Broadcast(const int rank, const int MASTER_NODE) {
-  SU2_MPI::Bcast(mat.data(), mat.size(), MPI_DOUBLE, MASTER_NODE, SU2_MPI::GetComm());
-}
-
-
 void CSymmetricMatrix::CholeskyDecomposeParallel(const int n, const int rank, const int size) {
 
-  std::vector<passivedouble> column(n);
+  std::vector<su2double> column(n);
 
   for (auto i = 0; i < n; i++) {
     if (i % size == rank) {
@@ -76,7 +70,7 @@ void CSymmetricMatrix::CholeskyDecomposeParallel(const int n, const int rank, co
     SU2_MPI::Bcast(column.data() + i, n - i, MPI_DOUBLE, i % size, SU2_MPI::GetComm());
 
     for (auto j = i; j < n; j++) {
-        Set(j, i, column[j]);
+        Set(j, i, SU2_TYPE::GetValue(column[j]));
     }
 
     for (auto j = i + 1; j < n; j++) {
@@ -92,7 +86,7 @@ void CSymmetricMatrix::CholeskyDecomposeParallel(const int n, const int rank, co
         SU2_MPI::Bcast(column.data() + j, n - j, MPI_DOUBLE, j % size, SU2_MPI::GetComm());
 
         for (auto k = j; k < n; k++) {
-            Set(k, j, column[k]);
+            Set(k, j, SU2_TYPE::GetValue(column[k]));
         }
     }
   }
@@ -101,7 +95,7 @@ void CSymmetricMatrix::CholeskyDecomposeParallel(const int n, const int rank, co
 void CSymmetricMatrix::ComputeLInverse(CSymmetricMatrix& L_inv, const int rank, const int size) {
   auto n = Size();
   L_inv.Initialize(n);
-  std::vector<passivedouble> column(n);
+  std::vector<su2double> column(n);
 
   for (auto j = 0; j < n; ++j) {
       if (j % size == rank) {
@@ -119,38 +113,39 @@ void CSymmetricMatrix::ComputeLInverse(CSymmetricMatrix& L_inv, const int rank, 
       for (auto i = j; i < n; ++i) {
           column[i] = L_inv(i, j);
       }
+
       SU2_MPI::Bcast(column.data() + j, n - j, MPI_DOUBLE, j % size, SU2_MPI::GetComm());
 
       for (auto i = j; i < n; ++i) {
-          L_inv(i, j) = column[i];
+          L_inv(i, j) = SU2_TYPE::GetValue(column[i]);
       }
   }
 }
 
 void CSymmetricMatrix::ComputeAInverse(const CSymmetricMatrix& L_inv, const int rank, const int size) {
   auto n = Size();
-  std::vector<passivedouble> column(n);
+  std::vector<su2double> column(n);
 
   for (auto j = 0; j < n; ++j) {
-      if (j % size == rank) {
-          for (auto i = j; i < n; ++i) {
-              passivedouble sum = 0.0;
-              for (auto k = i; k < n; ++k) {
-                  sum += L_inv(k, i) * L_inv(k, j);
-              }
-              Set(i,j,sum);
-          }
-      }
+    if (j % size == rank) {
+        for (auto i = j; i < n; ++i) {
+            passivedouble sum = 0.0;
+            for (auto k = i; k < n; ++k) {
+                sum += L_inv(k, i) * L_inv(k, j);
+            }
+            Set(i,j,sum);
+        }
+    }
 
-      // Broadcast the entire column of A_inv
-      for (auto i = j; i < n; ++i) {
-          column[i] = Get(i, j);
-      }
-      SU2_MPI::Bcast(column.data() + j, n - j, MPI_DOUBLE, j % size, SU2_MPI::GetComm());
+    // Broadcast the entire column of A_inv
+    for (auto i = j; i < n; ++i) {
+        column[i] = Get(i, j);
+    }
+    SU2_MPI::Bcast(column.data() + j, n - j, MPI_DOUBLE, j % size, SU2_MPI::GetComm());
 
-      for (auto i = j; i < n; ++i) {
-          Set(i,j, column[i]);
-      }
+    for (auto i = j; i < n; ++i) {
+        Set(i,j, SU2_TYPE::GetValue(column[i]));
+    }
   }
 }
 
