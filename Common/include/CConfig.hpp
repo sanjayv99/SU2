@@ -658,7 +658,6 @@ private:
   bool RBF_DataReduction;            /*!< \brief Determines use of data reduction methods for RBF mesh deformation. */
   su2double RBF_GreedyTolerance;      /*!< \brief Tolerance used in the greedy data reduction for RBF mesh deformation. */
   su2double RBF_GreedyCorrectionFactor;   /*!< \brief Correction factor used in the greedy algorithm for RBF mesh deformation. */
-  bool Wrt_RBFCtrlNodes;              /*!< \brief Write mesh deformation RBF control nodes to file. */
   unsigned short FFD_Continuity;     /*!< \brief Surface continuity at the intersection with the FFD */
   unsigned short FFD_CoordSystem;    /*!< \brief Define the coordinates system */
   su2double Deform_ElasticityMod,    /*!< \brief Young's modulus for volume deformation stiffness model */
@@ -3267,12 +3266,6 @@ public:
    * \return <code>TRUE</code> means that projected sensitivities on surfaces in an ASCII file with rows as x, y, z, dJ/dx, dJ/dy, dJ/dz for each vertex will be written.
    */
   bool GetWrt_Projected_Sensitivity(void) const { return Wrt_Projected_Sensitivity; }
-
-  /*!
-   * \brief Get information about writing RBF control nodes to an ASCII file.
-   * \return <code>TRUE</code> means that RBF control nodes in an ASCII file will be written.
-   */
-  bool GetWrt_RBFCtrlNodes(void) const { return Wrt_RBFCtrlNodes; }
 
   /*!
    * \brief Get information about the format for the input volume sensitvities.
