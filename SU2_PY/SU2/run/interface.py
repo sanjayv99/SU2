@@ -33,6 +33,8 @@ import os, sys, shutil, copy
 import subprocess
 from ..io import Config
 from ..util import which
+import time
+import psutil
 
 # ------------------------------------------------------------
 #  Setup
@@ -264,10 +266,27 @@ def run_command(Command):
 
     sys.stdout.flush()
 
+    
     proc = subprocess.Popen(
         Command, shell=True, stdout=sys.stdout, stderr=subprocess.PIPE
     )
-    return_code = proc.wait()
+
+    with open(os.path.dirname(os.path.dirname(os.path.dirname(os.getcwd()))) + "/memory.txt", "a") as file:
+      parent_proc = psutil.Process(proc.pid)
+      child_proc = parent_proc.children(recursive=True)
+      total_mem_rss = (parent_proc.memory_info().rss + sum(c.memory_info().rss for c in child_proc)) / (1024 * 1024)
+
+      file.write(Command[Command.rfind("/")+1: Command.rfind(" ")] + "\t" + str(time.time()) + "\t" + str(total_mem_rss) + "\n")
+      # print(Command[Command.rfind("/")+1: Command.rfind(" ")], time.time(), total_mem_rss)
+      
+      while proc.poll() is None:
+
+        total_mem_rss = (parent_proc.memory_info().rss + sum(c.memory_info().rss for c in child_proc)) / (1024 *1024)
+        file.write(Command[Command.rfind("/")+1: Command.rfind(" ")] + "\t" + str(time.time()) + "\t" + str(total_mem_rss) + "\n")
+        time.sleep(0.1)
+
+      return_code = proc.wait()
+      
     message = proc.stderr.read().decode()
 
     if return_code < 0:

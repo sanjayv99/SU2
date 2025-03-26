@@ -277,6 +277,9 @@ def shape_optimization(
     else:
         project = SU2.opt.Project(config, state)
 
+    with open("memory.txt", "w") as f:
+        f.write("Command\tTime\tMem RSS\n")
+        
     # Optimize
     if optimization == "SLSQP":
         SU2.opt.SLSQP(project, x0, xb, its, accu)
