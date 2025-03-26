@@ -122,20 +122,7 @@ void CRadialBasisFunctionInterpolation::SetVolume_Deformation(CGeometry* geometr
         cout << "Min. volume: " << MinVolume <<  "." << endl;
     }  
     
-  }
-
-  if( (config->GetKind_SU2() == SU2_COMPONENT::SU2_DEF) && (config->GetWrt_RBFCtrlNodes()) && (rank == MASTER_NODE)){
-    string str = "rbf_ctrl.dat";
-
-    ofstream ctrl_file;
-    ctrl_file.open(str.c_str(), ios::out);
-
-    for (auto iNode : *ControlNodes) {
-      ctrl_file << iNode->GetIndex() << endl;
-    }    
-    ctrl_file.close();
-  }
-  
+  }  
 }
 
 void CRadialBasisFunctionInterpolation::SolveRBF_System(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type, const su2double radius, bool Derivative, vector<unsigned long>& internalNodes, bool ForwardProjectionDerivative){
@@ -146,79 +133,78 @@ void CRadialBasisFunctionInterpolation::SolveRBF_System(CGeometry* geometry, CCo
   
   if(config->GetRBF_DataReduction()){
     
-      /*--- Local maximum error node and corresponding maximum error  ---*/
-      unsigned long maxErrorNodeLocal;
-      su2double maxErrorLocal{0};
+    /*--- Local maximum error node and corresponding maximum error  ---*/
+    unsigned long maxErrorNodeLocal;
+    su2double maxErrorLocal{0};
 
-      /*--- Obtaining the initial maximum error nodes, which are found based on the maximum applied deformation. */
-      if(ControlNodes->empty()){
-        GetInitMaxErrorNode(geometry, config, Derivative, maxErrorNodeLocal, maxErrorLocal); 
-        SU2_MPI::Allreduce(&maxErrorLocal, &MaxErrorGlobal, 1, MPI_DOUBLE, MPI_MAX, SU2_MPI::GetComm());
+    /*--- Obtaining the initial maximum error nodes, which are found based on the maximum applied deformation. */
+    if(ControlNodes->empty()){
+      GetInitMaxErrorNode(geometry, config, Derivative, maxErrorNodeLocal, maxErrorLocal); 
+      SU2_MPI::Allreduce(&maxErrorLocal, &MaxErrorGlobal, 1, MPI_DOUBLE, MPI_MAX, SU2_MPI::GetComm());
+    }
+
+    /*--- Number of greedy iterations. ---*/
+    unsigned short greedyIter = 0;
+    
+    /*--- Error tolerance for the data reduction tolerance ---*/
+    const su2double dataReductionTolerance = config->GetRBF_DataRedTolerance() * MaxErrorGlobal; 
+
+    su2passivematrix invInterpMat;
+    /*--- While the maximum error is above the tolerance, data reduction algorithm is continued. ---*/
+    while(MaxErrorGlobal > dataReductionTolerance || greedyIter == 0){ 
+      
+      /*--- In case of a nonzero local error, control nodes are added ---*/
+      if(maxErrorLocal> 0){
+        AddControlNode(maxErrorNodeLocal);
       }
 
-      /*--- Number of greedy iterations. ---*/
-      unsigned short greedyIter = 0;
+      /*--- Obtaining the global number of control nodes. ---*/
+      Get_nCtrlNodesGlobal();
       
-      /*--- Error tolerance for the data reduction tolerance ---*/
-      const su2double dataReductionTolerance = config->GetRBF_DataRedTolerance() * MaxErrorGlobal; 
+      /*--- Obtaining the control nodes coordinates and distributing over all processes. ---*/
+      SetCtrlNodeCoords(geometry);
 
-      su2passivematrix invInterpMat;
-      /*--- While the maximum error is above the tolerance, data reduction algorithm is continued. ---*/
-      while(MaxErrorGlobal > dataReductionTolerance || greedyIter == 0){ 
-        
-        /*--- In case of a nonzero local error, control nodes are added ---*/
-        if(maxErrorLocal> 0){
-          AddControlNode(maxErrorNodeLocal);
-        }
-
-        /*--- Obtaining the global number of control nodes. ---*/
-        Get_nCtrlNodesGlobal();
-        
-        /*--- Obtaining the control nodes coordinates and distributing over all processes. ---*/
-        SetCtrlNodeCoords(geometry);
-
-        /*--- Obtaining the deformation of the control nodes. ---*/
-        if (!Derivative){
-          SetBoundaryDisplacements(geometry, config);
-        }else{
-          SetCtrlNodeDerivatives(geometry, config, ForwardProjectionDerivative);
-        } 
-
-        /*--- Computation of the (inverse) interpolation matrix. ---*/
-        
-        GetInvInterpMat(geometry, type, radius, invInterpMat);
-        
-        /*--- Obtaining the interpolation coefficients. ---*/
-        ComputeInterpCoeffs(invInterpMat);
-
-        /*--- Determining the interpolation error, of the non-control boundary nodes. ---*/
-        GetInterpError(geometry, config, type, radius, Derivative, maxErrorNodeLocal, maxErrorLocal); 
-        SU2_MPI::Allreduce(&maxErrorLocal, &MaxErrorGlobal, 1, MPI_DOUBLE, MPI_MAX, SU2_MPI::GetComm());
-
-        if(rank == MASTER_NODE) cout << "Greedy iteration: " << greedyIter << ". Max error: " << MaxErrorGlobal << ". Global nr. of ctrl nodes: "  << nCtrlNodesGlobal << "\n" << endl;
-        
-        //TODO  debug output
-        if (Derivative){
-          ofstream res_out("greedy_out.txt");
-          for (auto x =0ul; x < ControlNodes->size(); x++){
-            res_out << (*ControlNodes)[x]->GetIndex() << "\t" << SU2_TYPE::GetValue(CtrlNodeDeformation[x*nDim]) << "\t" << SU2_TYPE::GetValue(CtrlNodeDeformation[x*nDim+1]) << endl;
-          }
-
-          for (auto x : BoundNodes){
-            res_out << x->GetIndex() << "\t" << SU2_TYPE::GetValue(geometry->GetSensitivity(x->GetIndex(), 0))  +  x->GetError()[0] << "\t" <<  SU2_TYPE::GetValue(geometry->GetSensitivity(x->GetIndex(), 1)) + x->GetError()[1] << endl;
-          }
-          res_out.close();
-        }
-        
-        greedyIter++;
-
+      /*--- Obtaining the deformation of the control nodes. ---*/
+      if (!Derivative){
+        SetBoundaryDisplacements(geometry, config);
+      }else{
+        SetCtrlNodeDerivatives(geometry, config, ForwardProjectionDerivative);
       } 
 
-      if (Derivative){
-        SetInternalNodeDerivatives(geometry, config, internalNodes, ForwardProjectionDerivative);
-        ComputeSensitivity(geometry, config, type, radius, invInterpMat, internalNodes); //TODO Investigate possibility of doing correction for the non-selected nodes. 
-      }
+      /*--- Computation of the (inverse) interpolation matrix. ---*/
+      
+      GetInvInterpMat(geometry, type, radius, invInterpMat);
+      
+      /*--- Obtaining the interpolation coefficients. ---*/
+      ComputeInterpCoeffs(invInterpMat);
 
+      /*--- Determining the interpolation error, of the non-control boundary nodes. ---*/
+      GetInterpError(geometry, config, type, radius, Derivative, maxErrorNodeLocal, maxErrorLocal); 
+      SU2_MPI::Allreduce(&maxErrorLocal, &MaxErrorGlobal, 1, MPI_DOUBLE, MPI_MAX, SU2_MPI::GetComm());
+
+      if(rank == MASTER_NODE) cout << "Greedy iteration: " << greedyIter << ". Max error: " << MaxErrorGlobal << ". Global nr. of ctrl nodes: "  << nCtrlNodesGlobal << "\n" << endl;
+      
+      //TODO  debug output
+      if (Derivative){
+        ofstream res_out("greedy_out.txt");
+        for (auto x =0ul; x < ControlNodes->size(); x++){
+          res_out << (*ControlNodes)[x]->GetIndex() << "\t" << SU2_TYPE::GetValue(CtrlNodeDeformation[x*nDim]) << "\t" << SU2_TYPE::GetValue(CtrlNodeDeformation[x*nDim+1]) << endl;
+        }
+
+        for (auto x : BoundNodes){
+          res_out << x->GetIndex() << "\t" << SU2_TYPE::GetValue(geometry->GetSensitivity(x->GetIndex(), 0))  +  x->GetError()[0] << "\t" <<  SU2_TYPE::GetValue(geometry->GetSensitivity(x->GetIndex(), 1)) + x->GetError()[1] << endl;
+        }
+        res_out.close();
+      }
+      
+      greedyIter++;
+
+    } 
+
+    if (Derivative){
+      SetInternalNodeDerivatives(geometry, config, internalNodes, ForwardProjectionDerivative);
+      ComputeSensitivity(geometry, config, type, radius, invInterpMat, internalNodes); //TODO Investigate possibility of doing correction for the non-selected nodes. 
+    }
   }else{
     /*--- Obtaining the interpolation coefficients. ---*/
     GetInterpCoeffs(geometry, config, type, radius, Derivative, internalNodes, ForwardProjectionDerivative);
