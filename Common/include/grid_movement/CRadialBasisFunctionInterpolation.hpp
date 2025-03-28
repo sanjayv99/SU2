@@ -144,9 +144,9 @@ public:
   * \param[in] radius - Support radius of the radial basis function.
   * \param[in] invInterpMat - Inverse of the interpolation matrix.
   */
-  void GetInterpMat_sequential(CGeometry* geometry, const RADIAL_BASIS& type, const su2double radius, CSymmetricMatrix& invInterpMat);
-  void GetInterpMat_parallel(CGeometry* geometry, const RADIAL_BASIS& type, const su2double radius, CSymmetricMatrix& interpMat);//TODO fix
-  void GetInvInterpMat(CGeometry* geometry, const RADIAL_BASIS& type, const su2double radius, su2passivematrix& invInterpMat);
+  void GetInterpMat_sequential(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type, const su2double radius, CSymmetricMatrix& invInterpMat);
+  void GetInterpMat_parallel(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type, const su2double radius, CSymmetricMatrix& interpMat);//TODO fix
+  void GetInvInterpMat(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type, const su2double radius, su2passivematrix& invInterpMat);
   /*!
   * \brief Computation of interpolation coefficients
   * \param[in] invInterpMat - Inverse of interpolation matrix
@@ -212,7 +212,7 @@ public:
   * \param[in] radius - Support radius of the radial basis function.
   * \param[in] internalNodes - Internal nodes.
   */
-  void UpdateInternalCoords(CGeometry* geometry, const RADIAL_BASIS& type, const su2double radius, const vector<unsigned long>& internalNodes);
+  void UpdateInternalCoords(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type, const su2double radius, const vector<unsigned long>& internalNodes);
 
   /*!
   * \brief Updating the internal node coordinates.
@@ -254,4 +254,5 @@ public:
 
   void UpdateGridCoord_Derivatives(CGeometry* geometry, CConfig* config, bool ForwardProjectionDerivative);
   void ComputeSensitivity(CGeometry* geometry, CConfig* config /*TODO this was added*/,  const RADIAL_BASIS& type, const su2double radius, su2passivematrix &invInterpMat, vector<unsigned long>& internalNodes);
+  su2double GetDistance(CConfig* config, const su2double* a, const su2double*b);
 };
