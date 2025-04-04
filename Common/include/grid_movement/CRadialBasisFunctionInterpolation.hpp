@@ -53,6 +53,8 @@ protected:
 
   su2double MaxErrorGlobal{0.0};          /*!< \brief Maximum error data reduction algorithm.*/
   vector<su2double> sensitivity_update;
+  vector<unsigned short> boolPeriodic{0,0,0};
+  vector<su2double> per_length{0,0,0};
   
   
 public:
@@ -254,5 +256,21 @@ public:
 
   void UpdateGridCoord_Derivatives(CGeometry* geometry, CConfig* config, bool ForwardProjectionDerivative);
   void ComputeSensitivity(CGeometry* geometry, CConfig* config /*TODO this was added*/,  const RADIAL_BASIS& type, const su2double radius, su2passivematrix &invInterpMat, vector<unsigned long>& internalNodes);
-  su2double GetDistance(CConfig* config, const su2double* a, const su2double*b);
+  // su2double GetDistance(CConfig* config, const su2double* a, const su2double*b);
+  void SetPeriodicVars(CConfig* config);
+
+  inline su2double GetDistance(CConfig* config, const su2double* a, const su2double*b) const {
+    su2double d(0);    
+    for (unsigned short iDim = 0; iDim < nDim; iDim++) {
+      // su2double diff = boolPeriodic[iDim] ? (per_length[iDim]/PI_NUMBER * sin( (a[iDim] - b[iDim]) * PI_NUMBER / per_length[iDim])) : (a[iDim] - b[iDim]);
+      su2double diff;
+      if (boolPeriodic[iDim]) {
+          diff = per_length[iDim] / PI_NUMBER * sin((a[iDim] - b[iDim]) * PI_NUMBER / per_length[iDim]);
+      } else {
+          diff = a[iDim] - b[iDim];
+      }
+      d += diff * diff;
+    }  
+    return sqrt(d);
+  }
 };

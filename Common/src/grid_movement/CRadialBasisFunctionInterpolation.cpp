@@ -74,6 +74,8 @@ void CRadialBasisFunctionInterpolation::SetVolume_Deformation(CGeometry* geometr
 
   /*--- Determining the boundary and internal nodes. Setting the control nodes. ---*/ 
   SetBoundNodes(geometry, config);
+
+  if (config->GetnMarker_Periodic() != 0) SetPeriodicVars(config);
   
   vector<unsigned long> internalNodes; 
   SetInternalNodes(geometry, config, internalNodes); 
@@ -185,17 +187,17 @@ void CRadialBasisFunctionInterpolation::SolveRBF_System(CGeometry* geometry, CCo
       if(rank == MASTER_NODE) cout << "Greedy iteration: " << greedyIter << ". Max error: " << MaxErrorGlobal << ". Global nr. of ctrl nodes: "  << nCtrlNodesGlobal << "\n" << endl;
       
       //TODO  debug output
-      if (Derivative){
-        ofstream res_out("greedy_out.txt");
-        for (auto x =0ul; x < ControlNodes->size(); x++){
-          res_out << (*ControlNodes)[x]->GetIndex() << "\t" << SU2_TYPE::GetValue(CtrlNodeDeformation[x*nDim]) << "\t" << SU2_TYPE::GetValue(CtrlNodeDeformation[x*nDim+1]) << endl;
-        }
+      // if (Derivative){
+      //   ofstream res_out("greedy_out.txt");
+      //   for (auto x =0ul; x < ControlNodes->size(); x++){
+      //     res_out << (*ControlNodes)[x]->GetIndex() << "\t" << SU2_TYPE::GetValue(CtrlNodeDeformation[x*nDim]) << "\t" << SU2_TYPE::GetValue(CtrlNodeDeformation[x*nDim+1]) << endl;
+      //   }
 
-        for (auto x : BoundNodes){
-          res_out << x->GetIndex() << "\t" << SU2_TYPE::GetValue(geometry->GetSensitivity(x->GetIndex(), 0))  +  x->GetError()[0] << "\t" <<  SU2_TYPE::GetValue(geometry->GetSensitivity(x->GetIndex(), 1)) + x->GetError()[1] << endl;
-        }
-        res_out.close();
-      }
+      //   for (auto x : BoundNodes){
+      //     res_out << x->GetIndex() << "\t" << SU2_TYPE::GetValue(geometry->GetSensitivity(x->GetIndex(), 0))  +  x->GetError()[0] << "\t" <<  SU2_TYPE::GetValue(geometry->GetSensitivity(x->GetIndex(), 1)) + x->GetError()[1] << endl;
+      //   }
+      //   res_out.close();
+      // }
       
       greedyIter++;
 
@@ -247,7 +249,6 @@ void CRadialBasisFunctionInterpolation::ComputeSensitivity(CGeometry* geometry, 
       // loop over the local internal nodes
       for (auto jNode =0ul; jNode < internalNodes.size(); jNode++){
 
-        // auto dist = GeometryToolbox::Distance(nDim, CtrlCoords[iNode*nDim], geometry->nodes->GetCoord(internalNodes[jNode]));
         su2double dist = GetDistance(config, CtrlCoords[iNode*nDim], geometry->nodes->GetCoord(internalNodes[jNode]));
         auto rbf_eval = SU2_TYPE::GetValue(CRadialBasisFunction::Get_RadialBasisValue(type, radius, dist)); //TODO should this be an auto? 
         
@@ -371,19 +372,19 @@ void CRadialBasisFunctionInterpolation::GetInvInterpMat(CGeometry* geometry, CCo
   invInterpMat = interpMat.StealData();
 
   //TODO  debug output
-  if (rank == MASTER_NODE){
-    ofstream out;
-    out.open("rbf_mat_inv.txt");
-    if (out.is_open()) {
-      for (auto row_i = 0ul; row_i < nCtrlNodesGlobal; row_i++){
-        for (auto col_i = 0ul; col_i < nCtrlNodesGlobal; col_i++){
-          out << invInterpMat(row_i, col_i) << "\t";
-        }  
-        out << endl;
-      }
-      out.close();
-    } 
-  }
+  // if (rank == MASTER_NODE){
+  //   ofstream out;
+  //   out.open("rbf_mat_inv.txt");
+  //   if (out.is_open()) {
+  //     for (auto row_i = 0ul; row_i < nCtrlNodesGlobal; row_i++){
+  //       for (auto col_i = 0ul; col_i < nCtrlNodesGlobal; col_i++){
+  //         out << invInterpMat(row_i, col_i) << "\t";
+  //       }  
+  //       out << endl;
+  //     }
+  //     out.close();
+  //   } 
+  // }
 }
 
 void CRadialBasisFunctionInterpolation::GetInterpMat_parallel(CGeometry* geometry, CConfig* config, /*//TODO this parameter was added, can possibly do it differently*/ const RADIAL_BASIS& type, const su2double radius, CSymmetricMatrix& interpMat){
@@ -416,7 +417,6 @@ void CRadialBasisFunctionInterpolation::GetInterpMat_parallel(CGeometry* geometr
 
   for (auto row_i = start_row; row_i < end_row; row_i++){
     for (auto col_i = 0ul; col_i <= row_i; col_i++){
-      // auto dist = GeometryToolbox::Distance(nDim, CtrlCoords[row_i*nDim], CtrlCoords[col_i*nDim]);
       su2double dist = GetDistance(config, CtrlCoords[row_i*nDim], CtrlCoords[col_i*nDim]);
       rbf_vals[cnt++] = SU2_TYPE::GetValue(CRadialBasisFunction::Get_RadialBasisValue(type, radius, dist));
     }
@@ -461,8 +461,7 @@ void CRadialBasisFunctionInterpolation::GetInterpMat_sequential(CGeometry* geome
     /*--- Looping over the control nodes ---*/
     for ( auto jNode = iNode; jNode < nCtrlNodesGlobal; jNode++){
       
-      /*--- Distance between nodes ---*/
-      // auto dist = GeometryToolbox::Distance(nDim, CtrlCoords[iNode*nDim], CtrlCoords[jNode*nDim]);   
+      /*--- Distance between nodes ---*/ 
       su2double dist = GetDistance(config, CtrlCoords[iNode*nDim], CtrlCoords[jNode*nDim]);
       /*--- Evaluation of RBF ---*/
       interpMat(iNode, jNode) = SU2_TYPE::GetValue(CRadialBasisFunction::Get_RadialBasisValue(type, radius, dist));
@@ -705,7 +704,6 @@ void CRadialBasisFunctionInterpolation::UpdateInternalCoords(CGeometry* geometry
     for(auto jNode = 0ul; jNode < nCtrlNodesGlobal; jNode++){
 
       /*--- Determine distance between considered internal and control node ---*/
-      // auto dist = GeometryToolbox::Distance(nDim, CtrlCoords[jNode*nDim], geometry->nodes->GetCoord(internalNodes[iNode]));
       su2double dist = GetDistance(config, CtrlCoords[jNode*nDim], geometry->nodes->GetCoord(internalNodes[iNode]));
       /*--- Evaluate RBF based on distance ---*/
       auto rbf = SU2_TYPE::GetValue(CRadialBasisFunction::Get_RadialBasisValue(type, radius, dist));
@@ -739,7 +737,6 @@ void CRadialBasisFunctionInterpolation::UpdateBoundCoords(CGeometry* geometry, C
       for( auto jNode = 0ul; jNode <  nCtrlNodesGlobal; jNode++){
         
         /*--- Distance of non-selected boundary node to control node ---*/
-        // auto dist = GeometryToolbox::Distance(nDim, CtrlCoords[jNode*nDim], geometry->nodes->GetCoord(BoundNodes[iNode]->GetIndex()));
         su2double dist = GetDistance(config, CtrlCoords[jNode*nDim], geometry->nodes->GetCoord(BoundNodes[iNode]->GetIndex()));
         /*--- Evaluation of the radial basis function based on the distance ---*/
         auto rbf = SU2_TYPE::GetValue(CRadialBasisFunction::Get_RadialBasisValue(type, radius, dist));
@@ -894,7 +891,6 @@ void CRadialBasisFunctionInterpolation::GetNodalError(CGeometry* geometry, CConf
   for(auto jNode = 0ul; jNode < nCtrlNodesGlobal; jNode++){
 
     /*--- Distance between non-selected boundary node and control node ---*/
-    // auto dist = GeometryToolbox::Distance(nDim, CtrlCoords[jNode *nDim], geometry->nodes->GetCoord(BoundNodes[iNode]->GetIndex()));
     su2double dist = GetDistance(config, CtrlCoords[jNode *nDim], geometry->nodes->GetCoord(BoundNodes[iNode]->GetIndex()));
     /*--- Evaluation of Radial Basis Function ---*/
     auto rbf = SU2_TYPE::GetValue(CRadialBasisFunction::Get_RadialBasisValue(type, radius, dist));
@@ -996,29 +992,25 @@ void CRadialBasisFunctionInterpolation::Get_nCtrlNodesGlobal(){
 }
 
 
-su2double CRadialBasisFunctionInterpolation::GetDistance(CConfig* config, const su2double* a, const su2double*b){
+void CRadialBasisFunctionInterpolation::SetPeriodicVars(CConfig* config){
   
-  
-  //TODO automatically find the periodic length and direction
-  // if(config->GetnMarker_Periodic() != 0 ){
-  //   config->GetPeriodicTranslation()
-  // }
-  su2double d(0);
-  if(config->GetnMarker_Periodic() == 0){
-    d = GeometryToolbox::Distance(nDim, a, b);
-  }else{
-    su2double lambda = 0.05749995; //TODO  periodic length
-    unsigned short per_dir = 1; //TODO periodic direction
-    for(unsigned short iDim = 0; iDim < nDim; iDim++){
-      if(iDim == per_dir){
-        d += pow( (lambda/PI_NUMBER * sin( (a[iDim] - b[iDim]) * PI_NUMBER / lambda)), 2);
-      }else{
-        d += pow(a[iDim] - b[iDim], 2);
+  /*--- Finding the periodic direction and periodic length ---*/
+  for (auto iMarker = 0u; iMarker < config->GetnMarker_All(); iMarker++){
+    if (config->GetMarker_All_PerBound(iMarker)){
+
+      auto per_translation = config->GetPeriodicTranslation(config->GetMarker_All_TagBound(iMarker));
+      unsigned short per_dir_cnt = 0;
+      for (auto iDim = 0u; iDim < nDim; iDim++) {
+        if (per_translation[iDim] != 0) {
+          boolPeriodic[iDim] = 1;
+          per_length[iDim] = fabs(per_translation[iDim]);
+          per_dir_cnt++;
+        }
+      }
+
+      if (per_dir_cnt > 1 ) {
+        SU2_MPI::Error("Multiple periodic directions detected. Periodic direction has to be purely in a x,y or z coordinate", CURRENT_FUNCTION);
       }
     }
-    d = sqrt(d);
   }
-
-
-  return d;
 }
