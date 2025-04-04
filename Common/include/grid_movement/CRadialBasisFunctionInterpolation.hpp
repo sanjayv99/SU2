@@ -30,6 +30,8 @@
 #include "CRadialBasisFunctionNode.hpp"
 #include "../../include/toolboxes/CSymmetricMatrix.hpp"
 
+#include <unordered_set>
+
 /*!
  * \class CRadialBasisFunctionInterpolation
  * \brief Class for moving the volumetric numerical grid using Radial Basis Function interpolation.
@@ -49,11 +51,24 @@ protected:
   vector<su2double> InterpCoeff;          /*!< \brief Control node interpolation coefficients.*/
 
   unsigned long nCtrlNodesGlobal{0};      /*!< \brief Total number of control nodes.*/
+  unsigned long nCtrlNodesLocal{0};      /*!< \brief Total number of local control nodes.*/
   su2activematrix CtrlCoords;             /*!< \brief Coordinates of the control nodes.*/
 
   su2double MaxErrorGlobal{0.0};          /*!< \brief Maximum error data reduction algorithm.*/
   vector<su2double> sensitivity_update;
   
+  // newly introduced:
+  vector<string> CtrlTypeVec;                                     /*!< \brief This vector contains the control nodes at that moment */  
+  vector<CRadialBasisFunctionNode*> nodes;                        // vector containing all boundary nodes
+  //TODO  change int to unsigned long for next 2 entries
+  unordered_map<string, vector<unsigned long>> node_type_indices; // map containing the indices for the different type of nodes
+  unordered_set<unsigned long> control_node_indices;              // in case of DR this contains the control node indices
+  unordered_map<string, unsigned long> ctrl_node_type_cnt = {     // in case of DR counts different control types. Not used? 
+    {"displaced", 0}, 
+    {"edge", 0},
+    {"surface", 0}
+  };
+  unordered_map<string, unordered_set<unsigned long>> ctrl_nodes_type;  // map containing the control nodes of the different types in case of DR
   
 public:
 

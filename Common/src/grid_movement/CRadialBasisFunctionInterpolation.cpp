@@ -282,34 +282,52 @@ void CRadialBasisFunctionInterpolation::SetBoundNodes(CGeometry* geometry, CConf
   /*--- Storing of the local node, marker and vertex information of the boundary nodes ---*/
 
   /*--- Looping over the markers ---*/
+  // for (auto iMarker = 0u; iMarker < config->GetnMarker_All(); iMarker++) {
+
+  //   /*--- Checking if not internal or send/receive marker ---*/
+  //   if (!config->GetMarker_All_Deform_Mesh_Internal(iMarker) && !config->GetMarker_All_SendRecv(iMarker)) {
+
+  //     /*--- Looping over the vertices of marker ---*/
+  //     for (auto iVertex = 0ul; iVertex < geometry->nVertex[iMarker]; iVertex++) {
+
+  //       /*--- Node in consideration ---*/
+  //       auto iNode = geometry->vertex[iMarker][iVertex]->GetNode();
+
+  //       /*--- Check whether node is part of the subdomain and not shared with a receiving marker (for parallel computation)*/
+  //       if (geometry->nodes->GetDomain(iNode)) {
+  //         BoundNodes.push_back(new CRadialBasisFunctionNode(iNode, iMarker, iVertex));        
+  //       }        
+  //     }
+  //   }
+  // }
+
+  // /*--- Sorting of the boundary nodes based on their index ---*/
+  // sort(BoundNodes.begin(), BoundNodes.end(), HasSmallerIndex);
+
+  // /*--- Obtaining unique set ---*/
+  // BoundNodes.resize(std::distance(BoundNodes.begin(), unique(BoundNodes.begin(), BoundNodes.end(), HasEqualIndex)));
+
   for (auto iMarker = 0u; iMarker < config->GetnMarker_All(); iMarker++) {
-
-    /*--- Checking if not internal or send/receive marker ---*/
-    if (!config->GetMarker_All_Deform_Mesh_Internal(iMarker) && !config->GetMarker_All_SendRecv(iMarker)) {
-
-      /*--- Looping over the vertices of marker ---*/
-      for (auto iVertex = 0ul; iVertex < geometry->nVertex[iMarker]; iVertex++) {
-
-        /*--- Node in consideration ---*/
-        auto iNode = geometry->vertex[iMarker][iVertex]->GetNode();
-
-        /*--- Check whether node is part of the subdomain and not shared with a receiving marker (for parallel computation)*/
-        if (geometry->nodes->GetDomain(iNode)) {
-          BoundNodes.push_back(new CRadialBasisFunctionNode(iNode, iMarker, iVertex));        
-        }        
-      }
+    for (auto iVertex = 0ul; iVertex < geometry->nVertex[iMarker]; iVertex++) {
+      auto iNode = geometry->vertex[iMarker][iVertex]->GetNode(); 
+      nodes.push_back(new CRadialBasisFunctionNode(iNode, iMarker, iVertex)); 
+      nodes.back()->setNodetype("displaced");
     }
   }
 
-  /*--- Sorting of the boundary nodes based on their index ---*/
-  sort(BoundNodes.begin(), BoundNodes.end(), HasSmallerIndex);
+  stable_sort(nodes.begin(), nodes.end(), HasSmallerIndex);
+  nodes.resize(distance(nodes.begin(), unique(nodes.begin(), nodes.end(), HasEqualIndex)));
 
-  /*--- Obtaining unique set ---*/
-  BoundNodes.resize(std::distance(BoundNodes.begin(), unique(BoundNodes.begin(), BoundNodes.end(), HasEqualIndex)));
+  for(unsigned long x = 0ul; x < nodes.size(); x++){
+    auto type = nodes[x]->getNodetype();
+    node_type_indices[type].push_back(x);
+  }
 }
 
 void CRadialBasisFunctionInterpolation::SetCtrlNodes(CConfig* config){
   
+  CtrlTypeVec.resize(1);
+
   /*--- Assigning the control nodes based on whether data reduction is applied or not. ---*/
   if(config->GetRBF_DataReduction()){
 
@@ -319,6 +337,7 @@ void CRadialBasisFunctionInterpolation::SetCtrlNodes(CConfig* config){
 
     /*--- Control nodes are the boundary nodes ---*/
     ControlNodes = &BoundNodes;
+    CtrlTypeVec[0] = "displaced";
   }
 
   /*--- Obtaining the total number of control nodes. ---*/
@@ -446,7 +465,7 @@ void CRadialBasisFunctionInterpolation::SetBoundaryDisplacements(CGeometry* geom
 
   
   /* --- Initialization of the deformation vector ---*/
-  CtrlNodeDeformation.resize(ControlNodes->size()*nDim, 0.0); 
+  CtrlNodeDeformation.resize(nCtrlNodesLocal*nDim, 0.0); 
 
   /*--- If requested (no by default) impose the surface deflections in
     increments and solve the grid deformation with
@@ -455,19 +474,22 @@ void CRadialBasisFunctionInterpolation::SetBoundaryDisplacements(CGeometry* geom
 
   SU2_COMPONENT Kind_SU2 = config->GetKind_SU2();
 
-  /*--- Loop over the control nodes ---*/
-  for (auto iNode = 0ul; iNode < ControlNodes->size(); iNode++) {
-    
-     /*--- Setting nonzero displacement of the moving markers, else setting zero displacement for static markers---*/
-    auto iMarker = (*ControlNodes)[iNode]->GetMarker();
-    if (((config->GetMarker_All_Moving(iMarker) == YES) && (Kind_SU2 == SU2_COMPONENT::SU2_CFD)) ||
+  unsigned long idx = 0;
+
+  for (auto type : CtrlTypeVec) {
+    auto ctrl_idx = node_type_indices[type];
+    for (auto idx_i : ctrl_idx) {
+      auto iMarker = nodes[idx_i]->GetMarker();
+      if (((config->GetMarker_All_Moving(iMarker) == YES) && (Kind_SU2 == SU2_COMPONENT::SU2_CFD)) ||
         ((config->GetMarker_All_DV(iMarker) == YES) && (Kind_SU2 == SU2_COMPONENT::SU2_DEF)) ||
         ((config->GetDirectDiff() == D_DESIGN) && (Kind_SU2 == SU2_COMPONENT::SU2_CFD) &&
          (config->GetMarker_All_DV(iMarker) == YES)) /*NOTE: This feature has not been tested for RBF interpolation*/ ||
         ((config->GetMarker_All_DV(iMarker) == YES) && (Kind_SU2 == SU2_COMPONENT::SU2_DOT))) {
-      for (auto iDim = 0u; iDim < nDim; iDim++) {
-        CtrlNodeDeformation[iNode*nDim + iDim] = SU2_TYPE::GetValue(geometry->vertex[(*ControlNodes)[iNode]->GetMarker()][(*ControlNodes)[iNode]->GetVertex()]->GetVarCoord()[iDim] * VarIncrement);
+        for (auto iDim = 0u; iDim < nDim; iDim++) {
+          CtrlNodeDeformation[idx * nDim + iDim] = SU2_TYPE::GetValue(geometry->vertex[nodes[idx_i]->GetMarker()][nodes[idx_i]->GetVertex()]->GetVarCoord()[iDim] * VarIncrement);
+        }
       }
+      idx++;
     }
   }
 }
@@ -580,7 +602,7 @@ void CRadialBasisFunctionInterpolation::ComputeInterpCoeffs(su2passivematrix& in
   vector<su2double> interpCoeffLocal(nDim * nCtrlNodesGlobal, 0.0);
 
 
-  unsigned long nCtrlNode = ControlNodes->size();
+  unsigned long nCtrlNode = nCtrlNodesLocal;
   unsigned long nCtrlNodes[size];
   SU2_MPI::Allgather(&nCtrlNode, 1, MPI_UNSIGNED_LONG, nCtrlNodes, 1, MPI_UNSIGNED_LONG, SU2_MPI::GetComm()); 
   
@@ -589,7 +611,7 @@ void CRadialBasisFunctionInterpolation::ComputeInterpCoeffs(su2passivematrix& in
     start_idx += nCtrlNodes[iProc];
   }
 
-  for (auto iNode = 0; iNode < ControlNodes->size(); iNode++){
+  for (auto iNode = 0; iNode < nCtrlNodesLocal; iNode++){
     for (auto iDim = 0u; iDim < nDim; iDim++){
       for (auto jNode = 0; jNode < nCtrlNodesGlobal; jNode++ ){
         // interpCoeffLocal has sums of global vector, CtrlNodeDeformation vector should be the local one
@@ -726,10 +748,20 @@ void CRadialBasisFunctionInterpolation::UpdateBoundCoords(CGeometry* geometry, C
   }
 
   /*--- Applying the surface deformation, which are stored in the deformation vector ---*/
-  for(auto jNode = 0ul; jNode < ControlNodes->size(); jNode++){ 
-    if(config->GetMarker_All_Moving((*ControlNodes)[jNode]->GetMarker()) || config->GetMarker_All_DV((*ControlNodes)[jNode]->GetMarker())){
-      for(auto iDim = 0u; iDim < nDim; iDim++){
-          geometry->nodes->AddCoord((*ControlNodes)[jNode]->GetIndex(), iDim, CtrlNodeDeformation[jNode*nDim + iDim]); 
+  // for(auto jNode = 0ul; jNode < ControlNodes->size(); jNode++){ 
+  //   if(config->GetMarker_All_Moving((*ControlNodes)[jNode]->GetMarker()) || config->GetMarker_All_DV((*ControlNodes)[jNode]->GetMarker())){
+  //     for(auto iDim = 0u; iDim < nDim; iDim++){
+  //         geometry->nodes->AddCoord((*ControlNodes)[jNode]->GetIndex(), iDim, CtrlNodeDeformation[jNode*nDim + iDim]); 
+  //     }
+  //   }
+  // }
+
+  unsigned long idx = 0;
+  for (auto type : CtrlTypeVec) {
+    auto ctrl_idx = node_type_indices[type];
+    for (auto idx_i : ctrl_idx) {
+      for (auto iDim = 0u; iDim < nDim; iDim++) {
+        geometry->nodes->AddCoord(nodes[idx_i]->GetIndex(), iDim, CtrlNodeDeformation[idx++]);     
       }
     }
   }
@@ -774,19 +806,30 @@ void CRadialBasisFunctionInterpolation::SetCtrlNodeCoords(CGeometry* geometry){
   CtrlCoords.resize(nCtrlNodesGlobal*nDim);
   
   /*--- Array containing the local control node coordinates ---*/ 
-  su2double localCoords[nDim*ControlNodes->size()];
+  su2double localCoords[nDim*nCtrlNodesLocal];
   
   /*--- Storing local control node coordinates ---*/
-  for(auto iNode = 0ul; iNode < ControlNodes->size(); iNode++){
-    auto coord = geometry->nodes->GetCoord((*ControlNodes)[iNode]->GetIndex());  
-    for ( auto iDim = 0u ; iDim < nDim; iDim++ ){
-      localCoords[ iNode * nDim + iDim ] = coord[iDim];
+  // for(auto iNode = 0ul; iNode < ControlNodes->size(); iNode++){
+  //   auto coord = geometry->nodes->GetCoord((*ControlNodes)[iNode]->GetIndex());  
+  //   for ( auto iDim = 0u ; iDim < nDim; iDim++ ){
+  //     localCoords[ iNode * nDim + iDim ] = coord[iDim];
+  //   }
+  // }
+
+  unsigned long idx = 0;
+  for (auto type : CtrlTypeVec) {
+    auto ctrl_idx = node_type_indices[type];
+    for (auto idx_i : ctrl_idx) {
+      auto coord = geometry->nodes->GetCoord(nodes[idx_i]->GetIndex());
+      for (auto iDim = 0u; iDim < nDim; iDim++) {
+        localCoords[idx++] = coord[iDim];
+      }
     }
   }
 
   /*--- Gathering local control node coordinate sizes on all processes. ---*/
   int LocalCoordsSizes[size];
-  int localCoordsSize = nDim*ControlNodes->size();
+  int localCoordsSize = nDim * nCtrlNodesLocal;
   SU2_MPI::Allgather(&localCoordsSize, 1, MPI_INT, LocalCoordsSizes, 1, MPI_INT, SU2_MPI::GetComm()); 
 
   /*--- Array containing the starting indices for the allgatherv operation */
@@ -955,8 +998,10 @@ void CRadialBasisFunctionInterpolation::Get_nCtrlNodesGlobal(){
   /*--- Determining the global number of control nodes ---*/
 
   /*--- Local number of control nodes ---*/
-  auto local_nControlNodes = ControlNodes->size();
+  nCtrlNodesLocal = 0;;
   
+  for (auto type : CtrlTypeVec) {nCtrlNodesLocal += node_type_indices[type].size();}
+
   /*--- Summation of local number of control nodes ---*/
-  SU2_MPI::Allreduce(&local_nControlNodes, &nCtrlNodesGlobal, 1, MPI_UNSIGNED_LONG, MPI_SUM, SU2_MPI::GetComm());
+  SU2_MPI::Allreduce(&nCtrlNodesLocal, &nCtrlNodesGlobal, 1, MPI_UNSIGNED_LONG, MPI_SUM, SU2_MPI::GetComm());
 }

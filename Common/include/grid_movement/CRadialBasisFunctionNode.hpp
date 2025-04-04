@@ -42,7 +42,7 @@ class CRadialBasisFunctionNode{
   unsigned long vertex_idx;   /*!< \brief Vertex index. */
     
   su2double error[3];         /*!< \brief Nodal data reduction error; */
-    
+  string nodetype; // TODO add description
   public:
 
   /*!
@@ -86,4 +86,12 @@ class CRadialBasisFunctionNode{
   * \return Nodal error.
   */
   inline su2double* GetError(){ return error;}
+
+  inline void setNodetype(const string& type) { nodetype = type;}
+
+  inline const string& getNodetype(){return nodetype;}
+
+  // inline void setControl(){control = true;}
+
+  // inline bool GetControl(){return control;}
 };
