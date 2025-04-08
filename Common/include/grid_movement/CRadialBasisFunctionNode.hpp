@@ -57,7 +57,7 @@ class CRadialBasisFunctionNode{
   * \brief Returns local global index.
   * \return Local node index.
   */
-  inline unsigned long GetIndex(){return idx;}
+  inline unsigned long GetIndex() const /* // TODO -  const for more functions?*/ {return idx;}
 
   /*!
   * \brief Returns local vertex index.

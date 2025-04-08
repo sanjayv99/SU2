@@ -40,11 +40,6 @@
 
 class CRadialBasisFunctionInterpolation : public CVolumetricMovement {
 protected:
-
-  vector<CRadialBasisFunctionNode*>* ControlNodes = nullptr;  /*!< \brief Vector with control nodes*/
-  vector<CRadialBasisFunctionNode*> BoundNodes;               /*!< \brief Vector with boundary nodes.*/
-  vector<CRadialBasisFunctionNode*> ReducedControlNodes;      /*!< \brief Vector with selected control nodes in data reduction algorithm. */
-  
   
   vector<su2double> CtrlNodeDeformation;  /*!< \brief Control Node Deformation.*/ 
 
@@ -60,7 +55,7 @@ protected:
   // newly introduced:
   vector<string> CtrlTypeVec;                                     /*!< \brief This vector contains the control nodes at that moment */  
   vector<CRadialBasisFunctionNode*> nodes;                        // vector containing all boundary nodes
-  //TODO  change int to unsigned long for next 2 entries
+
   unordered_map<string, vector<unsigned long>> node_type_indices; // map containing the indices for the different type of nodes
   unordered_set<unsigned long> control_node_indices;              // in case of DR this contains the control node indices
   unordered_map<string, unsigned long> ctrl_node_type_cnt = {     // in case of DR counts different control types. Not used? 
