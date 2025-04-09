@@ -43,6 +43,7 @@ class CRadialBasisFunctionNode{
     
   su2double error[3];         /*!< \brief Nodal data reduction error; */
   string nodetype; // TODO add description
+  bool control = false; // TODO add description
   public:
 
   /*!
@@ -91,7 +92,7 @@ class CRadialBasisFunctionNode{
 
   inline const string& getNodetype(){return nodetype;}
 
-  // inline void setControl(){control = true;}
+  inline void setControl(){control = true;}
 
-  // inline bool GetControl(){return control;}
+  inline bool GetControl(){return control;}
 };

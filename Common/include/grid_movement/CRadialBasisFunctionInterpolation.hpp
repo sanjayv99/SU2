@@ -51,18 +51,12 @@ protected:
 
   su2double MaxErrorGlobal{0.0};          /*!< \brief Maximum error data reduction algorithm.*/
   vector<su2double> sensitivity_update;
-  
-  // newly introduced:
+
   vector<string> CtrlTypeVec;                                     /*!< \brief This vector contains the control nodes at that moment */  
   vector<CRadialBasisFunctionNode*> nodes;                        // vector containing all boundary nodes
 
   unordered_map<string, vector<unsigned long>> node_type_indices; // map containing the indices for the different type of nodes
   unordered_set<unsigned long> control_node_indices;              // in case of DR this contains the control node indices
-  unordered_map<string, unsigned long> ctrl_node_type_cnt = {     // in case of DR counts different control types. Not used? 
-    {"displaced", 0}, 
-    {"edge", 0},
-    {"surface", 0}
-  };
   unordered_map<string, unordered_set<unsigned long>> ctrl_nodes_type;  // map containing the control nodes of the different types in case of DR
   
 public:
@@ -134,7 +128,7 @@ public:
   * \brief Gathering of all control node coordinates.
   * \param[in] geometry - Geometrical definition of the problem.
   */
-  void SetCtrlNodeCoords(CGeometry* geometry);
+  void SetCtrlNodeCoords(CGeometry* geometry, CConfig* config);
 
   /*!
   * \brief Build the deformation vector with surface displacements of the control nodes.
@@ -181,7 +175,7 @@ public:
   /*! 
   * \brief Compute global number of control nodes.
   */
-  void Get_nCtrlNodesGlobal();
+  void Get_nCtrlNodesGlobal(CConfig* config);
 
   /*! 
   * \brief Compute interpolation error.
@@ -203,7 +197,7 @@ public:
   * \param[in] iNode - Local node in consideration.
   * \param[in] localError - Local error.
   */
-  void GetNodalError(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type, const su2double radius, unsigned long iNode, bool Derivative, su2double* localError);
+  void GetNodalError(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type, const su2double radius, CRadialBasisFunctionNode* iNode, bool Derivative, su2double* localError);
 
   /*!
   * \brief Updating the grid coordinates.
@@ -264,4 +258,14 @@ public:
 
   void UpdateGridCoord_Derivatives(CGeometry* geometry, CConfig* config, bool ForwardProjectionDerivative);
   void ComputeSensitivity(CGeometry* geometry, CConfig* config /*TODO this was added*/,  const RADIAL_BASIS& type, const su2double radius, su2passivematrix &invInterpMat, vector<unsigned long>& internalNodes);
+
+  template <typename T>
+  vector<unsigned long> ConvertToVector(const T& container) {
+    return vector<unsigned long>(container.begin(), container.end());
+  }
+
+  template <typename T>
+  inline vector<unsigned long> GetIndices(unordered_map<string, T>& ctrl_nodes, const string& type) {
+    return ConvertToVector(ctrl_nodes[type]);
+  }
 };
