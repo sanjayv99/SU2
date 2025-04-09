@@ -923,13 +923,7 @@ void CRadialBasisFunctionInterpolation::SetCorrection(CGeometry* geometry, CConf
   }
 }
 
-
 void CRadialBasisFunctionInterpolation::AddControlNode(unsigned long maxErrorNode){ 
-  /*--- Addition of node to the reduced set of control nodes ---*/
-  // ReducedControlNodes.push_back(move(BoundNodes[maxErrorNode]));
-
-  // /*--- Removal of node among the non-selected boundary nodes ---*/
-  // BoundNodes.erase(BoundNodes.begin()+maxErrorNode);
   nodes[maxErrorNode]->setControl();
   control_node_indices.insert(maxErrorNode);
   ctrl_nodes_type[nodes[maxErrorNode]->getNodetype()].insert(maxErrorNode);
