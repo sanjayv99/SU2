@@ -58,6 +58,9 @@ protected:
   unordered_map<string, vector<unsigned long>> node_type_indices; // map containing the indices for the different type of nodes
   unordered_set<unsigned long> control_node_indices;              // in case of DR this contains the control node indices
   unordered_map<string, unordered_set<unsigned long>> ctrl_nodes_type;  // map containing the control nodes of the different types in case of DR
+  vector<unsigned short> boolPeriodic{0,0,0};
+  vector<su2double> per_length{0,0,0};
+  
   
 public:
 
@@ -149,8 +152,8 @@ public:
   * \param[in] invInterpMat - Inverse of the interpolation matrix.
   */
   void GetInterpMat_sequential(CGeometry* geometry, const RADIAL_BASIS& type, const su2double radius, CSymmetricMatrix& invInterpMat);
-  void GetInterpMat_parallel(CGeometry* geometry, const RADIAL_BASIS& type, const su2double radius, CSymmetricMatrix& interpMat);//TODO fix
-  void GetInvInterpMat(CGeometry* geometry, const RADIAL_BASIS& type, const su2double radius, su2passivematrix& invInterpMat);
+  void GetInterpMat_parallel(CGeometry* geometry, const RADIAL_BASIS& type, const su2double radius, CSymmetricMatrix& interpMat);
+  void GetInvInterpMat(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type, const su2double radius, su2passivematrix& invInterpMat);
   /*!
   * \brief Computation of interpolation coefficients
   * \param[in] invInterpMat - Inverse of interpolation matrix
@@ -257,7 +260,6 @@ public:
   }
 
   void UpdateGridCoord_Derivatives(CGeometry* geometry, CConfig* config, bool ForwardProjectionDerivative);
-  void ComputeSensitivity(CGeometry* geometry, CConfig* config /*TODO this was added*/,  const RADIAL_BASIS& type, const su2double radius, su2passivematrix &invInterpMat, vector<unsigned long>& internalNodes);
 
   template <typename T>
   vector<unsigned long> ConvertToVector(const T& container) {
@@ -267,5 +269,24 @@ public:
   template <typename T>
   inline vector<unsigned long> GetIndices(unordered_map<string, T>& ctrl_nodes, const string& type) {
     return ConvertToVector(ctrl_nodes[type]);
+  }
+  
+  void ComputeSensitivity(CGeometry* geometry,  const RADIAL_BASIS& type, const su2double radius, su2passivematrix &invInterpMat, vector<unsigned long>& internalNodes);
+  
+  void SetPeriodicVars(CConfig* config);
+
+  inline su2double GetDistance(const su2double* a, const su2double*b) const {
+    su2double d(0);    
+    for (unsigned short iDim = 0; iDim < nDim; iDim++) {
+      // su2double diff = boolPeriodic[iDim] ? (per_length[iDim]/PI_NUMBER * sin( (a[iDim] - b[iDim]) * PI_NUMBER / per_length[iDim])) : (a[iDim] - b[iDim]);
+      su2double diff;
+      if (boolPeriodic[iDim]) {
+          diff = per_length[iDim] / PI_NUMBER * sin((a[iDim] - b[iDim]) * PI_NUMBER / per_length[iDim]);
+      } else {
+          diff = a[iDim] - b[iDim];
+      }
+      d += diff * diff;
+    }  
+    return sqrt(d);
   }
 };

@@ -74,6 +74,8 @@ void CRadialBasisFunctionInterpolation::SetVolume_Deformation(CGeometry* geometr
 
   /*--- Determining the boundary and internal nodes. Setting the control nodes. ---*/ 
   SetBoundNodes(geometry, config);
+
+  if (config->GetnMarker_Periodic() != 0) SetPeriodicVars(config);
   
   vector<unsigned long> internalNodes; 
   SetInternalNodes(geometry, config, internalNodes); 
@@ -173,7 +175,7 @@ void CRadialBasisFunctionInterpolation::SolveRBF_System(CGeometry* geometry, CCo
 
       /*--- Computation of the (inverse) interpolation matrix. ---*/
       
-      GetInvInterpMat(geometry, type, radius, invInterpMat);
+      GetInvInterpMat(geometry, config, type, radius, invInterpMat);
       
       /*--- Obtaining the interpolation coefficients. ---*/
       ComputeInterpCoeffs(invInterpMat);
@@ -189,7 +191,7 @@ void CRadialBasisFunctionInterpolation::SolveRBF_System(CGeometry* geometry, CCo
 
     if (Derivative){
       SetInternalNodeDerivatives(geometry, config, internalNodes, ForwardProjectionDerivative);
-      ComputeSensitivity(geometry, config, type, radius, invInterpMat, internalNodes); 
+      ComputeSensitivity(geometry, type, radius, invInterpMat, internalNodes); 
     }
   }else{
     /*--- Obtaining the interpolation coefficients. ---*/
@@ -211,17 +213,17 @@ void CRadialBasisFunctionInterpolation::GetInterpCoeffs(CGeometry* geometry, CCo
 
   /*--- Computation of the (inverse) interpolation matrix. ---*/
   su2passivematrix invInterpMat;
-  GetInvInterpMat(geometry, type, radius, invInterpMat);
+  GetInvInterpMat(geometry, config, type, radius, invInterpMat);
 
   if(!Derivative){
     /*--- Obtaining the interpolation coefficients. ---*/
     ComputeInterpCoeffs(invInterpMat);
   }else{
-    ComputeSensitivity(geometry, config, type, radius, invInterpMat, internalNodes);
+    ComputeSensitivity(geometry, type, radius, invInterpMat, internalNodes);
   }
 }
 
-void CRadialBasisFunctionInterpolation::ComputeSensitivity(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type, const su2double radius,su2passivematrix &invInterpMat, vector<unsigned long>& internalNodes){
+void CRadialBasisFunctionInterpolation::ComputeSensitivity(CGeometry* geometry, const RADIAL_BASIS& type, const su2double radius,su2passivematrix &invInterpMat, vector<unsigned long>& internalNodes){
 
   //from here
   vector<su2double> inter_res(nCtrlNodesGlobal * nDim, 0.0);
@@ -233,8 +235,8 @@ void CRadialBasisFunctionInterpolation::ComputeSensitivity(CGeometry* geometry, 
       // loop over the local internal nodes
       for (auto jNode =0ul; jNode < internalNodes.size(); jNode++){
 
-        auto dist = GeometryToolbox::Distance(nDim, CtrlCoords[iNode*nDim], geometry->nodes->GetCoord(internalNodes[jNode]));
-        auto rbf_eval = SU2_TYPE::GetValue(CRadialBasisFunction::Get_RadialBasisValue(type, radius, dist));
+        su2double dist = GetDistance(CtrlCoords[iNode*nDim], geometry->nodes->GetCoord(internalNodes[jNode]));
+        su2double rbf_eval = SU2_TYPE::GetValue(CRadialBasisFunction::Get_RadialBasisValue(type, radius, dist));
         
         // CtrlNodeDeformation vector contains the internal node sensitivities. 
         // Phi_c,i * d_i
@@ -264,6 +266,8 @@ void CRadialBasisFunctionInterpolation::ComputeSensitivity(CGeometry* geometry, 
 }
 
 void CRadialBasisFunctionInterpolation::SetBoundNodes(CGeometry* geometry, CConfig* config){
+  // start here: the periodic node pair on the non periodic boundaries might introduce issues with obtaining the inverse as the linear system is overdetermined. 
+  /*--- Storing of the local node, marker and vertex information of the boundary nodes ---*/
 
   for (auto iMarker = 0u; iMarker < config->GetnMarker_All(); iMarker++) {
     if (!config->GetMarker_All_Deform_Mesh_Internal(iMarker) && !config->GetMarker_All_SendRecv(iMarker)) {
@@ -276,6 +280,47 @@ void CRadialBasisFunctionInterpolation::SetBoundNodes(CGeometry* geometry, CConf
       }
     }    
   }
+// TODO -  periodic considerations
+  //   /*--- Checking if not internal or send/receive marker ---*/
+  //   if (!config->GetMarker_All_Deform_Mesh_Internal(iMarker) && !config->GetMarker_All_SendRecv(iMarker) && !config->GetMarker_All_PerBound(iMarker)) {
+
+  //     /*--- Looping over the vertices of marker ---*/
+  //     for (auto iVertex = 0ul; iVertex < geometry->nVertex[iMarker]; iVertex++) {
+
+  //       /*--- Node in consideration ---*/
+  //       auto iNode = geometry->vertex[iMarker][iVertex]->GetNode();
+
+  //       if(geometry->nodes->GetPeriodicBoundary(iNode)){
+
+  //         // find the associated periodic marker. 
+
+  //         // find the donor periodic markers
+
+  //         // if the associated periodic marker is the larger one of the two then disregard it.
+  //         // if it is the smaller of the two then it is added as control node. 
+  //         unsigned short perMarker;
+  //         for (auto jMarker = 0u; jMarker < config->GetnMarker_All(); jMarker++){
+  //           if(geometry->nodes->GetVertex(iNode, jMarker) != -1 && config->GetMarker_All_PerBound(jMarker)){
+  //             perMarker = jMarker;
+  //             if(perMarker < config->GetMarker_Periodic_Donor(config->GetMarker_All_TagBound(jMarker))){
+  //               BoundNodes.push_back(new CRadialBasisFunctionNode(iNode, iMarker, iVertex));
+  //             }
+  //             break;
+  //           }
+  //         }
+
+
+
+  //       } else {
+
+  //         /*--- Check whether node is part of the subdomain and not shared with a receiving marker (for parallel computation)*/
+  //         if (geometry->nodes->GetDomain(iNode)) {
+  //           BoundNodes.push_back(new CRadialBasisFunctionNode(iNode, iMarker, iVertex));        
+  //         }        
+  //       }
+  //     }
+  //   }
+  // } 
 
   stable_sort(nodes.begin(), nodes.end(), HasSmallerIndex);
   nodes.resize(distance(nodes.begin(), unique(nodes.begin(), nodes.end(), HasEqualIndex)));
@@ -295,7 +340,7 @@ void CRadialBasisFunctionInterpolation::SetCtrlNodes(CConfig* config){
   Get_nCtrlNodesGlobal(config);
 };
 
-void CRadialBasisFunctionInterpolation::GetInvInterpMat(CGeometry* geometry, const RADIAL_BASIS& type, const su2double radius, su2passivematrix& invInterpMat) {
+void CRadialBasisFunctionInterpolation::GetInvInterpMat(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type, const su2double radius, su2passivematrix& invInterpMat) {
   
   CSymmetricMatrix interpMat;
 
@@ -343,7 +388,7 @@ void CRadialBasisFunctionInterpolation::GetInterpMat_parallel(CGeometry* geometr
 
   for (auto row_i = start_row; row_i < end_row; row_i++){
     for (auto col_i = 0ul; col_i <= row_i; col_i++){
-      auto dist = GeometryToolbox::Distance(nDim, CtrlCoords[row_i*nDim], CtrlCoords[col_i*nDim]);
+      su2double dist = GetDistance(CtrlCoords[row_i*nDim], CtrlCoords[col_i*nDim]);
       rbf_vals[cnt++] = SU2_TYPE::GetValue(CRadialBasisFunction::Get_RadialBasisValue(type, radius, dist));
     }
   }
@@ -387,9 +432,8 @@ void CRadialBasisFunctionInterpolation::GetInterpMat_sequential(CGeometry* geome
     /*--- Looping over the control nodes ---*/
     for ( auto jNode = iNode; jNode < nCtrlNodesGlobal; jNode++){
       
-      /*--- Distance between nodes ---*/
-      auto dist = GeometryToolbox::Distance(nDim, CtrlCoords[iNode*nDim], CtrlCoords[jNode*nDim]);   
-
+      /*--- Distance between nodes ---*/ 
+      su2double dist = GetDistance(CtrlCoords[iNode*nDim], CtrlCoords[jNode*nDim]);
       /*--- Evaluation of RBF ---*/
       interpMat(iNode, jNode) = SU2_TYPE::GetValue(CRadialBasisFunction::Get_RadialBasisValue(type, radius, dist));
     }
@@ -490,6 +534,33 @@ void CRadialBasisFunctionInterpolation::SetInternalNodes(CGeometry* geometry, CC
       internalNodes.push_back(iNode);
     }
   }  
+// TODO -  periodic considerations
+  //   } else if (geometry->nodes->GetPeriodicBoundary(iNode)){
+  //     if (find_if (BoundNodes.begin(), BoundNodes.end(), [&](CRadialBasisFunctionNode* i){return i->GetIndex() == iNode;}) == BoundNodes.end()) {
+  //       internalNodes.push_back(iNode);
+  //     } 
+  //   }
+  // }  
+
+  // /*--- Adding nodes on markers considered as internal nodes ---*/
+  // for (auto iMarker = 0u; iMarker < geometry->GetnMarker(); iMarker++){
+
+  //   /*--- Check if marker is considered as internal nodes ---*/
+  //   if(config->GetMarker_All_Deform_Mesh_Internal(iMarker)){
+      
+  //     /*--- Loop over marker vertices ---*/
+  //     for (auto iVertex = 0ul; iVertex < geometry->nVertex[iMarker]; iVertex++) { 
+
+  //       /*--- Local node index ---*/
+  //       auto iNode = geometry->vertex[iMarker][iVertex]->GetNode();
+
+  //       /*--- if not among the boundary nodes ---*/
+  //       if (find_if (BoundNodes.begin(), BoundNodes.end(), [&](CRadialBasisFunctionNode* i){return i->GetIndex() == iNode;}) == BoundNodes.end()) {
+  //         internalNodes.push_back(iNode);
+  //       }            
+  //     }
+  //   }
+  // }
 
   /*--- In case of a parallel computation, the nodes on the send/receive markers are included as internal nodes
           if they are not already a boundary node with known deformation ---*/
@@ -630,8 +701,7 @@ void CRadialBasisFunctionInterpolation::UpdateInternalCoords(CGeometry* geometry
     for(auto jNode = 0ul; jNode < nCtrlNodesGlobal; jNode++){
 
       /*--- Determine distance between considered internal and control node ---*/
-      auto dist = GeometryToolbox::Distance(nDim, CtrlCoords[jNode*nDim], geometry->nodes->GetCoord(internalNodes[iNode]));
-
+      su2double dist = GetDistance(CtrlCoords[jNode*nDim], geometry->nodes->GetCoord(internalNodes[iNode]));
       /*--- Evaluate RBF based on distance ---*/
       auto rbf = SU2_TYPE::GetValue(CRadialBasisFunction::Get_RadialBasisValue(type, radius, dist));
       
@@ -660,6 +730,18 @@ void CRadialBasisFunctionInterpolation::UpdateBoundCoords(CGeometry* geometry, C
     for (auto nodetype : CtrlTypeVec) {
       /*--- Looping over the non selected boundary nodes ---*/
       auto idx = GetIndices(node_type_indices, nodetype);
+// TODO -  periodic considerations
+//     /*--- Looping over the non selected boundary nodes ---*/
+//     for(auto iNode = 0ul; iNode < BoundNodes.size(); iNode++){
+      
+//       /*--- Finding contribution of each control node ---*/
+//       for( auto jNode = 0ul; jNode <  nCtrlNodesGlobal; jNode++){
+        
+//         /*--- Distance of non-selected boundary node to control node ---*/
+//         su2double dist = GetDistance(CtrlCoords[jNode*nDim], geometry->nodes->GetCoord(BoundNodes[iNode]->GetIndex()));
+//         /*--- Evaluation of the radial basis function based on the distance ---*/
+//         auto rbf = SU2_TYPE::GetValue(CRadialBasisFunction::Get_RadialBasisValue(type, radius, dist));
+// >>>>>>> dev_rbf_ad_per
 
       for (auto iNode : idx) {
 
@@ -838,8 +920,7 @@ void CRadialBasisFunctionInterpolation:: GetNodalError(CGeometry* geometry, CCon
   for(auto jNode = 0ul; jNode < nCtrlNodesGlobal; jNode++){
 
     /*--- Distance between non-selected boundary node and control node ---*/
-    auto dist = GeometryToolbox::Distance(nDim, CtrlCoords[jNode *nDim], geometry->nodes->GetCoord(iNode->GetIndex()));
-
+    su2double dist = GetDistance(CtrlCoords[jNode *nDim], geometry->nodes->GetCoord(iNode->GetIndex()));
     /*--- Evaluation of Radial Basis Function ---*/
     auto rbf = SU2_TYPE::GetValue(CRadialBasisFunction::Get_RadialBasisValue(type, radius, dist));
 
@@ -944,4 +1025,28 @@ void CRadialBasisFunctionInterpolation::Get_nCtrlNodesGlobal(CConfig* config){
 
   /*--- Summation of local number of control nodes ---*/
   SU2_MPI::Allreduce(&nCtrlNodesLocal, &nCtrlNodesGlobal, 1, MPI_UNSIGNED_LONG, MPI_SUM, SU2_MPI::GetComm());
+}
+
+
+void CRadialBasisFunctionInterpolation::SetPeriodicVars(CConfig* config){
+  
+  /*--- Finding the periodic direction and periodic length ---*/
+  for (auto iMarker = 0u; iMarker < config->GetnMarker_All(); iMarker++){
+    if (config->GetMarker_All_PerBound(iMarker)){
+
+      auto per_translation = config->GetPeriodicTranslation(config->GetMarker_All_TagBound(iMarker));
+      unsigned short per_dir_cnt = 0;
+      for (auto iDim = 0u; iDim < nDim; iDim++) {
+        if (per_translation[iDim] != 0) {
+          boolPeriodic[iDim] = 1;
+          per_length[iDim] = fabs(per_translation[iDim]);
+          per_dir_cnt++;
+        }
+      }
+
+      if (per_dir_cnt > 1 ) {
+        SU2_MPI::Error("Multiple periodic directions detected. Periodic direction has to be purely in a x,y or z coordinate", CURRENT_FUNCTION);
+      }
+    }
+  }
 }
