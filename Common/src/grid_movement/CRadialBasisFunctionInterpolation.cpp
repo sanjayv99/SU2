@@ -186,26 +186,13 @@ void CRadialBasisFunctionInterpolation::SolveRBF_System(CGeometry* geometry, CCo
 
       if(rank == MASTER_NODE) cout << "Greedy iteration: " << greedyIter << ". Max error: " << MaxErrorGlobal << ". Global nr. of ctrl nodes: "  << nCtrlNodesGlobal << "\n" << endl;
       
-      //TODO  debug output
-      // if (Derivative){
-      //   ofstream res_out("greedy_out.txt");
-      //   for (auto x =0ul; x < ControlNodes->size(); x++){
-      //     res_out << (*ControlNodes)[x]->GetIndex() << "\t" << SU2_TYPE::GetValue(CtrlNodeDeformation[x*nDim]) << "\t" << SU2_TYPE::GetValue(CtrlNodeDeformation[x*nDim+1]) << endl;
-      //   }
-
-      //   for (auto x : BoundNodes){
-      //     res_out << x->GetIndex() << "\t" << SU2_TYPE::GetValue(geometry->GetSensitivity(x->GetIndex(), 0))  +  x->GetError()[0] << "\t" <<  SU2_TYPE::GetValue(geometry->GetSensitivity(x->GetIndex(), 1)) + x->GetError()[1] << endl;
-      //   }
-      //   res_out.close();
-      // }
-      
       greedyIter++;
 
     } 
 
     if (Derivative){
       SetInternalNodeDerivatives(geometry, config, internalNodes, ForwardProjectionDerivative);
-      ComputeSensitivity(geometry, config, type, radius, invInterpMat, internalNodes); //TODO Investigate possibility of doing correction for the non-selected nodes. 
+      ComputeSensitivity(geometry, type, radius, invInterpMat, internalNodes); 
     }
   }else{
     /*--- Obtaining the interpolation coefficients. ---*/
@@ -233,11 +220,11 @@ void CRadialBasisFunctionInterpolation::GetInterpCoeffs(CGeometry* geometry, CCo
     /*--- Obtaining the interpolation coefficients. ---*/
     ComputeInterpCoeffs(invInterpMat);
   }else{
-    ComputeSensitivity(geometry, config, type, radius, invInterpMat, internalNodes);
+    ComputeSensitivity(geometry, type, radius, invInterpMat, internalNodes);
   }
 }
 
-void CRadialBasisFunctionInterpolation::ComputeSensitivity(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type, const su2double radius,su2passivematrix &invInterpMat, vector<unsigned long>& internalNodes){
+void CRadialBasisFunctionInterpolation::ComputeSensitivity(CGeometry* geometry, const RADIAL_BASIS& type, const su2double radius,su2passivematrix &invInterpMat, vector<unsigned long>& internalNodes){
 
   //from here
   vector<su2double> inter_res(nCtrlNodesGlobal * nDim, 0.0);
@@ -249,8 +236,8 @@ void CRadialBasisFunctionInterpolation::ComputeSensitivity(CGeometry* geometry, 
       // loop over the local internal nodes
       for (auto jNode =0ul; jNode < internalNodes.size(); jNode++){
 
-        su2double dist = GetDistance(config, CtrlCoords[iNode*nDim], geometry->nodes->GetCoord(internalNodes[jNode]));
-        auto rbf_eval = SU2_TYPE::GetValue(CRadialBasisFunction::Get_RadialBasisValue(type, radius, dist)); //TODO should this be an auto? 
+        su2double dist = GetDistance(CtrlCoords[iNode*nDim], geometry->nodes->GetCoord(internalNodes[jNode]));
+        su2double rbf_eval = SU2_TYPE::GetValue(CRadialBasisFunction::Get_RadialBasisValue(type, radius, dist));
         
         // CtrlNodeDeformation vector contains the internal node sensitivities. 
         // Phi_c,i * d_i
@@ -332,8 +319,6 @@ void CRadialBasisFunctionInterpolation::SetBoundNodes(CGeometry* geometry, CConf
 
   /*--- Obtaining unique set ---*/
   BoundNodes.resize(std::distance(BoundNodes.begin(), unique(BoundNodes.begin(), BoundNodes.end(), HasEqualIndex)));
-  cout << "Boundary nodes: " << endl;
-  for (auto x : BoundNodes){ cout << x->GetIndex() << endl;}
 }
 
 void CRadialBasisFunctionInterpolation::SetCtrlNodes(CConfig* config){
@@ -359,9 +344,9 @@ void CRadialBasisFunctionInterpolation::GetInvInterpMat(CGeometry* geometry, CCo
   CSymmetricMatrix interpMat;
 
   #ifdef HAVE_MPI
-    GetInterpMat_parallel(geometry, config, type, radius, interpMat);    
+    GetInterpMat_parallel(geometry, type, radius, interpMat);    
   #else
-    GetInterpMat_sequential(geometry, config, type, radius, interpMat);    
+    GetInterpMat_sequential(geometry, type, radius, interpMat);    
   #endif
   
   const bool kernelIsSPD = (type == RADIAL_BASIS::WENDLAND_C2) || (type == RADIAL_BASIS::GAUSSIAN) ||
@@ -370,24 +355,9 @@ void CRadialBasisFunctionInterpolation::GetInvInterpMat(CGeometry* geometry, CCo
   interpMat.Invert(kernelIsSPD); 
 
   invInterpMat = interpMat.StealData();
-
-  //TODO  debug output
-  // if (rank == MASTER_NODE){
-  //   ofstream out;
-  //   out.open("rbf_mat_inv.txt");
-  //   if (out.is_open()) {
-  //     for (auto row_i = 0ul; row_i < nCtrlNodesGlobal; row_i++){
-  //       for (auto col_i = 0ul; col_i < nCtrlNodesGlobal; col_i++){
-  //         out << invInterpMat(row_i, col_i) << "\t";
-  //       }  
-  //       out << endl;
-  //     }
-  //     out.close();
-  //   } 
-  // }
 }
 
-void CRadialBasisFunctionInterpolation::GetInterpMat_parallel(CGeometry* geometry, CConfig* config, /*//TODO this parameter was added, can possibly do it differently*/ const RADIAL_BASIS& type, const su2double radius, CSymmetricMatrix& interpMat){
+void CRadialBasisFunctionInterpolation::GetInterpMat_parallel(CGeometry* geometry, const RADIAL_BASIS& type, const su2double radius, CSymmetricMatrix& interpMat){
   
   /*--- Initialization of the interpolation matrix ---*/
   interpMat.Initialize(nCtrlNodesGlobal);
@@ -417,7 +387,7 @@ void CRadialBasisFunctionInterpolation::GetInterpMat_parallel(CGeometry* geometr
 
   for (auto row_i = start_row; row_i < end_row; row_i++){
     for (auto col_i = 0ul; col_i <= row_i; col_i++){
-      su2double dist = GetDistance(config, CtrlCoords[row_i*nDim], CtrlCoords[col_i*nDim]);
+      su2double dist = GetDistance(CtrlCoords[row_i*nDim], CtrlCoords[col_i*nDim]);
       rbf_vals[cnt++] = SU2_TYPE::GetValue(CRadialBasisFunction::Get_RadialBasisValue(type, radius, dist));
     }
   }
@@ -447,7 +417,7 @@ void CRadialBasisFunctionInterpolation::GetInterpMat_parallel(CGeometry* geometr
   }
 }
 
-void CRadialBasisFunctionInterpolation::GetInterpMat_sequential(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type, const su2double radius, CSymmetricMatrix& interpMat){
+void CRadialBasisFunctionInterpolation::GetInterpMat_sequential(CGeometry* geometry, const RADIAL_BASIS& type, const su2double radius, CSymmetricMatrix& interpMat){
 
   /*--- Initialization of the interpolation matrix ---*/
   interpMat.Initialize(nCtrlNodesGlobal);    
@@ -462,7 +432,7 @@ void CRadialBasisFunctionInterpolation::GetInterpMat_sequential(CGeometry* geome
     for ( auto jNode = iNode; jNode < nCtrlNodesGlobal; jNode++){
       
       /*--- Distance between nodes ---*/ 
-      su2double dist = GetDistance(config, CtrlCoords[iNode*nDim], CtrlCoords[jNode*nDim]);
+      su2double dist = GetDistance(CtrlCoords[iNode*nDim], CtrlCoords[jNode*nDim]);
       /*--- Evaluation of RBF ---*/
       interpMat(iNode, jNode) = SU2_TYPE::GetValue(CRadialBasisFunction::Get_RadialBasisValue(type, radius, dist));
     }
@@ -568,8 +538,6 @@ void CRadialBasisFunctionInterpolation::SetInternalNodes(CGeometry* geometry, CC
       }
     }
   }
-  cout << "internal nodes: " << endl;
-  for (auto x :internalNodes){cout << x << endl;}
 
   /*--- In case of a parallel computation, the nodes on the send/receive markers are included as internal nodes
           if they are not already a boundary node with known deformation ---*/
@@ -646,7 +614,7 @@ void CRadialBasisFunctionInterpolation::UpdateGridCoord(CGeometry* geometry, CCo
   }
   
   /*--- Update of internal node coordinates ---*/
-  UpdateInternalCoords(geometry, config, type, radius, internalNodes);
+  UpdateInternalCoords(geometry, type, radius, internalNodes);
 
   /*--- Update of boundary node coordinates ---*/
   UpdateBoundCoords(geometry, config, type, radius);   
@@ -692,7 +660,7 @@ void CRadialBasisFunctionInterpolation::UpdateGridCoord_Derivatives(CGeometry* g
 
 }
 
-void CRadialBasisFunctionInterpolation::UpdateInternalCoords(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type, const su2double radius, const vector<unsigned long>& internalNodes){
+void CRadialBasisFunctionInterpolation::UpdateInternalCoords(CGeometry* geometry, const RADIAL_BASIS& type, const su2double radius, const vector<unsigned long>& internalNodes){
   
    /*--- Vector for storing the coordinate variation ---*/
   su2double var_coord[nDim]{0.0};
@@ -704,7 +672,7 @@ void CRadialBasisFunctionInterpolation::UpdateInternalCoords(CGeometry* geometry
     for(auto jNode = 0ul; jNode < nCtrlNodesGlobal; jNode++){
 
       /*--- Determine distance between considered internal and control node ---*/
-      su2double dist = GetDistance(config, CtrlCoords[jNode*nDim], geometry->nodes->GetCoord(internalNodes[iNode]));
+      su2double dist = GetDistance(CtrlCoords[jNode*nDim], geometry->nodes->GetCoord(internalNodes[iNode]));
       /*--- Evaluate RBF based on distance ---*/
       auto rbf = SU2_TYPE::GetValue(CRadialBasisFunction::Get_RadialBasisValue(type, radius, dist));
       
@@ -737,7 +705,7 @@ void CRadialBasisFunctionInterpolation::UpdateBoundCoords(CGeometry* geometry, C
       for( auto jNode = 0ul; jNode <  nCtrlNodesGlobal; jNode++){
         
         /*--- Distance of non-selected boundary node to control node ---*/
-        su2double dist = GetDistance(config, CtrlCoords[jNode*nDim], geometry->nodes->GetCoord(BoundNodes[iNode]->GetIndex()));
+        su2double dist = GetDistance(CtrlCoords[jNode*nDim], geometry->nodes->GetCoord(BoundNodes[iNode]->GetIndex()));
         /*--- Evaluation of the radial basis function based on the distance ---*/
         auto rbf = SU2_TYPE::GetValue(CRadialBasisFunction::Get_RadialBasisValue(type, radius, dist));
 
@@ -891,7 +859,7 @@ void CRadialBasisFunctionInterpolation::GetNodalError(CGeometry* geometry, CConf
   for(auto jNode = 0ul; jNode < nCtrlNodesGlobal; jNode++){
 
     /*--- Distance between non-selected boundary node and control node ---*/
-    su2double dist = GetDistance(config, CtrlCoords[jNode *nDim], geometry->nodes->GetCoord(BoundNodes[iNode]->GetIndex()));
+    su2double dist = GetDistance(CtrlCoords[jNode *nDim], geometry->nodes->GetCoord(BoundNodes[iNode]->GetIndex()));
     /*--- Evaluation of Radial Basis Function ---*/
     auto rbf = SU2_TYPE::GetValue(CRadialBasisFunction::Get_RadialBasisValue(type, radius, dist));
 

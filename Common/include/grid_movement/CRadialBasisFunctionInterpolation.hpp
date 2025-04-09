@@ -146,8 +146,8 @@ public:
   * \param[in] radius - Support radius of the radial basis function.
   * \param[in] invInterpMat - Inverse of the interpolation matrix.
   */
-  void GetInterpMat_sequential(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type, const su2double radius, CSymmetricMatrix& invInterpMat);
-  void GetInterpMat_parallel(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type, const su2double radius, CSymmetricMatrix& interpMat);//TODO fix
+  void GetInterpMat_sequential(CGeometry* geometry, const RADIAL_BASIS& type, const su2double radius, CSymmetricMatrix& invInterpMat);
+  void GetInterpMat_parallel(CGeometry* geometry, const RADIAL_BASIS& type, const su2double radius, CSymmetricMatrix& interpMat);
   void GetInvInterpMat(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type, const su2double radius, su2passivematrix& invInterpMat);
   /*!
   * \brief Computation of interpolation coefficients
@@ -214,7 +214,7 @@ public:
   * \param[in] radius - Support radius of the radial basis function.
   * \param[in] internalNodes - Internal nodes.
   */
-  void UpdateInternalCoords(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type, const su2double radius, const vector<unsigned long>& internalNodes);
+  void UpdateInternalCoords(CGeometry* geometry, const RADIAL_BASIS& type, const su2double radius, const vector<unsigned long>& internalNodes);
 
   /*!
   * \brief Updating the internal node coordinates.
@@ -255,11 +255,11 @@ public:
   }
 
   void UpdateGridCoord_Derivatives(CGeometry* geometry, CConfig* config, bool ForwardProjectionDerivative);
-  void ComputeSensitivity(CGeometry* geometry, CConfig* config /*TODO this was added*/,  const RADIAL_BASIS& type, const su2double radius, su2passivematrix &invInterpMat, vector<unsigned long>& internalNodes);
+  void ComputeSensitivity(CGeometry* geometry,  const RADIAL_BASIS& type, const su2double radius, su2passivematrix &invInterpMat, vector<unsigned long>& internalNodes);
   // su2double GetDistance(CConfig* config, const su2double* a, const su2double*b);
   void SetPeriodicVars(CConfig* config);
 
-  inline su2double GetDistance(CConfig* config, const su2double* a, const su2double*b) const {
+  inline su2double GetDistance(const su2double* a, const su2double*b) const {
     su2double d(0);    
     for (unsigned short iDim = 0; iDim < nDim; iDim++) {
       // su2double diff = boolPeriodic[iDim] ? (per_length[iDim]/PI_NUMBER * sin( (a[iDim] - b[iDim]) * PI_NUMBER / per_length[iDim])) : (a[iDim] - b[iDim]);
