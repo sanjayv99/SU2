@@ -58,7 +58,7 @@ void CRadialBasisFunctionInterpolation::SetVolume_Deformation(CGeometry* geometr
   const auto kindRBF = config->GetKindRadialBasisFunction();
   const su2double radius = config->GetRadialBasisFunctionParameter();
   
-  
+    
   su2double MinVolume, MaxVolume;
 
   /*--- Retrieving number of deformation steps and screen output from config ---*/
@@ -442,6 +442,25 @@ void CRadialBasisFunctionInterpolation::SetBoundaryDisplacements(CGeometry* geom
         for (auto iDim = 0u; iDim < nDim; iDim++) {
           CtrlNodeDeformation[idx * nDim + iDim] = SU2_TYPE::GetValue(geometry->vertex[nodes[idx_i]->GetMarker()][nodes[idx_i]->GetVertex()]->GetVarCoord()[iDim] * VarIncrement);
         }
+
+        // TODO -  for cylindrical coordinates
+        su2double new_coord[nDim];
+        auto old_coord = geometry->nodes->GetCoord(nodes[idx_i]->GetIndex());
+        for (auto iDim = 0u; iDim < nDim; iDim++) {
+          new_coord[iDim] = old_coord[iDim] + SU2_TYPE::GetValue(geometry->vertex[nodes[idx_i]->GetMarker()][nodes[idx_i]->GetVertex()]->GetVarCoord()[iDim] * VarIncrement);
+        }
+
+        su2double delta_cyl_coord[nDim];
+        delta_cyl_coord[0] = GeometryToolbox::Norm(nDim, new_coord);
+        delta_cyl_coord[1] = atan2(new_coord[1], new_coord[0]);
+        auto cyl_coord = nodes[idx_i]->GetCylCoord();
+        for (auto iDim = 0u; iDim < nDim; iDim++){
+          delta_cyl_coord[iDim] -= cyl_coord[iDim];
+          CtrlNodeDeformation[idx * nDim + iDim] = delta_cyl_coord[iDim];
+        }
+        
+
+        
       } else {
         for (auto iDim = 0u; iDim < nDim; iDim++) {
           CtrlNodeDeformation[idx * nDim + iDim] = 0.0;
@@ -652,16 +671,34 @@ void CRadialBasisFunctionInterpolation::UpdateInternalCoords(CGeometry* geometry
     for(auto jNode = 0ul; jNode < nCtrlNodesGlobal; jNode++){
 
       /*--- Determine distance between considered internal and control node ---*/
-      su2double dist = GetDistance(CtrlCoords[jNode*nDim], geometry->nodes->GetCoord(internalNodes[iNode]));
+      // TODO -  for periodic cylindrical domains
+      su2double cyl_coords[nDim];
+      cyl_coords[0] = GeometryToolbox::Norm(nDim, geometry->nodes->GetCoord(internalNodes[iNode]));
+      cyl_coords[1] = atan2(geometry->nodes->GetCoord(internalNodes[iNode])[1], geometry->nodes->GetCoord(internalNodes[iNode])[0]);
+      
+      // su2double dist = GetDistance(CtrlCoords[jNode*nDim], geometry->nodes->GetCoord(internalNodes[iNode]));
+      su2double dist = GetDistance(CtrlCoords[jNode*nDim], cyl_coords);
       /*--- Evaluate RBF based on distance ---*/
       su2double rbf = SU2_TYPE::GetValue(CRadialBasisFunction::Get_RadialBasisValue(type, radius, dist));
-      
+      cout << internalNodes[iNode] << " " << jNode << " " << rbf << " " <<  geometry->nodes->GetCoord(internalNodes[iNode])[0] << " " << geometry->nodes->GetCoord(internalNodes[iNode])[1] << " " << *CtrlCoords[jNode*nDim] << " " << *CtrlCoords[jNode*nDim+1] <<  endl;
       /*--- Add contribution to total coordinate variation ---*/
       for(auto iDim = 0u; iDim < nDim; iDim++){
         var_coord[iDim] += rbf*InterpCoeff[jNode * nDim + iDim];
       }
     }
+    // TODO -  for periodic cylindrical domain
+    auto init_coord = geometry->nodes->GetCoord(internalNodes[iNode]);
+    su2double cyl_coord[nDim];
+    cyl_coord[0] = GeometryToolbox::Norm(nDim, init_coord) + var_coord[0];
+    cyl_coord[1] = atan2(init_coord[1], init_coord[0]) + var_coord[1];
+    su2double new_coord[nDim];
+    new_coord[0] = cyl_coord[0]*cos(cyl_coord[1]);
+    new_coord[1] = cyl_coord[0]*sin(cyl_coord[1]);
 
+    var_coord[0] = new_coord[0] - init_coord[0];
+    var_coord[1] = new_coord[1] - init_coord[1];
+    
+    cout <<"int: " << internalNodes[iNode] << "\t" << var_coord[0] << "\t" << var_coord[1] << endl;
     /*--- Apply the coordinate variation and resetting the var_coord vector to zero ---*/
     for(auto iDim = 0u; iDim < nDim; iDim++){
       geometry->nodes->AddCoord(internalNodes[iNode], iDim, var_coord[iDim]);
@@ -716,9 +753,15 @@ void CRadialBasisFunctionInterpolation::UpdateBoundCoords(CGeometry* geometry, C
   for (auto type : CtrlTypeVec) {
     auto ctrl_idx = config->GetRBF_DataReduction() ? GetIndices(ctrl_nodes_type, type) : GetIndices(node_type_indices, type);
     for (auto idx_i : ctrl_idx) {
+      cout << nodes[idx_i]->GetIndex() << " " << geometry->nodes->GetCoord(nodes[idx_i]->GetIndex())[0] << " " << geometry->nodes->GetCoord(nodes[idx_i]->GetIndex())[1] << endl;
       for (auto iDim = 0u; iDim < nDim; iDim++) {
-        geometry->nodes->AddCoord(nodes[idx_i]->GetIndex(), iDim, CtrlNodeDeformation[idx++]);     
+        // TODO -  for periodic cylindrical domain:
+        
+        geometry->nodes->AddCoord(nodes[idx_i]->GetIndex(), iDim, geometry->vertex[nodes[idx_i]->GetMarker()][nodes[idx_i]->GetVertex()]->GetVarCoord()[iDim] /*// TODO -  add varIncrement*/);
+        
+        // geometry->nodes->AddCoord(nodes[idx_i]->GetIndex(), iDim, CtrlNodeDeformation[idx++]);     
       }
+      cout << nodes[idx_i]->GetIndex() << " " << geometry->nodes->GetCoord(nodes[idx_i]->GetIndex())[0] << " " << geometry->nodes->GetCoord(nodes[idx_i]->GetIndex())[1] << endl;
     }
   }
 }
@@ -758,6 +801,19 @@ void CRadialBasisFunctionInterpolation::GetInitMaxErrorNode(CGeometry* geometry,
 
 void CRadialBasisFunctionInterpolation::SetCtrlNodeCoords(CGeometry* geometry, CConfig* config){
   /*--- The coordinates of all control nodes are made available on all processes ---*/
+  // TODO - make this a seperate function
+  for (auto type : CtrlTypeVec){
+    auto ctrl_idx = config->GetRBF_DataReduction() ? GetIndices(ctrl_nodes_type, type) : GetIndices(node_type_indices, type);
+    for (auto idx_i : ctrl_idx) {
+      auto coord = geometry->nodes->GetCoord(nodes[idx_i]->GetIndex());
+      cout <<nodes[idx_i]->GetIndex() << "\t" <<  coord[0] << "\t" << coord[1] << endl;
+      su2double cyl_coord[2];
+      cyl_coord[0] = GeometryToolbox::Norm(nDim, coord);
+      cyl_coord[1] = atan2(coord[1], coord[0]);
+      nodes[idx_i]->SetCylCoord(cyl_coord, nDim);
+    }
+  }
+
   
   /*--- resizing the matrix containing the global control node coordinates ---*/
   CtrlCoords.resize(nCtrlNodesGlobal*nDim);
@@ -770,7 +826,9 @@ void CRadialBasisFunctionInterpolation::SetCtrlNodeCoords(CGeometry* geometry, C
   for (auto type : CtrlTypeVec) {
     auto ctrl_idx = config->GetRBF_DataReduction() ? GetIndices(ctrl_nodes_type, type) : GetIndices(node_type_indices, type);
     for (auto idx_i : ctrl_idx) {
-      auto coord = geometry->nodes->GetCoord(nodes[idx_i]->GetIndex());
+      // TODO -  hardcoded to use cylindrical coords
+      // auto coord = geometry->nodes->GetCoord(nodes[idx_i]->GetIndex());
+      auto coord = nodes[idx_i]->GetCylCoord();
       for (auto iDim = 0u; iDim < nDim; iDim++) {
         localCoords[idx++] = coord[iDim];
       }
@@ -985,6 +1043,9 @@ void CRadialBasisFunctionInterpolation::SetPeriodicVars(CConfig* config){
       if (per_dir_cnt > 1 ) {
         SU2_MPI::Error("Multiple periodic directions detected. Periodic direction has to be purely in a x,y or z coordinate", CURRENT_FUNCTION);
       }
+      // TODO - include some checks etc..
+      auto per_angles = config->GetPeriodicRotAngles(config->GetMarker_All_TagBound(iMarker));
+      per_rot = fabs(per_angles[2]);
     }
   }
 }

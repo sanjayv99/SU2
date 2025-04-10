@@ -44,6 +44,9 @@ class CRadialBasisFunctionNode{
   su2double error[3];         /*!< \brief Nodal data reduction error; */
   string nodetype; // TODO add description
   bool control = false; // TODO add description
+
+  su2double cylindrical_coord[3];
+
   public:
 
   /*!
@@ -95,4 +98,10 @@ class CRadialBasisFunctionNode{
   inline void setControl(){control = true;}
 
   inline bool GetControl(){return control;}
+  
+  inline void SetCylCoord(const su2double* cyl_coord, unsigned short nDim) {
+    for (auto iDim = 0u; iDim < nDim; iDim++) cylindrical_coord[iDim] = cyl_coord[iDim];
+  }
+
+  inline su2double* GetCylCoord(){ return cylindrical_coord;}
 };

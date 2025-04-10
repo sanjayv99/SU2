@@ -60,6 +60,7 @@ protected:
   unordered_map<string, unordered_set<unsigned long>> ctrl_nodes_type;  // map containing the control nodes of the different types in case of DR
   vector<unsigned short> boolPeriodic{0,0,0};
   vector<su2double> per_length{0,0,0};
+  su2double per_rot{0.0};
   
   
 public:
@@ -276,7 +277,8 @@ public:
   void SetPeriodicVars(CConfig* config);
 
   inline su2double GetDistance(const su2double* a, const su2double*b) const {
-    su2double d(0);    
+    su2double d(0);   
+
     for (unsigned short iDim = 0; iDim < nDim; iDim++) {
       // su2double diff = boolPeriodic[iDim] ? (per_length[iDim]/PI_NUMBER * sin( (a[iDim] - b[iDim]) * PI_NUMBER / per_length[iDim])) : (a[iDim] - b[iDim]);
       su2double diff;
@@ -287,6 +289,9 @@ public:
       }
       d += diff * diff;
     }  
+
+    d = a[0] * a[0] + b[0]*b[0] - 2*a[0]*b[0]*cos(per_rot/PI_NUMBER * sin((a[1]-b[1])*PI_NUMBER/per_rot));
+
     return sqrt(d);
   }
 };
