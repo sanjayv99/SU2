@@ -29,6 +29,7 @@
 #include "CVolumetricMovement.hpp"
 #include "CRadialBasisFunctionNode.hpp"
 #include "../../include/toolboxes/CSymmetricMatrix.hpp"
+#include "../../include/toolboxes/geometry_toolbox.hpp"
 
 #include <unordered_set>
 
@@ -61,6 +62,8 @@ protected:
   vector<unsigned short> boolPeriodic{0,0,0};
   vector<su2double> per_length{0,0,0};
   su2double per_rot{0.0};
+
+  bool periodic = true; // HACK temp variable to trigger if statements for periodic domains
   
   
 public:
@@ -294,4 +297,27 @@ public:
 
     return sqrt(d);
   }
+
+  void Cart_to_Cyl(CGeometry* geometry, CConfig* config);
+  void delta_Cart_to_cyl(const su2double* init_coord, const su2double* var_coord, su2double* delta);
+  void delta_cyl_to_Cart(const su2double* init_coord, su2double* var_coord);
+
+  inline void cart_to_cyl(const su2double* coord, su2double* cyl_coord) const {
+    cyl_coord[0] = GeometryToolbox::Norm(nDim, coord);
+    cyl_coord[1] = atan2(coord[1], coord[0]);
+
+    if (nDim == 3){
+      cyl_coord[2] = coord[2];
+    }
+  }
+
+  inline void cyl_to_cart(const su2double* coord, su2double* cart_coord) const {
+    cart_coord[0] = coord[0]*cos(coord[1]);
+    cart_coord[1] = coord[0]*sin(coord[1]);
+
+    if (nDim == 3){
+      cart_coord[2] = coord[2];
+    }
+  }
+  
 };

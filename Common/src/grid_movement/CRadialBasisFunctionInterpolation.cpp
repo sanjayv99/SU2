@@ -439,25 +439,25 @@ void CRadialBasisFunctionInterpolation::SetBoundaryDisplacements(CGeometry* geom
         ((config->GetDirectDiff() == D_DESIGN) && (Kind_SU2 == SU2_COMPONENT::SU2_CFD) &&
          (config->GetMarker_All_DV(iMarker) == YES)) /*NOTE: This feature has not been tested for RBF interpolation*/ ||
         ((config->GetMarker_All_DV(iMarker) == YES) && (Kind_SU2 == SU2_COMPONENT::SU2_DOT))) {
-        for (auto iDim = 0u; iDim < nDim; iDim++) {
-          CtrlNodeDeformation[idx * nDim + iDim] = SU2_TYPE::GetValue(geometry->vertex[nodes[idx_i]->GetMarker()][nodes[idx_i]->GetVertex()]->GetVarCoord()[iDim] * VarIncrement);
+        
+        if (periodic){
+
+          su2double delta_cyl_coord[nDim];          
+          delta_Cart_to_cyl(geometry->nodes->GetCoord(nodes[idx_i]->GetIndex()), geometry->vertex[nodes[idx_i]->GetMarker()][nodes[idx_i]->GetVertex()]->GetVarCoord(), delta_cyl_coord);
+          
+          for (auto iDim = 0u; iDim < nDim; iDim++){
+            CtrlNodeDeformation[idx * nDim + iDim] = delta_cyl_coord[iDim];
+          }
+
+        } else {
+        
+          for (auto iDim = 0u; iDim < nDim; iDim++) {
+            CtrlNodeDeformation[idx * nDim + iDim] = SU2_TYPE::GetValue(geometry->vertex[nodes[idx_i]->GetMarker()][nodes[idx_i]->GetVertex()]->GetVarCoord()[iDim] * VarIncrement);
+          }
         }
 
-        // TODO -  for cylindrical coordinates
-        su2double new_coord[nDim];
-        auto old_coord = geometry->nodes->GetCoord(nodes[idx_i]->GetIndex());
-        for (auto iDim = 0u; iDim < nDim; iDim++) {
-          new_coord[iDim] = old_coord[iDim] + SU2_TYPE::GetValue(geometry->vertex[nodes[idx_i]->GetMarker()][nodes[idx_i]->GetVertex()]->GetVarCoord()[iDim] * VarIncrement);
-        }
-
-        su2double delta_cyl_coord[nDim];
-        delta_cyl_coord[0] = GeometryToolbox::Norm(nDim, new_coord);
-        delta_cyl_coord[1] = atan2(new_coord[1], new_coord[0]);
-        auto cyl_coord = nodes[idx_i]->GetCylCoord();
-        for (auto iDim = 0u; iDim < nDim; iDim++){
-          delta_cyl_coord[iDim] -= cyl_coord[iDim];
-          CtrlNodeDeformation[idx * nDim + iDim] = delta_cyl_coord[iDim];
-        }
+        
+        
         
 
         
@@ -671,34 +671,27 @@ void CRadialBasisFunctionInterpolation::UpdateInternalCoords(CGeometry* geometry
     for(auto jNode = 0ul; jNode < nCtrlNodesGlobal; jNode++){
 
       /*--- Determine distance between considered internal and control node ---*/
-      // TODO -  for periodic cylindrical domains
-      su2double cyl_coords[nDim];
-      cyl_coords[0] = GeometryToolbox::Norm(nDim, geometry->nodes->GetCoord(internalNodes[iNode]));
-      cyl_coords[1] = atan2(geometry->nodes->GetCoord(internalNodes[iNode])[1], geometry->nodes->GetCoord(internalNodes[iNode])[0]);
+      // TODO -  calculation of the internalNode coordinates can be taken out of the jNode loop.
+      su2double dist;
+      if (periodic) {
+        su2double cyl_coords[nDim];
+        cart_to_cyl(geometry->nodes->GetCoord(internalNodes[iNode]), cyl_coords);  
+        dist = GetDistance(CtrlCoords[jNode*nDim], cyl_coords);
+      } else {
+        dist = GetDistance(CtrlCoords[jNode*nDim], geometry->nodes->GetCoord(internalNodes[iNode]));
+      }
       
-      // su2double dist = GetDistance(CtrlCoords[jNode*nDim], geometry->nodes->GetCoord(internalNodes[iNode]));
-      su2double dist = GetDistance(CtrlCoords[jNode*nDim], cyl_coords);
       /*--- Evaluate RBF based on distance ---*/
       su2double rbf = SU2_TYPE::GetValue(CRadialBasisFunction::Get_RadialBasisValue(type, radius, dist));
-      cout << internalNodes[iNode] << " " << jNode << " " << rbf << " " <<  geometry->nodes->GetCoord(internalNodes[iNode])[0] << " " << geometry->nodes->GetCoord(internalNodes[iNode])[1] << " " << *CtrlCoords[jNode*nDim] << " " << *CtrlCoords[jNode*nDim+1] <<  endl;
+    
       /*--- Add contribution to total coordinate variation ---*/
       for(auto iDim = 0u; iDim < nDim; iDim++){
         var_coord[iDim] += rbf*InterpCoeff[jNode * nDim + iDim];
       }
     }
-    // TODO -  for periodic cylindrical domain
-    auto init_coord = geometry->nodes->GetCoord(internalNodes[iNode]);
-    su2double cyl_coord[nDim];
-    cyl_coord[0] = GeometryToolbox::Norm(nDim, init_coord) + var_coord[0];
-    cyl_coord[1] = atan2(init_coord[1], init_coord[0]) + var_coord[1];
-    su2double new_coord[nDim];
-    new_coord[0] = cyl_coord[0]*cos(cyl_coord[1]);
-    new_coord[1] = cyl_coord[0]*sin(cyl_coord[1]);
 
-    var_coord[0] = new_coord[0] - init_coord[0];
-    var_coord[1] = new_coord[1] - init_coord[1];
+    if (periodic) delta_cyl_to_Cart(geometry->nodes->GetCoord(internalNodes[iNode]), var_coord);
     
-    cout <<"int: " << internalNodes[iNode] << "\t" << var_coord[0] << "\t" << var_coord[1] << endl;
     /*--- Apply the coordinate variation and resetting the var_coord vector to zero ---*/
     for(auto iDim = 0u; iDim < nDim; iDim++){
       geometry->nodes->AddCoord(internalNodes[iNode], iDim, var_coord[iDim]);
@@ -749,19 +742,22 @@ void CRadialBasisFunctionInterpolation::UpdateBoundCoords(CGeometry* geometry, C
     }
   }
 
+  const su2double VarIncrement = 1.0 / ((su2double)config->GetGridDef_Nonlinear_Iter());
+
   unsigned long idx = 0;
   for (auto type : CtrlTypeVec) {
     auto ctrl_idx = config->GetRBF_DataReduction() ? GetIndices(ctrl_nodes_type, type) : GetIndices(node_type_indices, type);
     for (auto idx_i : ctrl_idx) {
-      cout << nodes[idx_i]->GetIndex() << " " << geometry->nodes->GetCoord(nodes[idx_i]->GetIndex())[0] << " " << geometry->nodes->GetCoord(nodes[idx_i]->GetIndex())[1] << endl;
+    
       for (auto iDim = 0u; iDim < nDim; iDim++) {
-        // TODO -  for periodic cylindrical domain:
+    
+        if (periodic) {
+          geometry->nodes->AddCoord(nodes[idx_i]->GetIndex(), iDim, geometry->vertex[nodes[idx_i]->GetMarker()][nodes[idx_i]->GetVertex()]->GetVarCoord()[iDim] * VarIncrement);
+        } else {
+          geometry->nodes->AddCoord(nodes[idx_i]->GetIndex(), iDim, CtrlNodeDeformation[idx++]);     
+        }       
         
-        geometry->nodes->AddCoord(nodes[idx_i]->GetIndex(), iDim, geometry->vertex[nodes[idx_i]->GetMarker()][nodes[idx_i]->GetVertex()]->GetVarCoord()[iDim] /*// TODO -  add varIncrement*/);
-        
-        // geometry->nodes->AddCoord(nodes[idx_i]->GetIndex(), iDim, CtrlNodeDeformation[idx++]);     
       }
-      cout << nodes[idx_i]->GetIndex() << " " << geometry->nodes->GetCoord(nodes[idx_i]->GetIndex())[0] << " " << geometry->nodes->GetCoord(nodes[idx_i]->GetIndex())[1] << endl;
     }
   }
 }
@@ -801,20 +797,9 @@ void CRadialBasisFunctionInterpolation::GetInitMaxErrorNode(CGeometry* geometry,
 
 void CRadialBasisFunctionInterpolation::SetCtrlNodeCoords(CGeometry* geometry, CConfig* config){
   /*--- The coordinates of all control nodes are made available on all processes ---*/
-  // TODO - make this a seperate function
-  for (auto type : CtrlTypeVec){
-    auto ctrl_idx = config->GetRBF_DataReduction() ? GetIndices(ctrl_nodes_type, type) : GetIndices(node_type_indices, type);
-    for (auto idx_i : ctrl_idx) {
-      auto coord = geometry->nodes->GetCoord(nodes[idx_i]->GetIndex());
-      cout <<nodes[idx_i]->GetIndex() << "\t" <<  coord[0] << "\t" << coord[1] << endl;
-      su2double cyl_coord[2];
-      cyl_coord[0] = GeometryToolbox::Norm(nDim, coord);
-      cyl_coord[1] = atan2(coord[1], coord[0]);
-      nodes[idx_i]->SetCylCoord(cyl_coord, nDim);
-    }
-  }
 
-  
+  if (periodic) {Cart_to_Cyl(geometry, config);}
+
   /*--- resizing the matrix containing the global control node coordinates ---*/
   CtrlCoords.resize(nCtrlNodesGlobal*nDim);
   
@@ -826,9 +811,14 @@ void CRadialBasisFunctionInterpolation::SetCtrlNodeCoords(CGeometry* geometry, C
   for (auto type : CtrlTypeVec) {
     auto ctrl_idx = config->GetRBF_DataReduction() ? GetIndices(ctrl_nodes_type, type) : GetIndices(node_type_indices, type);
     for (auto idx_i : ctrl_idx) {
-      // TODO -  hardcoded to use cylindrical coords
-      // auto coord = geometry->nodes->GetCoord(nodes[idx_i]->GetIndex());
-      auto coord = nodes[idx_i]->GetCylCoord();
+      
+      su2double* coord;
+      if (periodic) {
+        coord = nodes[idx_i]->GetCylCoord();
+      } else {
+        coord = geometry->nodes->GetCoord(nodes[idx_i]->GetIndex());
+      }
+
       for (auto iDim = 0u; iDim < nDim; iDim++) {
         localCoords[idx++] = coord[iDim];
       }
@@ -1047,5 +1037,54 @@ void CRadialBasisFunctionInterpolation::SetPeriodicVars(CConfig* config){
       auto per_angles = config->GetPeriodicRotAngles(config->GetMarker_All_TagBound(iMarker));
       per_rot = fabs(per_angles[2]);
     }
+  }
+}
+
+// MODIFY - change function names
+void CRadialBasisFunctionInterpolation::Cart_to_Cyl(CGeometry* geometry, CConfig* config){
+  
+  for (auto type : CtrlTypeVec){
+    auto ctrl_idx = config->GetRBF_DataReduction() ? GetIndices(ctrl_nodes_type, type) : GetIndices(node_type_indices, type);
+    for (auto idx_i : ctrl_idx) {
+      auto coord = geometry->nodes->GetCoord(nodes[idx_i]->GetIndex());
+      
+      su2double cyl_coord[nDim];
+      cart_to_cyl(coord, cyl_coord);
+      nodes[idx_i]->SetCylCoord(cyl_coord, nDim);
+    }
+  }
+}
+
+void CRadialBasisFunctionInterpolation::delta_Cart_to_cyl(const su2double* init_coord, const su2double* var_coord, su2double* delta) {
+  // new Carthesian coord
+  su2double new_coord[nDim];
+  for (auto iDim = 0u; iDim < nDim; iDim++){
+    new_coord[iDim] = init_coord[iDim] + var_coord[iDim];
+  }
+
+  su2double init_coord_cyl[nDim];
+  cart_to_cyl(init_coord, init_coord_cyl);
+
+  cart_to_cyl(new_coord, delta);
+
+  for (auto iDim = 0u; iDim < nDim; iDim++){
+    delta[iDim] -= init_coord_cyl[iDim]; 
+  }
+}
+
+void CRadialBasisFunctionInterpolation::delta_cyl_to_Cart(const su2double* init_coord, su2double* var_coord) {
+  // init cylindrical coord
+  su2double init_coord_cyl[nDim];
+  cart_to_cyl(init_coord, init_coord_cyl);
+
+  su2double new_coord_cyl[nDim];
+  for (auto iDim = 0u; iDim < nDim; iDim++){
+    new_coord_cyl[iDim] = init_coord_cyl[iDim] + var_coord[iDim];
+  }
+
+  cyl_to_cart(new_coord_cyl, var_coord);
+
+  for (auto iDim = 0u; iDim < nDim; iDim++){
+    var_coord[iDim] -= init_coord[iDim]; 
   }
 }
