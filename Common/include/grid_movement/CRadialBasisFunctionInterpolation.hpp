@@ -281,19 +281,26 @@ public:
 
   inline su2double GetDistance(const su2double* a, const su2double*b) const {
     su2double d(0);   
-
-    for (unsigned short iDim = 0; iDim < nDim; iDim++) {
-      // su2double diff = boolPeriodic[iDim] ? (per_length[iDim]/PI_NUMBER * sin( (a[iDim] - b[iDim]) * PI_NUMBER / per_length[iDim])) : (a[iDim] - b[iDim]);
-      su2double diff;
-      if (boolPeriodic[iDim]) {
-          diff = per_length[iDim] / PI_NUMBER * sin((a[iDim] - b[iDim]) * PI_NUMBER / per_length[iDim]);
-      } else {
-          diff = a[iDim] - b[iDim];
+    // dist = sqrt(pow(m.coords_polar_cylindrical(node1,0),2) + pow(m.coords_polar_cylindrical(node2,0),2) -2*m.coords_polar_cylindrical(node1,0)*m.coords_polar_cylindrical(node2,0)*cos(m.periodic_length/M_PI*sin( (m.coords_polar_cylindrical(node2,1)-m.coords_polar_cylindrical(node1,1))*M_PI/m.periodic_length)) + pow(m.coords_polar_cylindrical(node2,2) - m.coords_polar_cylindrical(node1,2),2) );
+    if (periodic) {
+      d = a[0] * a[0] + b[0]*b[0] - 2*a[0]*b[0]*cos(per_rot/PI_NUMBER * sin((a[1]-b[1])*PI_NUMBER/per_rot));
+      if (nDim == 3){
+        d += (a[2]-b[2]) * (a[2]-b[2]);
       }
-      d += diff * diff;
-    }  
+    } else {
+      for (unsigned short iDim = 0; iDim < nDim; iDim++) {
+        // su2double diff = boolPeriodic[iDim] ? (per_length[iDim]/PI_NUMBER * sin( (a[iDim] - b[iDim]) * PI_NUMBER / per_length[iDim])) : (a[iDim] - b[iDim]);
+        su2double diff;
+        if (boolPeriodic[iDim]) {
+            diff = per_length[iDim] / PI_NUMBER * sin((a[iDim] - b[iDim]) * PI_NUMBER / per_length[iDim]);
+        } else {
+            diff = a[iDim] - b[iDim];
+        }
+        d += diff * diff;
+      }  
+    }
 
-    d = a[0] * a[0] + b[0]*b[0] - 2*a[0]*b[0]*cos(per_rot/PI_NUMBER * sin((a[1]-b[1])*PI_NUMBER/per_rot));
+   
 
     return sqrt(d);
   }
@@ -303,7 +310,7 @@ public:
   void delta_cyl_to_Cart(const su2double* init_coord, su2double* var_coord);
 
   inline void cart_to_cyl(const su2double* coord, su2double* cyl_coord) const {
-    cyl_coord[0] = GeometryToolbox::Norm(nDim, coord);
+    cyl_coord[0] = GeometryToolbox::Norm(2, coord);
     cyl_coord[1] = atan2(coord[1], coord[0]);
 
     if (nDim == 3){

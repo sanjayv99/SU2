@@ -303,6 +303,13 @@ void CRadialBasisFunctionInterpolation::SetBoundNodes(CGeometry* geometry, CConf
     auto type = nodes[x]->getNodetype();
     node_type_indices[type].push_back(x);
   }
+  // TODO -  debug output
+  ofstream out("boundnodes.txt");
+  auto idx = node_type_indices["displaced"];
+  for (auto i : idx){
+    out << nodes[i]->GetIndex() << endl;
+  }
+  out.close();
 }
 
 void CRadialBasisFunctionInterpolation::SetCtrlNodes(CConfig* config){
@@ -532,6 +539,32 @@ void CRadialBasisFunctionInterpolation::SetInternalNodes(CGeometry* geometry, CC
     }
   }  
 
+  // TODO -  added for the markers treated as internal 
+  for (auto iMarker = 0u; iMarker < geometry->GetnMarker(); iMarker++) { 
+
+    /*--- If send or receive marker ---*/
+    if (config->GetMarker_All_Deform_Mesh_Internal(iMarker)) { 
+
+      /*--- Loop over marker vertices ---*/
+      for (auto iVertex = 0ul; iVertex < geometry->nVertex[iMarker]; iVertex++) { 
+        
+        /*--- Local node index ---*/
+        auto iNode = geometry->vertex[iMarker][iVertex]->GetNode();
+
+        /*--- if not among the boundary nodes ---*/
+        if (find_if (nodes.begin(), nodes.end(), [&](CRadialBasisFunctionNode* i){return i->GetIndex() == iNode;}) == nodes.end()) {
+          internalNodes.push_back(iNode);
+        }             
+      }
+    }
+  }
+  
+  /*--- sorting of the local indices ---*/
+  sort(internalNodes.begin(), internalNodes.end());
+
+  /*--- Obtaining unique set of internal nodes ---*/
+  internalNodes.resize(std::distance(internalNodes.begin(), unique(internalNodes.begin(), internalNodes.end())));
+
   /*--- In case of a parallel computation, the nodes on the send/receive markers are included as internal nodes
           if they are not already a boundary node with known deformation ---*/
 
@@ -680,7 +713,6 @@ void CRadialBasisFunctionInterpolation::UpdateInternalCoords(CGeometry* geometry
       } else {
         dist = GetDistance(CtrlCoords[jNode*nDim], geometry->nodes->GetCoord(internalNodes[iNode]));
       }
-      
       /*--- Evaluate RBF based on distance ---*/
       su2double rbf = SU2_TYPE::GetValue(CRadialBasisFunction::Get_RadialBasisValue(type, radius, dist));
     
@@ -755,8 +787,7 @@ void CRadialBasisFunctionInterpolation::UpdateBoundCoords(CGeometry* geometry, C
           geometry->nodes->AddCoord(nodes[idx_i]->GetIndex(), iDim, geometry->vertex[nodes[idx_i]->GetMarker()][nodes[idx_i]->GetVertex()]->GetVarCoord()[iDim] * VarIncrement);
         } else {
           geometry->nodes->AddCoord(nodes[idx_i]->GetIndex(), iDim, CtrlNodeDeformation[idx++]);     
-        }       
-        
+        }               
       }
     }
   }
