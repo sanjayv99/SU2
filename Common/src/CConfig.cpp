@@ -8641,7 +8641,7 @@ unsigned short CConfig::GetMarker_Periodic_Donor(const string& val_marker) const
   /*--- Find the marker for this periodic boundary. ---*/
   for (iMarker_PerBound = 0; iMarker_PerBound < nMarker_PerBound; iMarker_PerBound++)
     if (Marker_PerBound[iMarker_PerBound] == val_marker) break;
-
+  
   /*--- Find corresponding donor. ---*/
   for (jMarker_PerBound = 0; jMarker_PerBound < nMarker_PerBound; jMarker_PerBound++)
     if (Marker_PerBound[jMarker_PerBound] == Marker_PerDonor[iMarker_PerBound]) break;
@@ -8649,8 +8649,21 @@ unsigned short CConfig::GetMarker_Periodic_Donor(const string& val_marker) const
   /*--- Find and return global marker index for donor boundary. ---*/
   for (kMarker_All = 0; kMarker_All < nMarker_CfgFile; kMarker_All++)
     if (Marker_PerBound[jMarker_PerBound] == Marker_All_TagBound[kMarker_All]) break;
-
+  
   return kMarker_All;
+}
+
+unsigned short CConfig::GetMarker_Periodic(const string& val_marker) const {
+  unsigned short iMarker;
+  for (iMarker = 0; iMarker < nMarker_PerBound; iMarker++){
+    if (Marker_PerBound[iMarker] == val_marker) break;
+  }
+
+  return iMarker;
+}
+
+unsigned short CConfig::GetMarker_Periodic_Donor2(unsigned short iMarker) const{
+  return GetMarker_Periodic(Marker_PerDonor[iMarker]);
 }
 
 su2double CConfig::GetActDisk_NetThrust(const string& val_marker) const {

@@ -44,7 +44,7 @@ void CRadialBasisFunctionInterpolation::SetVolume_Deformation(CGeometry* geometr
   //   if (rank==MASTER_NODE){
   //     int i = 0;
   //     while(0==i){
-  //       sleep(5);
+  //       sleep(1);
   //     }
   //   }
   // }
@@ -54,7 +54,6 @@ void CRadialBasisFunctionInterpolation::SetVolume_Deformation(CGeometry* geometr
   
 
   /*--- Retrieve type of RBF and its support radius ---*/ 
-
   const auto kindRBF = config->GetKindRadialBasisFunction();
   const su2double radius = config->GetRadialBasisFunctionParameter();
   
@@ -225,7 +224,6 @@ void CRadialBasisFunctionInterpolation::GetInterpCoeffs(CGeometry* geometry, CCo
 
 void CRadialBasisFunctionInterpolation::ComputeSensitivity(CGeometry* geometry, const RADIAL_BASIS& type, const su2double radius,su2passivematrix &invInterpMat, vector<unsigned long>& internalNodes){
 
-  //from here
   vector<su2double> inter_res(nCtrlNodesGlobal * nDim, 0.0);
 
   //loop over all global control nodes
@@ -268,7 +266,7 @@ void CRadialBasisFunctionInterpolation::ComputeSensitivity(CGeometry* geometry, 
 void CRadialBasisFunctionInterpolation::SetBoundNodes(CGeometry* geometry, CConfig* config){
   // start here: the periodic node pair on the non periodic boundaries might introduce issues with obtaining the inverse as the linear system is overdetermined. 
   /*--- Storing of the local node, marker and vertex information of the boundary nodes ---*/
-
+  
   for (auto iMarker = 0u; iMarker < config->GetnMarker_All(); iMarker++) {
     if (!config->GetMarker_All_Deform_Mesh_Internal(iMarker) && !config->GetMarker_All_SendRecv(iMarker) && !config->GetMarker_All_PerBound(iMarker)) {
       for (auto iVertex = 0ul; iVertex < geometry->nVertex[iMarker]; iVertex++) {
@@ -276,10 +274,16 @@ void CRadialBasisFunctionInterpolation::SetBoundNodes(CGeometry* geometry, CConf
 
         if(geometry->nodes->GetPeriodicBoundary(iNode)){
           unsigned short perMarker;
+          // iterate over markers
           for (auto jMarker = 0u; jMarker < config->GetnMarker_All(); jMarker++){
+            // if node is on marker and marker is periodic
             if(geometry->nodes->GetVertex(iNode, jMarker) != -1 && config->GetMarker_All_PerBound(jMarker)){
+              // save marker
               perMarker = jMarker;
-              if(perMarker < config->GetMarker_Periodic_Donor(config->GetMarker_All_TagBound(jMarker))){
+
+              // if periodic marker is the smaller of the two periodic markers then its saved.
+              auto idx_PeriodicMarker = config->GetMarker_Periodic(config->GetMarker_All_TagBound(jMarker));
+              if(idx_PeriodicMarker < config->GetMarker_Periodic_Donor2(idx_PeriodicMarker)){
                 nodes.push_back(new CRadialBasisFunctionNode(iNode, iMarker, iVertex));
                 nodes.back()->setNodetype("displaced");
               }
@@ -340,13 +344,14 @@ void CRadialBasisFunctionInterpolation::GetInvInterpMat(CGeometry* geometry, CCo
 }
 
 void CRadialBasisFunctionInterpolation::GetInterpMat_parallel(CGeometry* geometry, const RADIAL_BASIS& type, const su2double radius, CSymmetricMatrix& interpMat){
-  
   /*--- Initialization of the interpolation matrix ---*/
   interpMat.Initialize(nCtrlNodesGlobal);
 
   // Total number of elems in the lower triangular matrix
   unsigned long N_lowerTriangle = (nCtrlNodesGlobal*(nCtrlNodesGlobal+1))/2;
 
+  // global rbf evaluations are stored in rbf_vals_all
+  vector<su2double> rbf_vals_all(N_lowerTriangle);
   // Average number of elements per process
   unsigned long N_perProcess = ceil(N_lowerTriangle/size);
 
@@ -362,7 +367,6 @@ void CRadialBasisFunctionInterpolation::GetInterpMat_parallel(CGeometry* geometr
   
   // Number of elements to be evaluated
   int nr_elems = (end_row*(end_row+1) - start_row*(start_row+1))/2;
-  
   // Finding RBF evaluations
   vector<su2double> rbf_vals(nr_elems);
   unsigned long cnt = 0;
@@ -383,10 +387,6 @@ void CRadialBasisFunctionInterpolation::GetInterpMat_parallel(CGeometry* geometr
   for (int i = 1; i < size; i++) {
       disp[i] = disp[i-1] + recv_cnts[i-1];
   }
-
-  // global rbf evaluations are stored in rbf_vals_all
-  vector<su2double> rbf_vals_all(N_lowerTriangle);
-
   // Allgather the RBF evaluations
   SU2_MPI::Allgatherv(rbf_vals.data(), nr_elems, MPI_DOUBLE, rbf_vals_all.data(), recv_cnts, disp, MPI_DOUBLE, SU2_MPI::GetComm());
 
@@ -1046,12 +1046,11 @@ void CRadialBasisFunctionInterpolation::Get_nCtrlNodesGlobal(CConfig* config){
 
 
 void CRadialBasisFunctionInterpolation::SetPeriodicVars(CConfig* config){
-  
   /*--- Finding the periodic direction and periodic length ---*/
-  for (auto iMarker = 0u; iMarker < config->GetnMarker_All(); iMarker++){
-    if (config->GetMarker_All_PerBound(iMarker)){
-
-      auto per_translation = config->GetPeriodicTranslation(config->GetMarker_All_TagBound(iMarker));
+  // for (auto iMarker = 0u; iMarker < config->GetnMarker_All(); iMarker++){
+  //   if (config->GetMarker_All_PerBound(iMarker)){
+// HACK temp solution
+      auto per_translation = config->GetPeriodic_Translation(0);
       unsigned short per_dir_cnt = 0;
       for (auto iDim = 0u; iDim < nDim; iDim++) {
         if (per_translation[iDim] != 0) {
@@ -1065,11 +1064,11 @@ void CRadialBasisFunctionInterpolation::SetPeriodicVars(CConfig* config){
         SU2_MPI::Error("Multiple periodic directions detected. Periodic direction has to be purely in a x,y or z coordinate", CURRENT_FUNCTION);
       }
       // TODO - include some checks etc..
-      auto per_angles = config->GetPeriodicRotAngles(config->GetMarker_All_TagBound(iMarker));
+      auto per_angles = config->GetPeriodic_RotAngles(0);
       per_rot = fabs(per_angles[2]);
     }
-  }
-}
+//   }
+// }
 
 // MODIFY - change function names
 void CRadialBasisFunctionInterpolation::Cart_to_Cyl(CGeometry* geometry, CConfig* config){
@@ -1118,4 +1117,7 @@ void CRadialBasisFunctionInterpolation::delta_cyl_to_Cart(const su2double* init_
   for (auto iDim = 0u; iDim < nDim; iDim++){
     var_coord[iDim] -= init_coord[iDim]; 
   }
+  //   }
+  // }
+
 }
