@@ -6642,6 +6642,10 @@ public:
    * \return Periodic donor marker from the config information for the marker <i>val_marker</i>.
    */
   unsigned short GetMarker_Periodic_Donor(const string& val_marker) const;
+// TODO -  add descriptions and change name as it matched the name of the function above
+  unsigned short GetMarker_Periodic(const string& val_marker) const;
+
+  unsigned short GetMarker_Periodic_Donor2(unsigned short iMarker) const;
 
   /*!
    * \brief Get the origin of the actuator disk.
