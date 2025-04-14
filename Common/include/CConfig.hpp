@@ -6637,6 +6637,8 @@ public:
    */
   const su2double* GetPeriodic_Translation(unsigned short val_index ) const { return Periodic_Translation[val_index]; }
 
+  const su2double* GetPeriodic_RotAngles(unsigned short val_index ) const { return Periodic_RotAngles[val_index]; }
+
   /*!
    * \brief Get the rotationally periodic donor marker for boundary <i>val_marker</i>.
    * \return Periodic donor marker from the config information for the marker <i>val_marker</i>.
