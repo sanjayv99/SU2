@@ -63,8 +63,8 @@ protected:
   vector<su2double> per_length{0,0,0};
   su2double per_rot{0.0};
 
-  bool periodic = true; // HACK temp variable to trigger if statements for periodic domains
-  
+  bool periodic = false; // HACK temp variable to trigger if statements for periodic domains 
+ 
   
 public:
 

@@ -49,6 +49,8 @@ void CRadialBasisFunctionInterpolation::SetVolume_Deformation(CGeometry* geometr
   //   }
   // }
 
+  if (config->GetnMarker_Periodic() > 0) periodic = true;
+
   // SU2_MPI::Barrier(SU2_MPI::GetComm());
   // SU2_MPI::Abort(SU2_MPI::GetComm(), 0);
   
@@ -122,7 +124,6 @@ void CRadialBasisFunctionInterpolation::SetVolume_Deformation(CGeometry* geometr
       else
         cout << "Min. volume: " << MinVolume <<  "." << endl;
     }  
-    
   }  
 }
 
@@ -152,7 +153,7 @@ void CRadialBasisFunctionInterpolation::SolveRBF_System(CGeometry* geometry, CCo
 
     su2passivematrix invInterpMat;
     /*--- While the maximum error is above the tolerance, data reduction algorithm is continued. ---*/
-    while(MaxErrorGlobal > dataReductionTolerance || greedyIter == 0){ 
+    while( (MaxErrorGlobal > dataReductionTolerance && greedyIter < 1) || greedyIter == 0 ){ 
       
       /*--- In case of a nonzero local error, control nodes are added ---*/
       if(maxErrorLocal> 0){
@@ -186,6 +187,7 @@ void CRadialBasisFunctionInterpolation::SolveRBF_System(CGeometry* geometry, CCo
       if(rank == MASTER_NODE) cout << "Greedy iteration: " << greedyIter << ". Max error: " << MaxErrorGlobal << ". Global nr. of ctrl nodes: "  << nCtrlNodesGlobal << "\n" << endl;
       
       greedyIter++;
+      // MaxErrorGlobal = 0;
     } 
 
     if (Derivative){
@@ -539,6 +541,11 @@ void CRadialBasisFunctionInterpolation::SetInternalNodes(CGeometry* geometry, CC
     }
   }  
 
+  
+  ofstream out("internalNodes.txt");      
+  
+  
+
   // TODO -  added for the markers treated as internal 
   for (auto iMarker = 0u; iMarker < geometry->GetnMarker(); iMarker++) { 
 
@@ -554,10 +561,12 @@ void CRadialBasisFunctionInterpolation::SetInternalNodes(CGeometry* geometry, CC
         /*--- if not among the boundary nodes ---*/
         if (find_if (nodes.begin(), nodes.end(), [&](CRadialBasisFunctionNode* i){return i->GetIndex() == iNode;}) == nodes.end()) {
           internalNodes.push_back(iNode);
+          out << iNode << endl;
         }             
       }
     }
   }
+  out.close();
   
   /*--- sorting of the local indices ---*/
   sort(internalNodes.begin(), internalNodes.end());
@@ -595,6 +604,8 @@ void CRadialBasisFunctionInterpolation::SetInternalNodes(CGeometry* geometry, CC
     /*--- Obtaining unique set of internal nodes ---*/
     internalNodes.resize(std::distance(internalNodes.begin(), unique(internalNodes.begin(), internalNodes.end())));
   #endif
+
+  
 
   
 
@@ -648,7 +659,7 @@ void CRadialBasisFunctionInterpolation::UpdateGridCoord(CGeometry* geometry, CCo
   UpdateBoundCoords(geometry, config, type, radius);   
 
   /*--- In case of data reduction, perform the correction for nonzero error nodes ---*/
-  if(config->GetRBF_DataReduction() && nCtrlNodesLocal - ctrl_nodes_type["displaced"].size() > 0 ){
+  if(config->GetRBF_DataReduction() /* // TODO -  this statement makes no sense && nCtrlNodesLocal - ctrl_nodes_type["displaced"].size() > 0 */){
     SetCorrection(geometry, config, type, internalNodes); 
   }
 }
@@ -693,13 +704,14 @@ void CRadialBasisFunctionInterpolation::UpdateGridCoord_Derivatives(CGeometry* g
 }
 
 void CRadialBasisFunctionInterpolation::UpdateInternalCoords(CGeometry* geometry, const RADIAL_BASIS& type, const su2double radius, const vector<unsigned long>& internalNodes){
-  
+  // TODO -  the internal node part of the periodic node pair, does not seem to fall exactly on the right point. This is an issue of the setcorrection function, that only correct a single periodic node, instead of the pair.
+
    /*--- Vector for storing the coordinate variation ---*/
   su2double var_coord[nDim]{0.0};
   
   /*--- Loop over the internal nodes ---*/
   for(auto iNode = 0ul; iNode < internalNodes.size(); iNode++){
-    
+
     /*--- Loop for contribution of each control node ---*/
     for(auto jNode = 0ul; jNode < nCtrlNodesGlobal; jNode++){
 
@@ -721,7 +733,7 @@ void CRadialBasisFunctionInterpolation::UpdateInternalCoords(CGeometry* geometry
         var_coord[iDim] += rbf*InterpCoeff[jNode * nDim + iDim];
       }
     }
-
+    
     if (periodic) delta_cyl_to_Cart(geometry->nodes->GetCoord(internalNodes[iNode]), var_coord);
     
     /*--- Apply the coordinate variation and resetting the var_coord vector to zero ---*/
@@ -752,7 +764,7 @@ void CRadialBasisFunctionInterpolation::UpdateBoundCoords(CGeometry* geometry, C
             
             /*--- Distance of non-selected boundary node to control node ---*/
             su2double dist = GetDistance(CtrlCoords[jNode*nDim], geometry->nodes->GetCoord(nodes[iNode]->GetIndex()));
-            
+
             /*--- Evaluation of the radial basis function based on the distance ---*/
             su2double rbf = SU2_TYPE::GetValue(CRadialBasisFunction::Get_RadialBasisValue(type, radius, dist));
 
@@ -761,13 +773,16 @@ void CRadialBasisFunctionInterpolation::UpdateBoundCoords(CGeometry* geometry, C
               var_coord[iDim] += rbf*InterpCoeff[jNode * nDim + iDim];
             }
           }
-    
+
+          if (periodic) {
+            delta_cyl_to_Cart(geometry->nodes->GetCoord(nodes[iNode]->GetIndex()), var_coord);
+          }
+          
           /*--- Applying the coordinate variation and resetting the var_coord vector*/
           for(auto iDim = 0u; iDim < nDim; iDim++){
             geometry->nodes->AddCoord(nodes[iNode]->GetIndex(), iDim, var_coord[iDim]);
             var_coord[iDim] = 0;
           }
-          
         }
 
       }
@@ -780,7 +795,6 @@ void CRadialBasisFunctionInterpolation::UpdateBoundCoords(CGeometry* geometry, C
   for (auto type : CtrlTypeVec) {
     auto ctrl_idx = config->GetRBF_DataReduction() ? GetIndices(ctrl_nodes_type, type) : GetIndices(node_type_indices, type);
     for (auto idx_i : ctrl_idx) {
-    
       for (auto iDim = 0u; iDim < nDim; iDim++) {
     
         if (periodic) {
@@ -903,7 +917,7 @@ void CRadialBasisFunctionInterpolation::GetInterpError(CGeometry* geometry, CCon
   }  
 }
 
-void CRadialBasisFunctionInterpolation:: GetNodalError(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type, const su2double radius, CRadialBasisFunctionNode* iNode, bool Derivative, su2double* localError){ 
+void CRadialBasisFunctionInterpolation::GetNodalError(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type, const su2double radius, CRadialBasisFunctionNode* iNode, bool Derivative, su2double* localError){ 
   
   /*--- If requested (no by default) impose the surface deflections in increments ---*/
   const su2double VarIncrement = 1.0 / ((su2double)config->GetGridDef_Nonlinear_Iter());
@@ -922,15 +936,14 @@ void CRadialBasisFunctionInterpolation:: GetNodalError(CGeometry* geometry, CCon
     auto nodetype = iNode->getNodetype();
     
     if (nodetype == "displaced"){
-      auto displacement = geometry->vertex[iNode->GetMarker()][iNode->GetVertex()]->GetVarCoord();
-
+      auto disp_true = geometry->vertex[iNode->GetMarker()][iNode->GetVertex()]->GetVarCoord();
       for(auto iDim = 0u; iDim < nDim; iDim++){
-        localError[iDim] = -displacement[iDim] * VarIncrement;
+        localError[iDim] = -disp_true[iDim] * VarIncrement;
       }
     }
   }
 
-
+  su2double disp_interp[nDim] = {0.0};
   /*--- Resulting displacement from the RBF interpolation is added to the error ---*/ 
 
   /*--- Finding contribution of each control node ---*/
@@ -943,8 +956,17 @@ void CRadialBasisFunctionInterpolation:: GetNodalError(CGeometry* geometry, CCon
 
     /*--- Add contribution to error ---*/
     for(auto iDim = 0u; iDim < nDim; iDim++){
-      localError[iDim] += rbf*InterpCoeff[jNode*nDim + iDim];
+      // localError[iDim] += rbf*InterpCoeff[jNode*nDim + iDim];
+      disp_interp[iDim] += rbf*InterpCoeff[jNode*nDim + iDim];
     }
+  }
+
+  if (periodic) {
+    delta_cyl_to_Cart(geometry->nodes->GetCoord(iNode->GetIndex()),  disp_interp);
+  }
+
+  for (auto iDim = 0u; iDim < nDim; iDim++) {
+    localError[iDim] += disp_interp[iDim];
   }
 }
 
@@ -1094,12 +1116,12 @@ void CRadialBasisFunctionInterpolation::delta_Cart_to_cyl(const su2double* init_
 
   su2double init_coord_cyl[nDim];
   cart_to_cyl(init_coord, init_coord_cyl);
-
   cart_to_cyl(new_coord, delta);
 
   for (auto iDim = 0u; iDim < nDim; iDim++){
     delta[iDim] -= init_coord_cyl[iDim]; 
   }
+  
 }
 
 void CRadialBasisFunctionInterpolation::delta_cyl_to_Cart(const su2double* init_coord, su2double* var_coord) {
@@ -1117,7 +1139,4 @@ void CRadialBasisFunctionInterpolation::delta_cyl_to_Cart(const su2double* init_
   for (auto iDim = 0u; iDim < nDim; iDim++){
     var_coord[iDim] -= init_coord[iDim]; 
   }
-  //   }
-  // }
-
 }
