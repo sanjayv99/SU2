@@ -49,8 +49,6 @@ void CRadialBasisFunctionInterpolation::SetVolume_Deformation(CGeometry* geometr
   //   }
   // }
 
-  if (config->GetnMarker_Periodic() > 0) periodic = true;
-
   // SU2_MPI::Barrier(SU2_MPI::GetComm());
   // SU2_MPI::Abort(SU2_MPI::GetComm(), 0);
   
@@ -449,7 +447,7 @@ void CRadialBasisFunctionInterpolation::SetBoundaryDisplacements(CGeometry* geom
          (config->GetMarker_All_DV(iMarker) == YES)) /*NOTE: This feature has not been tested for RBF interpolation*/ ||
         ((config->GetMarker_All_DV(iMarker) == YES) && (Kind_SU2 == SU2_COMPONENT::SU2_DOT))) {
         
-        if (periodic){
+        if (IsCylindrical){
 
           su2double delta_cyl_coord[nDim];          
           delta_Cart_to_cyl(geometry->nodes->GetCoord(nodes[idx_i]->GetIndex()), geometry->vertex[nodes[idx_i]->GetMarker()][nodes[idx_i]->GetVertex()]->GetVarCoord(), delta_cyl_coord);
@@ -718,7 +716,7 @@ void CRadialBasisFunctionInterpolation::UpdateInternalCoords(CGeometry* geometry
       /*--- Determine distance between considered internal and control node ---*/
       // TODO -  calculation of the internalNode coordinates can be taken out of the jNode loop.
       su2double dist;
-      if (periodic) {
+      if (IsCylindrical) {
         su2double cyl_coords[nDim];
         cart_to_cyl(geometry->nodes->GetCoord(internalNodes[iNode]), cyl_coords);  
         dist = GetDistance(CtrlCoords[jNode*nDim], cyl_coords);
@@ -734,7 +732,7 @@ void CRadialBasisFunctionInterpolation::UpdateInternalCoords(CGeometry* geometry
       }
     }
     
-    if (periodic) delta_cyl_to_Cart(geometry->nodes->GetCoord(internalNodes[iNode]), var_coord);
+    if (IsCylindrical) delta_cyl_to_Cart(geometry->nodes->GetCoord(internalNodes[iNode]), var_coord);
     
     /*--- Apply the coordinate variation and resetting the var_coord vector to zero ---*/
     for(auto iDim = 0u; iDim < nDim; iDim++){
@@ -774,7 +772,7 @@ void CRadialBasisFunctionInterpolation::UpdateBoundCoords(CGeometry* geometry, C
             }
           }
 
-          if (periodic) {
+          if (IsCylindrical) {
             delta_cyl_to_Cart(geometry->nodes->GetCoord(nodes[iNode]->GetIndex()), var_coord);
           }
           
@@ -797,7 +795,7 @@ void CRadialBasisFunctionInterpolation::UpdateBoundCoords(CGeometry* geometry, C
     for (auto idx_i : ctrl_idx) {
       for (auto iDim = 0u; iDim < nDim; iDim++) {
     
-        if (periodic) {
+        if (IsCylindrical) {
           geometry->nodes->AddCoord(nodes[idx_i]->GetIndex(), iDim, geometry->vertex[nodes[idx_i]->GetMarker()][nodes[idx_i]->GetVertex()]->GetVarCoord()[iDim] * VarIncrement);
         } else {
           geometry->nodes->AddCoord(nodes[idx_i]->GetIndex(), iDim, CtrlNodeDeformation[idx++]);     
@@ -843,7 +841,7 @@ void CRadialBasisFunctionInterpolation::GetInitMaxErrorNode(CGeometry* geometry,
 void CRadialBasisFunctionInterpolation::SetCtrlNodeCoords(CGeometry* geometry, CConfig* config){
   /*--- The coordinates of all control nodes are made available on all processes ---*/
 
-  if (periodic) {Cart_to_Cyl(geometry, config);}
+  if (IsCylindrical) {Cart_to_Cyl(geometry, config);}
 
   /*--- resizing the matrix containing the global control node coordinates ---*/
   CtrlCoords.resize(nCtrlNodesGlobal*nDim);
@@ -858,7 +856,7 @@ void CRadialBasisFunctionInterpolation::SetCtrlNodeCoords(CGeometry* geometry, C
     for (auto idx_i : ctrl_idx) {
       
       su2double* coord;
-      if (periodic) {
+      if (IsCylindrical) {
         coord = nodes[idx_i]->GetCylCoord();
       } else {
         coord = geometry->nodes->GetCoord(nodes[idx_i]->GetIndex());
@@ -961,7 +959,7 @@ void CRadialBasisFunctionInterpolation::GetNodalError(CGeometry* geometry, CConf
     }
   }
 
-  if (periodic) {
+  if (IsCylindrical) {
     delta_cyl_to_Cart(geometry->nodes->GetCoord(iNode->GetIndex()),  disp_interp);
   }
 
@@ -1068,29 +1066,66 @@ void CRadialBasisFunctionInterpolation::Get_nCtrlNodesGlobal(CConfig* config){
 
 
 void CRadialBasisFunctionInterpolation::SetPeriodicVars(CConfig* config){
-  /*--- Finding the periodic direction and periodic length ---*/
-  // for (auto iMarker = 0u; iMarker < config->GetnMarker_All(); iMarker++){
-  //   if (config->GetMarker_All_PerBound(iMarker)){
-// HACK temp solution
-      auto per_translation = config->GetPeriodic_Translation(0);
-      unsigned short per_dir_cnt = 0;
-      for (auto iDim = 0u; iDim < nDim; iDim++) {
-        if (per_translation[iDim] != 0) {
-          boolPeriodic[iDim] = 1;
-          per_length[iDim] = fabs(per_translation[iDim]);
-          per_dir_cnt++;
-        }
-      }
 
-      if (per_dir_cnt > 1 ) {
-        SU2_MPI::Error("Multiple periodic directions detected. Periodic direction has to be purely in a x,y or z coordinate", CURRENT_FUNCTION);
+  /*--- Counter number of periodic angles encountered ---*/
+  unsigned short rotationalAngleCnt = 0;
+  
+  /*--- Loop over periodic markers and find rotational periodic parameters ---*/
+  for (auto iMarker = 0u; iMarker < config->GetnMarker_Periodic(); iMarker++) {
+
+    auto periodicAngles = config->GetPeriodic_RotAngles(iMarker);
+    for (auto iDim = 0u; iDim < 3; iDim ++) {
+
+      if (periodicAngles[iDim] != 0.0) {
+        
+        /*--- For a 2D domain the rotational axis is perpendicular to the 2D plane (z-axis) ---*/
+        if (nDim == 2 && iDim != 2) {
+          SU2_MPI::Error("Rotational periodicity can only be applied around the third coordinate axis for a 2D domain.", CURRENT_FUNCTION);
+        } 
+        
+        /*--- Store Rotational axis, periodic angle. 
+                Present errors in case of multiple rotational axes or periodic angles. ---*/
+        if (rotationalAngleCnt == 0) {
+          RotationalAxis = iDim;
+          PeriodicAngle = fabs(periodicAngles[iDim]);
+          IsCylindrical = true;
+        } else if (RotationalAxis != iDim) {
+          SU2_MPI::Error("Only a single rotationally periodic angle can be provided with MARKER_PERIODIC.", CURRENT_FUNCTION);
+        } else if (fabs(periodicAngles[iDim]) != PeriodicAngle) {
+          SU2_MPI::Error("Two different values of periodic angles detected in MARKER_PERIODIC.", CURRENT_FUNCTION);
+        }
+
+        rotationalAngleCnt++;
       }
-      // TODO - include some checks etc..
-      auto per_angles = config->GetPeriodic_RotAngles(0);
-      per_rot = fabs(per_angles[2]);
     }
-//   }
-// }
+  }
+
+  /*--- Loop over periodic markers to find translational periodic parameters ---*/
+  for (auto iMarker = 0u; iMarker < config->GetnMarker_Periodic(); iMarker++) {
+    
+    auto periodicTranslation = config->GetPeriodic_Translation(iMarker);
+    for (auto iDim = 0u; iDim < 3; iDim++) {
+
+        if (periodicTranslation[iDim] != 0.0) {
+
+          /*--- For 2D, periodicity cannot be rotational and translational.
+                  For 3D domain with rotational periodicity, the domain can only be translationally peridic along the rotational periodic axis. ---*/
+          if (IsCylindrical) {
+            if (nDim == 2) {
+              SU2_MPI::Error("A 2D domain cannot have both rotational and translational periodicity simultaneously.", CURRENT_FUNCTION);
+            } else if (RotationalAxis != iDim) {
+              SU2_MPI::Error("Periodic translation can only be applied along the rotational axis.", CURRENT_FUNCTION);
+            }
+          }
+
+          /*--- Save periodic axes and lengths ---*/
+          PeriodicAxis[iDim] = 1;
+          PeriodicLength[iDim] = fabs(periodicTranslation[iDim]);
+        }
+    }
+  }
+}
+
 
 // MODIFY - change function names
 void CRadialBasisFunctionInterpolation::Cart_to_Cyl(CGeometry* geometry, CConfig* config){

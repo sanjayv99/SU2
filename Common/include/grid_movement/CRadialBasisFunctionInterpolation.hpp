@@ -59,12 +59,15 @@ protected:
   unordered_map<string, vector<unsigned long>> node_type_indices; // map containing the indices for the different type of nodes
   unordered_set<unsigned long> control_node_indices;              // in case of DR this contains the control node indices
   unordered_map<string, unordered_set<unsigned long>> ctrl_nodes_type;  // map containing the control nodes of the different types in case of DR
-  vector<unsigned short> boolPeriodic{0,0,0};
-  vector<su2double> per_length{0,0,0};
-  su2double per_rot{0.0};
+  vector<unsigned short> PeriodicAxis{0,0,0};
 
-  bool periodic = false; // HACK temp variable to trigger if statements for periodic domains 
- 
+
+  vector<su2double> PeriodicLength{0,0,0};
+  su2double PeriodicAngle{0.0};
+  unsigned short RotationalAxis;
+
+  bool IsCylindrical = false; // HACK temp variable to tr igger if statements for periodic domains 
+
   
 public:
 
@@ -282,8 +285,8 @@ public:
   inline su2double GetDistance(const su2double* a, const su2double*b) const {
     su2double d(0);   
     // dist = sqrt(pow(m.coords_polar_cylindrical(node1,0),2) + pow(m.coords_polar_cylindrical(node2,0),2) -2*m.coords_polar_cylindrical(node1,0)*m.coords_polar_cylindrical(node2,0)*cos(m.periodic_length/M_PI*sin( (m.coords_polar_cylindrical(node2,1)-m.coords_polar_cylindrical(node1,1))*M_PI/m.periodic_length)) + pow(m.coords_polar_cylindrical(node2,2) - m.coords_polar_cylindrical(node1,2),2) );
-    if (periodic) {
-      d = a[0] * a[0] + b[0]*b[0] - 2*a[0]*b[0]*cos(per_rot/PI_NUMBER * sin((a[1]-b[1])*PI_NUMBER/per_rot));
+    if (IsCylindrical) {
+      d = a[0] * a[0] + b[0]*b[0] - 2*a[0]*b[0]*cos(PeriodicAngle/PI_NUMBER * sin((a[1]-b[1])*PI_NUMBER/PeriodicAngle));
       if (nDim == 3){
         d += (a[2]-b[2]) * (a[2]-b[2]);
       }
@@ -291,8 +294,8 @@ public:
       for (unsigned short iDim = 0; iDim < nDim; iDim++) {
         // su2double diff = boolPeriodic[iDim] ? (per_length[iDim]/PI_NUMBER * sin( (a[iDim] - b[iDim]) * PI_NUMBER / per_length[iDim])) : (a[iDim] - b[iDim]);
         su2double diff;
-        if (boolPeriodic[iDim]) {
-            diff = per_length[iDim] / PI_NUMBER * sin((a[iDim] - b[iDim]) * PI_NUMBER / per_length[iDim]);
+        if (PeriodicAxis[iDim]) {
+            diff = PeriodicLength[iDim] / PI_NUMBER * sin((a[iDim] - b[iDim]) * PI_NUMBER / PeriodicLength[iDim]);
         } else {
             diff = a[iDim] - b[iDim];
         }
