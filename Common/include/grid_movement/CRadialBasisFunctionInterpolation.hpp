@@ -330,4 +330,6 @@ public:
     }
   }
   
+
+  void SetPeriodicPairs(CGeometry* geometry, CConfig* config, vector <CRadialBasisFunctionNode*> ref_nodes, vector <unsigned long>& target_nodes);
 };

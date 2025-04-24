@@ -71,10 +71,12 @@ void CRadialBasisFunctionInterpolation::SetVolume_Deformation(CGeometry* geometr
   if (config->GetSmoothGradient()) Screen_Output = true;
 
 
+  if (config->GetnMarker_Periodic() != 0) SetPeriodicVars(config);
+
   /*--- Determining the boundary and internal nodes. Setting the control nodes. ---*/ 
   SetBoundNodes(geometry, config);
 
-  if (config->GetnMarker_Periodic() != 0) SetPeriodicVars(config);
+  
   
   vector<unsigned long> internalNodes; 
   SetInternalNodes(geometry, config, internalNodes); 
@@ -266,6 +268,9 @@ void CRadialBasisFunctionInterpolation::ComputeSensitivity(CGeometry* geometry, 
 void CRadialBasisFunctionInterpolation::SetBoundNodes(CGeometry* geometry, CConfig* config){
   // start here: the periodic node pair on the non periodic boundaries might introduce issues with obtaining the inverse as the linear system is overdetermined. 
   /*--- Storing of the local node, marker and vertex information of the boundary nodes ---*/
+
+  vector<unsigned long> periodic_target;
+  vector<CRadialBasisFunctionNode*> periodic_ref;
   
   for (auto iMarker = 0u; iMarker < config->GetnMarker_All(); iMarker++) {
     if (!config->GetMarker_All_Deform_Mesh_Internal(iMarker) && !config->GetMarker_All_SendRecv(iMarker) && !config->GetMarker_All_PerBound(iMarker)) {
@@ -286,6 +291,9 @@ void CRadialBasisFunctionInterpolation::SetBoundNodes(CGeometry* geometry, CConf
               if(idx_PeriodicMarker < config->GetMarker_Periodic_Donor2(idx_PeriodicMarker)){
                 nodes.push_back(new CRadialBasisFunctionNode(iNode, iMarker, iVertex));
                 nodes.back()->setNodetype("displaced");
+                periodic_ref.push_back(nodes.back());
+              }else{
+                periodic_target.push_back(iNode);
               }
               break;
             }
@@ -314,6 +322,66 @@ void CRadialBasisFunctionInterpolation::SetBoundNodes(CGeometry* geometry, CConf
     out << nodes[i]->GetIndex() << endl;
   }
   out.close();
+
+  if (periodic_ref.size() > 0) {
+    SetPeriodicPairs(geometry, config, periodic_ref, periodic_target);
+  }
+}
+
+void CRadialBasisFunctionInterpolation::SetPeriodicPairs(CGeometry* geometry, CConfig* config, vector <CRadialBasisFunctionNode*> ref_nodes, vector <unsigned long>& target_nodes) {
+
+
+  /*--- Construction of the AD tree consisting of the periodic target nodes ---*/
+
+  /*--- Number of target nodes ---*/
+  const auto nVertexBound = target_nodes.size(); 
+
+  /*--- Vector storing the coordinates of the target nodes ---*/
+  vector<su2double> Coord_bound(nDim*nVertexBound);
+
+  /*--- Vector storing the IDs of the boundary nodes ---*/
+  vector<unsigned long> PointIDs(nVertexBound);
+
+  /*--- Storing boundary node information ---*/
+  unsigned long i = 0;
+  for (auto iNode : target_nodes) {
+    PointIDs[i] = iNode;
+
+    su2double cylCoord[nDim];
+    cart_to_cyl(geometry->nodes->GetCoord(iNode), cylCoord);
+
+    for(auto iDim = 0u; iDim < nDim; iDim++){
+      Coord_bound[i*nDim + iDim] = cylCoord[iDim];
+    }
+    i++;    
+  }
+
+  /*--- Construction of AD tree ---*/
+  CADTPointsOnlyClass BoundADT(nDim, nVertexBound, Coord_bound.data(), PointIDs.data(), true);
+
+  su2double dist;
+  unsigned long pointID;
+  int rankID;
+  for (auto iNode : ref_nodes) {
+    // TODO -  This only works for cylindrical coords now
+
+    // obtain cylindrical coords 
+    su2double cylCoord[nDim];
+    cart_to_cyl(geometry->nodes->GetCoord(iNode->GetIndex()), cylCoord);
+
+    
+    for (auto iDim = 0u; iDim < 3; iDim++){
+      cylCoord[iDim] += PeriodicLength[iDim];
+    }
+    cylCoord[1] += PeriodicAngle; // NOTE - under the assumption that there is only a single periodic angle provided.
+    BoundADT.DetermineNearestNode(cylCoord, dist, pointID,  rankID);
+
+    if( dist < EPS) {
+      iNode->SetPeriodicTarget(pointID);
+    } else {
+      cout << "Warning: no periodic node found for: " << iNode->GetIndex() << endl;
+    }    
+  }
 }
 
 void CRadialBasisFunctionInterpolation::SetCtrlNodes(CConfig* config){

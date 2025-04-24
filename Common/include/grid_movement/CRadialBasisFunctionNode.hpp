@@ -44,6 +44,8 @@ class CRadialBasisFunctionNode{
   su2double error[3];         /*!< \brief Nodal data reduction error; */
   string nodetype; // TODO add description
   bool control = false; // TODO add description
+  bool periodic = false;
+  unsigned long periodic_target{0};
 
   su2double cylindrical_coord[3];
 
@@ -98,6 +100,12 @@ class CRadialBasisFunctionNode{
   inline void setControl(){control = true;}
 
   inline bool GetControl(){return control;}
+  
+  inline bool GetPeriodic(){return periodic;}
+
+  inline void SetPeriodicTarget(unsigned long idx_val) {periodic = true; periodic_target = idx_val;}
+
+  inline unsigned long GetPeriodicTarget() {return periodic_target;}
   
   inline void SetCylCoord(const su2double* cyl_coord, unsigned short nDim) {
     for (auto iDim = 0u; iDim < nDim; iDim++) cylindrical_coord[iDim] = cyl_coord[iDim];
