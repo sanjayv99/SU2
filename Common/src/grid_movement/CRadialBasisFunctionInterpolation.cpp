@@ -514,27 +514,14 @@ void CRadialBasisFunctionInterpolation::SetBoundaryDisplacements(CGeometry* geom
         ((config->GetDirectDiff() == D_DESIGN) && (Kind_SU2 == SU2_COMPONENT::SU2_CFD) &&
          (config->GetMarker_All_DV(iMarker) == YES)) /*NOTE: This feature has not been tested for RBF interpolation*/ ||
         ((config->GetMarker_All_DV(iMarker) == YES) && (Kind_SU2 == SU2_COMPONENT::SU2_DOT))) {
-        
-        if (IsCylindrical){
 
-          su2double delta_cyl_coord[nDim];          
-          delta_Cart_to_cyl(geometry->nodes->GetCoord(nodes[idx_i]->GetIndex()), geometry->vertex[nodes[idx_i]->GetMarker()][nodes[idx_i]->GetVertex()]->GetVarCoord(), delta_cyl_coord);
-          
-          for (auto iDim = 0u; iDim < nDim; iDim++){
-            CtrlNodeDeformation[idx * nDim + iDim] = delta_cyl_coord[iDim];
-          }
-
-        } else {
+        su2double varCoord[nDim];
+        GetNodalDeformation(geometry, nodes[idx_i] ,varCoord);
         
-          for (auto iDim = 0u; iDim < nDim; iDim++) {
-            CtrlNodeDeformation[idx * nDim + iDim] = SU2_TYPE::GetValue(geometry->vertex[nodes[idx_i]->GetMarker()][nodes[idx_i]->GetVertex()]->GetVarCoord()[iDim] * VarIncrement);
-          }
+        auto baseIndex = idx * nDim;
+        for (auto iDim = 0u; iDim < nDim; iDim++){
+          CtrlNodeDeformation[baseIndex + iDim] = SU2_TYPE::GetValue(varCoord[iDim] * VarIncrement);
         }
-
-        
-        
-        
-
         
       } else {
         for (auto iDim = 0u; iDim < nDim; iDim++) {
@@ -542,6 +529,20 @@ void CRadialBasisFunctionInterpolation::SetBoundaryDisplacements(CGeometry* geom
         }
       }
       idx++;
+    }
+  }
+}
+
+void CRadialBasisFunctionInterpolation::GetNodalDeformation(CGeometry* geometry, CRadialBasisFunctionNode* iNode, su2double* varCoord) {
+    
+  auto varCoordCart = geometry->vertex[iNode->GetMarker()][iNode->GetVertex()]->GetVarCoord();
+  
+  if (IsCylindrical) {
+    auto coord = geometry->nodes->GetCoord(iNode->GetIndex());
+    delta_Cart_to_cyl(coord, varCoordCart, varCoord);
+  } else{
+    for (auto iDim = 0u; iDim < nDim; iDim++){
+      varCoord[iDim] = varCoordCart[iDim];
     }
   }
 }
