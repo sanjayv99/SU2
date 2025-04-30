@@ -59,14 +59,15 @@ protected:
   unordered_map<string, vector<unsigned long>> node_type_indices; // map containing the indices for the different type of nodes
   unordered_set<unsigned long> control_node_indices;              // in case of DR this contains the control node indices
   unordered_map<string, unordered_set<unsigned long>> ctrl_nodes_type;  // map containing the control nodes of the different types in case of DR
+  
   vector<unsigned short> PeriodicAxis{0,0,0};
-
-
   vector<su2double> PeriodicLength{0,0,0};
   su2double PeriodicAngle{0.0};
   unsigned short RotationalAxis;
 
-  bool IsCylindrical = false; // HACK temp variable to tr igger if statements for periodic domains 
+  bool IsCylindrical = false; 
+
+  vector<CRadialBasisFunctionNode*> per_nodes;
 
   
 public:
@@ -286,7 +287,7 @@ public:
     su2double d(0);   
     // dist = sqrt(pow(m.coords_polar_cylindrical(node1,0),2) + pow(m.coords_polar_cylindrical(node2,0),2) -2*m.coords_polar_cylindrical(node1,0)*m.coords_polar_cylindrical(node2,0)*cos(m.periodic_length/M_PI*sin( (m.coords_polar_cylindrical(node2,1)-m.coords_polar_cylindrical(node1,1))*M_PI/m.periodic_length)) + pow(m.coords_polar_cylindrical(node2,2) - m.coords_polar_cylindrical(node1,2),2) );
     if (IsCylindrical) {
-      d = a[0] * a[0] + b[0]*b[0] - 2*a[0]*b[0]*cos(PeriodicAngle/PI_NUMBER * sin((a[1]-b[1])*PI_NUMBER/PeriodicAngle));
+      d = a[0] * a[0] + b[0]*b[0] - 2*a[0]*b[0]*cos(fabs(PeriodicAngle)/PI_NUMBER * sin((a[1]-b[1])*PI_NUMBER/fabs(PeriodicAngle)));
       if (nDim == 3){
         d += (a[2]-b[2]) * (a[2]-b[2]);
       }
@@ -309,8 +310,8 @@ public:
   }
 
   void Cart_to_Cyl(CGeometry* geometry, CConfig* config);
-  void delta_Cart_to_cyl(const su2double* init_coord, const su2double* var_coord, su2double* delta);
-  void delta_cyl_to_Cart(const su2double* init_coord, su2double* var_coord);
+  void delta_Cart_to_cyl(const su2double* init_coord_cart, const su2double* var_coord_cart, su2double* var_coord_cyl);
+  void delta_cyl_to_Cart(const su2double* init_coord_cart, su2double* var_coord);
 
   inline void cart_to_cyl(const su2double* coord, su2double* cyl_coord) const {
     cyl_coord[0] = GeometryToolbox::Norm(2, coord);
@@ -330,7 +331,6 @@ public:
     }
   }
   
-
-  void SetPeriodicPairs(CGeometry* geometry, CConfig* config, vector <CRadialBasisFunctionNode*> ref_nodes, vector <unsigned long>& target_nodes);
   void GetNodalDeformation(CGeometry* geometry, CRadialBasisFunctionNode* iNode, su2double* varCoord);
+  su2double ComputeDistance(const su2double* ctrlCoords, const su2double* targetCoords);
 };
