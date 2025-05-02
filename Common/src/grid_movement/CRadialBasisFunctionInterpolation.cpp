@@ -190,8 +190,25 @@ void CRadialBasisFunctionInterpolation::SolveRBF_System(CGeometry* geometry, CCo
       ComputeSensitivity(geometry, type, radius, invInterpMat, internalNodes); 
     }
   }else{
+
+    // TODO -  some lines that sets only displaced nodes as ctrl nodes
+    
     /*--- Obtaining the interpolation coefficients. ---*/
     GetInterpCoeffs(geometry, config, type, radius, Derivative, internalNodes, ForwardProjectionDerivative);
+
+    vector<string> types = {"edge", "surface"};
+
+    for (auto iType : types) {
+      if (node_type_indices[iType].size() > 0) {
+        auto BoundADT = CreateADT(geometry, iType);
+
+        ProjectBoundNodes(geometry, config, type, radius, iType, BoundADT.get());
+
+        CtrlTypeVec.push_back(iType);
+        Get_nCtrlNodesGlobal(config);
+        GetInterpCoeffs(geometry, config, type, radius, Derivative, internalNodes, ForwardProjectionDerivative);
+      }
+    }
   }
 }
 
@@ -266,33 +283,92 @@ void CRadialBasisFunctionInterpolation::SetBoundNodes(CGeometry* geometry, CConf
   
   for (auto iMarker = 0u; iMarker < config->GetnMarker_All(); iMarker++) {
     if (!config->GetMarker_All_Deform_Mesh_Internal(iMarker) && !config->GetMarker_All_SendRecv(iMarker) && !config->GetMarker_All_PerBound(iMarker)) {
-      for (auto iVertex = 0ul; iVertex < geometry->nVertex[iMarker]; iVertex++) {
-        auto iNode = geometry->vertex[iMarker][iVertex]->GetNode(); 
 
-        if(geometry->nodes->GetPeriodicBoundary(iNode)){
-          unsigned short perMarker;
-          // iterate over markers
+
+      if (config->GetMarker_All_Deform_Mesh_Slide(iMarker)){
+        for (auto iVertex = 0ul; iVertex < geometry->nVertex[iMarker]; iVertex++) {
+          auto iNode = geometry->vertex[iMarker][iVertex]->GetNode(); 
+          
+          // counting how many boundaries the node is part of
+          unsigned short nVertex = 0;
+          
           for (auto jMarker = 0u; jMarker < config->GetnMarker_All(); jMarker++){
-
-            // if node is on marker and marker is periodic
-            if(geometry->nodes->GetVertex(iNode, jMarker) != -1 && config->GetMarker_All_PerBound(jMarker)){
-
-              // if periodic marker is the smaller of the two periodic markers then its saved.
-              auto idx_PeriodicMarker = config->GetMarker_Periodic(config->GetMarker_All_TagBound(jMarker));
-              if(idx_PeriodicMarker < config->GetMarker_Periodic_Donor2(idx_PeriodicMarker)){
-                nodes.push_back(new CRadialBasisFunctionNode(iNode, iMarker, iVertex));
-                nodes.back()->setNodetype("displaced");
-              }else{
-                per_nodes.push_back(new CRadialBasisFunctionNode(iNode, iMarker, iVertex));
-                per_nodes.back()->setNodetype("displaced");
-              }
-              break;
+            if (geometry->nodes->GetVertex(iNode, jMarker) != -1){
+              // TODO add consideration for not being a send/receive marker
+               nVertex++;
             }
           }
-        } else {
-          if (geometry->nodes->GetDomain(iNode)){
-            nodes.push_back(new CRadialBasisFunctionNode(iNode, iMarker, iVertex)); 
-            nodes.back()->setNodetype("displaced");
+
+          if (nVertex == nDim - 1) {
+            nodes.push_back(new CRadialBasisFunctionNode(iNode, iMarker, iVertex));
+            nodes.back()->setNodetype("edge");
+          } 
+          
+          else if (nVertex == 1) {
+            nodes.push_back(new CRadialBasisFunctionNode(iNode, iMarker, iVertex));
+            nodes.back()->setNodetype("surface");            
+          }
+
+          else {
+            // if on periodic boundary
+            if(geometry->nodes->GetPeriodicBoundary(iNode)){
+              unsigned short perMarker;
+              // iterate over markers
+              for (auto jMarker = 0u; jMarker < config->GetnMarker_All(); jMarker++){
+
+                // if node is on marker and marker is periodic
+                if(geometry->nodes->GetVertex(iNode, jMarker) != -1 && config->GetMarker_All_PerBound(jMarker)){
+
+                  // if periodic marker is the smaller of the two periodic markers then its saved.
+                  auto idx_PeriodicMarker = config->GetMarker_Periodic(config->GetMarker_All_TagBound(jMarker));
+                  if(idx_PeriodicMarker < config->GetMarker_Periodic_Donor2(idx_PeriodicMarker)){
+                    nodes.push_back(new CRadialBasisFunctionNode(iNode, iMarker, iVertex));
+                    nodes.back()->setNodetype("displaced");
+                  }else{
+                    per_nodes.push_back(new CRadialBasisFunctionNode(iNode, iMarker, iVertex));
+                    per_nodes.back()->setNodetype("displaced");
+                  }
+                  break;
+                }
+              }
+            } else {
+              nodes.push_back(new CRadialBasisFunctionNode(iNode, iMarker, iVertex));
+              nodes.back()->setNodetype("displaced");
+            }
+          }
+        }
+      }
+
+      else {
+        for (auto iVertex = 0ul; iVertex < geometry->nVertex[iMarker]; iVertex++) {
+          auto iNode = geometry->vertex[iMarker][iVertex]->GetNode(); 
+        
+          // if on periodic boundary
+          if(geometry->nodes->GetPeriodicBoundary(iNode)){
+            unsigned short perMarker;
+            // iterate over markers
+            for (auto jMarker = 0u; jMarker < config->GetnMarker_All(); jMarker++){
+
+              // if node is on marker and marker is periodic
+              if(geometry->nodes->GetVertex(iNode, jMarker) != -1 && config->GetMarker_All_PerBound(jMarker)){
+
+                // if periodic marker is the smaller of the two periodic markers then its saved.
+                auto idx_PeriodicMarker = config->GetMarker_Periodic(config->GetMarker_All_TagBound(jMarker));
+                if(idx_PeriodicMarker < config->GetMarker_Periodic_Donor2(idx_PeriodicMarker)){
+                  nodes.push_back(new CRadialBasisFunctionNode(iNode, iMarker, iVertex));
+                  nodes.back()->setNodetype("displaced");
+                }else{
+                  per_nodes.push_back(new CRadialBasisFunctionNode(iNode, iMarker, iVertex));
+                  per_nodes.back()->setNodetype("displaced");
+                }
+                break;
+              }
+            }
+          } else {
+            if (geometry->nodes->GetDomain(iNode)){
+              nodes.push_back(new CRadialBasisFunctionNode(iNode, iMarker, iVertex)); 
+              nodes.back()->setNodetype("displaced");
+            }
           }
         }
       }
@@ -307,12 +383,26 @@ void CRadialBasisFunctionInterpolation::SetBoundNodes(CGeometry* geometry, CConf
     node_type_indices[type].push_back(x);
   }
   // TODO -  debug output
-  // ofstream out("boundnodes.txt");
-  // auto idx = node_type_indices["displaced"];
-  // for (auto i : idx){
-  //   out << nodes[i]->GetIndex() << endl;
-  // }
-  // out.close();
+  ofstream out("edge.txt");
+  auto idx = node_type_indices["edge"];
+  for (auto i : idx){
+    out << nodes[i]->GetIndex() << endl;
+  }
+  out.close();
+
+  ofstream out2("surf.txt");
+  auto idx2 = node_type_indices["surface"];
+  for (auto i : idx2){
+    out2 << nodes[i]->GetIndex() << endl;
+  }
+  out2.close();
+
+  ofstream out3("disp.txt");
+  auto idx3 = node_type_indices["displaced"];
+  for (auto i : idx3){
+    out3 << nodes[i]->GetIndex() << endl;
+  }
+  out3.close();
 // TODO -  debug output
   // sleep(rank*1);
   // for (auto x : per_nodes) {
@@ -321,6 +411,9 @@ void CRadialBasisFunctionInterpolation::SetBoundNodes(CGeometry* geometry, CConf
   // for (auto x : nodes) {
   //   cout << "rank: " << rank << " node:" << geometry->nodes->GetGlobalIndex(x->GetIndex()) << endl;
   // }
+
+  
+
 }
 
 void CRadialBasisFunctionInterpolation::SetCtrlNodes(CConfig* config){
@@ -450,7 +543,7 @@ void CRadialBasisFunctionInterpolation::SetBoundaryDisplacements(CGeometry* geom
     for (auto idx_i : ctrl_idx) {
       auto iMarker = nodes[idx_i]->GetMarker();
       if (((config->GetMarker_All_Moving(iMarker) == YES) && (Kind_SU2 == SU2_COMPONENT::SU2_CFD)) ||
-        ((config->GetMarker_All_DV(iMarker) == YES) && (Kind_SU2 == SU2_COMPONENT::SU2_DEF)) ||
+        ((config->GetMarker_All_DV(iMarker) == YES || config->GetMarker_All_Deform_Mesh_Slide(iMarker) == YES) && (Kind_SU2 == SU2_COMPONENT::SU2_DEF)) ||
         ((config->GetDirectDiff() == D_DESIGN) && (Kind_SU2 == SU2_COMPONENT::SU2_CFD) &&
          (config->GetMarker_All_DV(iMarker) == YES)) /*NOTE: This feature has not been tested for RBF interpolation*/ ||
         ((config->GetMarker_All_DV(iMarker) == YES) && (Kind_SU2 == SU2_COMPONENT::SU2_DOT))) {
@@ -468,7 +561,9 @@ void CRadialBasisFunctionInterpolation::SetBoundaryDisplacements(CGeometry* geom
           CtrlNodeDeformation[idx * nDim + iDim] = 0.0;
         }
       }
+      
       idx++;
+      
     }
   }
 }
@@ -1200,5 +1295,118 @@ void CRadialBasisFunctionInterpolation::delta_cyl_to_Cart(const su2double* init_
   // subtract initial coordinate position to find the delta
   for (auto iDim = 0u; iDim < nDim; iDim++){
     var_coord[iDim] -= init_coord_cart[iDim]; 
+  }
+}
+
+
+unique_ptr<CADTPointsOnlyClass> CRadialBasisFunctionInterpolation::CreateADT(CGeometry* geometry, const string& type){
+ 
+  unsigned long size = node_type_indices[type].size();
+ 
+
+ /*--- Vector storing the coordinates of the boundary nodes ---*/
+ vector<su2double> Coord_bound(size * nDim);
+
+ /*--- Vector storing the IDs of the boundary nodes ---*/
+ vector<unsigned long> PointIDs(size);
+
+
+ auto type_idx = node_type_indices[type];
+   for (auto idx_i = 0ul; idx_i < type_idx.size(); idx_i++){
+   PointIDs[idx_i] = nodes[type_idx[idx_i]]->GetVertex();
+
+   for (auto iDim = 0u; iDim < nDim; iDim++){
+     Coord_bound[idx_i*nDim + iDim] = geometry->nodes->GetCoord(nodes[type_idx[idx_i]]->GetIndex(), iDim);
+   }
+ }
+ 
+ 
+ /*--- Construction of AD tree ---*/
+ //TODO check if last bool (GlobalTree) needs to be true
+ return unique_ptr<CADTPointsOnlyClass>( new CADTPointsOnlyClass(nDim, size, Coord_bound.data(), PointIDs.data(), false));
+}
+
+
+void CRadialBasisFunctionInterpolation::ProjectBoundNodes(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type, const su2double radius, const string& nodetype, CADTPointsOnlyClass* BoundADT) {
+  
+  auto idx = node_type_indices[nodetype];
+  
+  for (auto x : idx) {
+    
+    auto node = nodes[x]->GetIndex();
+    auto iMarker = nodes[x]->GetMarker();
+    // starting coord
+    auto coord = geometry->nodes->GetCoord(node);
+    
+    su2double new_coord[nDim];
+    std::copy(coord, coord + nDim, new_coord);
+
+    ApplyRBF(coord, type, radius, new_coord);
+
+    unsigned long pointID;
+    su2double dist;
+    int rankID;
+
+    BoundADT->DetermineNearestNode(new_coord, dist, pointID, rankID);
+    
+    bool Edge3D = (nDim == 3 && nodetype== "edge");
+    ApplyProjection(geometry, config, iMarker, pointID, coord, Edge3D, new_coord);
+
+    geometry->vertex[iMarker][nodes[x]->GetVertex()]->SetVarCoord(new_coord);
+  }
+}
+
+void CRadialBasisFunctionInterpolation::ApplyRBF(const su2double* coord, const RADIAL_BASIS& type, const su2double radius, su2double* new_coord) {
+  for(auto jNode = 0ul; jNode < nCtrlNodesGlobal; jNode++){
+
+    /*--- Determine distance between considered internal and control node ---*/
+    su2double dist = GetDistance(CtrlCoords[jNode*nDim], coord);
+    
+    /*--- Evaluate RBF based on distance ---*/
+    auto rbf = SU2_TYPE::GetValue(CRadialBasisFunction::Get_RadialBasisValue(type, radius, dist));
+
+    /*--- Add contribution to new coordinates -- -*/
+    for(auto iDim = 0u; iDim < nDim; iDim++){
+      new_coord[iDim] += rbf*InterpCoeff[jNode*nDim+iDim];
+    }
+  }
+}
+
+void CRadialBasisFunctionInterpolation::ApplyProjection(CGeometry* geometry, CConfig* config, unsigned short iMarker, unsigned long pointID, su2double* coord, bool Edge3D, su2double* new_coord) {
+  su2double dist_vec[nDim];
+  auto closestNode = geometry->vertex[iMarker][pointID]->GetNode();
+  auto closest_point_coord = geometry->nodes->GetCoord(closestNode);
+  GeometryToolbox::Distance(nDim, new_coord, closest_point_coord, dist_vec);
+
+  auto normal =  geometry->vertex[iMarker][pointID]->GetNormal();
+
+  auto dot_product = GeometryToolbox::DotProduct(nDim, normal, dist_vec);
+
+  auto norm_magnitude =  GeometryToolbox::Norm(nDim, normal);
+  
+  for(auto iDim = 0u; iDim < nDim; iDim++){ 
+    new_coord[iDim] += -dot_product*normal[iDim]/pow(norm_magnitude,2) - coord[iDim];
+  }
+
+  if(Edge3D) {
+    unsigned short mark; 
+    for( auto i = 0u; i < config->GetnMarker_All(); i++){
+      if(geometry->nodes->GetVertex(closestNode, i) != -1 && i != iMarker){
+        mark = i;
+        break;
+      }
+    }
+
+    auto iNode = geometry->nodes->GetVertex(closestNode, mark);
+
+    normal = geometry->vertex[mark][iNode]->GetNormal();
+    
+    dot_product = GeometryToolbox::DotProduct(nDim, normal, dist_vec);
+
+    norm_magnitude =  GeometryToolbox::Norm(nDim, normal);
+
+    for(auto iDim = 0u; iDim < nDim; iDim++){ 
+      new_coord[iDim] += -dot_product*normal[iDim]/pow(norm_magnitude,2);
+    }
   }
 }

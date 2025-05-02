@@ -32,6 +32,7 @@
 #include "../../include/toolboxes/geometry_toolbox.hpp"
 
 #include <unordered_set>
+#include "../../include/adt/CADTPointsOnlyClass.hpp" // TODO -   is also in .cpp file
 
 /*!
  * \class CRadialBasisFunctionInterpolation
@@ -333,4 +334,9 @@ public:
   
   void GetNodalDeformation(CGeometry* geometry, CRadialBasisFunctionNode* iNode, su2double* varCoord);
   su2double ComputeDistance(const su2double* ctrlCoords, const su2double* targetCoords);
+
+  unique_ptr<CADTPointsOnlyClass> CreateADT(CGeometry* geometry, const string& type);
+  void ProjectBoundNodes(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type, const su2double radius, const string& nodetype, CADTPointsOnlyClass* BoundADT);
+  void ApplyRBF(const su2double* coord, const RADIAL_BASIS& type, const su2double radius, su2double* new_coord);
+  void ApplyProjection(CGeometry* geometry, CConfig* config, unsigned short iMarker, unsigned long pointID, su2double* coord, bool Edge3D, su2double* new_coord);
 };
