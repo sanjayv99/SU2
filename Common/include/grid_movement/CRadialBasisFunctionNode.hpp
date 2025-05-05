@@ -45,9 +45,8 @@ class CRadialBasisFunctionNode{
   string nodetype; // TODO add description
   bool control = false; // TODO add description
   bool periodic = false;
-  unsigned long periodic_target{0};
-  su2double periodicTargetCoord[3];
-
+  bool DomainVertex = false;
+  
   su2double cylindrical_coord[3];
 
   public:
@@ -109,4 +108,8 @@ class CRadialBasisFunctionNode{
   }
 
   inline su2double* GetCylCoord(){ return cylindrical_coord;}
+
+  inline void SetDomainVertex() {DomainVertex = true;}
+
+  inline bool GetDomainVertex() {return DomainVertex;}
 };
