@@ -344,5 +344,8 @@ public:
   unique_ptr<CADTPointsOnlyClass> CreateADT(CGeometry* geometry, const string& type);
   void ProjectBoundNodes(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type, const su2double radius, const string& nodetype, CADTPointsOnlyClass* BoundADT, bool SetError, vector<CRadialBasisFunctionNode*>& target_nodes, vector<unsigned long>* project_idx = nullptr);
   void ApplyRBF(const su2double* coord, const RADIAL_BASIS& type, const su2double radius, su2double* new_coord);
-  void ApplyProjection(CGeometry* geometry, CConfig* config, unsigned short iMarker, unsigned long pointID, bool Edge3D, bool persurf, su2double* coord, su2double* new_coord, su2double* projection, bool isVertex);
+  void ApplyProjection(CGeometry* geometry, CConfig* config, unsigned short iMarker, unsigned long pointID, bool isEdge3D, bool isVertex, const string& nodetype, su2double* coord, su2double* new_coord, su2double* projection);
+  void ProjectVertex(su2double* coord, su2double* new_coord, su2double* projection);
+  void ProjectDefault(CGeometry* geometry, unsigned short iMarker, unsigned long pointID, su2double* new_coord, su2double* projection);
+  void ProjectEdge3D(CGeometry* geometry, CConfig* config, unsigned short iMarker, unsigned long pointID, su2double* new_coord, const string& nodetype, su2double* projection);
 };
