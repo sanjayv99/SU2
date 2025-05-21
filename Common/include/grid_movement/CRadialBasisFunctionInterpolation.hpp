@@ -56,10 +56,15 @@ protected:
 
   vector<string> CtrlTypeVec;                                     /*!< \brief This vector contains the control nodes at that moment */  
   vector<CRadialBasisFunctionNode*> nodes;                        // vector containing all boundary nodes
+  unordered_map<string, unordered_map<unsigned short, vector<unsigned long>>> node_indices; // map containing the indices for the different type of nodes
+  
+  vector<CRadialBasisFunctionNode*> per_nodes; // periodic nodes
+  unordered_map<string, unordered_map<unsigned short, vector<unsigned long>>> per_node_indices;
 
-  unordered_map<string, vector<unsigned long>> node_type_indices; // map containing the indices for the different type of nodes
-  unordered_set<unsigned long> control_node_indices;              // in case of DR this contains the control node indices
-  unordered_map<string, unordered_set<unsigned long>> ctrl_nodes_type;  // map containing the control nodes of the different types in case of DR
+
+  // unordered_set<unsigned long> control_node_indices;              // in case of DR this contains the control node indices
+  unordered_map<string, unordered_map<unsigned short, unordered_set<unsigned long>>> ctrl_node_indices;
+  // unordered_map<string, unordered_set<unsigned long>> ctrl_nodes_type;  // map containing the control nodes of the different types in case of DR
   
   su2double PeriodicAxis[3] = {0.0,0.0,0.0};
   vector<su2double> PeriodicLength{0,0,0};
@@ -68,7 +73,8 @@ protected:
 
   bool IsCylindrical = false; 
 
-  vector<CRadialBasisFunctionNode*> per_nodes;
+  su2double dataReductionTolerance = 0;
+
 
   enum class ProjectionType {
     DEFAULT,
@@ -341,11 +347,35 @@ public:
   void GetNodalDeformation(CGeometry* geometry, CRadialBasisFunctionNode* iNode, su2double* varCoord);
   su2double ComputeDistance(const su2double* ctrlCoords, const su2double* targetCoords);
 
-  unique_ptr<CADTPointsOnlyClass> CreateADT(CGeometry* geometry, const string& type);
+  unique_ptr<CADTPointsOnlyClass> CreateADT(CGeometry* geometry, const string& type, const unsigned short marker);
   void ProjectBoundNodes(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type, const su2double radius, const string& nodetype, CADTPointsOnlyClass* BoundADT, bool SetError, vector<CRadialBasisFunctionNode*>& target_nodes, vector<unsigned long>* project_idx = nullptr);
   void ApplyRBF(const su2double* coord, const RADIAL_BASIS& type, const su2double radius, su2double* new_coord);
   void ApplyProjection(CGeometry* geometry, CConfig* config, unsigned short iMarker, unsigned long pointID, bool isEdge3D, bool isVertex, const string& nodetype, su2double* coord, su2double* new_coord, su2double* projection);
   void ProjectVertex(su2double* coord, su2double* new_coord, su2double* projection);
   void ProjectDefault(CGeometry* geometry, unsigned short iMarker, unsigned long pointID, su2double* new_coord, su2double* projection);
   void ProjectEdge3D(CGeometry* geometry, CConfig* config, unsigned short iMarker, unsigned long pointID, su2double* new_coord, const string& nodetype, su2double* projection);
+
+//   std::unordered_map<unsigned short, std::vector<unsigned long>> ConvertToVectorMap(
+//     const std::unordered_map<unsigned short, std::unordered_set<unsigned long>>& input) {
+//     std::unordered_map<unsigned short, std::vector<unsigned long>> output;
+//     for (const auto& pair : input) {
+//       const auto& key = pair.first;
+//       const auto& value = pair.second;
+//       output[key] = std::vector<unsigned long>(value.begin(), value.end());
+//     }
+//     return output;
+// }
+
+  std::unordered_map<unsigned short, std::vector<unsigned long>> ConvertToVectorMap(
+    const std::unordered_map<unsigned short, std::unordered_set<unsigned long>>& input) {
+    std::unordered_map<unsigned short, std::vector<unsigned long>> output;
+    for (const auto& pair : input) {
+        const auto& key = pair.first;
+        const auto& value = pair.second;
+        output[key] = std::vector<unsigned long>(value.begin(), value.end());
+    }
+    return output;
+  }
+
+
 };
