@@ -87,6 +87,10 @@ class CRadialBasisFunctionNode{
     for (auto iDim = 0u; iDim < nDim; iDim++) error[iDim] = val_error[iDim];
   }
 
+  inline void AddError(const su2double val_error, unsigned short iDim) {
+    error[iDim] += val_error;
+  }
+
   /*!
   * \brief Get nodal error.
   * \return Nodal error.

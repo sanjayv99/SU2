@@ -377,5 +377,6 @@ public:
     return output;
   }
 
+  void SetCorrectionSurface(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type);
 
 };
