@@ -203,11 +203,12 @@ void CRadialBasisFunctionInterpolation::SolveRBF_System(CGeometry* geometry, CCo
           if (std::find(CtrlTypeVec.begin(), CtrlTypeVec.end(), itype) == CtrlTypeVec.end()) { // TODO -  not very elegant
             CtrlTypeVec.push_back(itype);
           }
-          auto BoundADT = CreateADT(geometry, itype, mark.first);
+          // auto BoundADT = CreateADT(geometry, itype, mark.first);
           auto indicesSet = mark.second;
           std::vector<unsigned long> indices(indicesSet.begin(), indicesSet.end());
-          cout << "projecting " << itype << " nodes" << endl;
-          ProjectBoundNodes(geometry, config, type, radius, itype, BoundADT.get(), false, nodes, &indices);
+          // cout << "projecting " << itype << " nodes" << endl;
+          auto ADT = CreateADT_per(geometry, itype, mark.first);
+          ProjectBoundNodes(geometry, config, type, radius, itype, ADT.get(), false, nodes, &indices);
           }
         
         /*--- Obtaining the global number of control nodes. ---*/
@@ -255,9 +256,10 @@ void CRadialBasisFunctionInterpolation::SolveRBF_System(CGeometry* geometry, CCo
 
     auto markers = per_node_indices["edge"];
     for (auto mark : markers) {
-      auto BoundADT = CreateADT(geometry, "edge", mark.first);
+      // auto BoundADT = CreateADT(geometry, "edge", mark.first);
+      auto ADT = CreateADT_per(geometry, "edge", mark.first);
       auto indicesSet = mark.second;
-      ProjectBoundNodes(geometry, config, type, radius, "edge", BoundADT.get(), true, per_nodes, &indicesSet);
+      ProjectBoundNodes(geometry, config, type, radius, "edge", ADT.get(), true, per_nodes, &indicesSet);
     }
 
 
@@ -270,9 +272,10 @@ void CRadialBasisFunctionInterpolation::SolveRBF_System(CGeometry* geometry, CCo
 
     markers = per_node_indices["surface"];
     for (auto mark : markers) {
-      auto BoundADT = CreateADT(geometry, "surface", mark.first);
+      // auto BoundADT = CreateADT(geometry, "surface", mark.first);
+      auto ADT = CreateADT_per(geometry, "surface", mark.first);
       auto indicesSet = mark.second;
-      ProjectBoundNodes(geometry, config, type, radius, "surface", BoundADT.get(), true, per_nodes, &indicesSet); // TODO -  these should not be projected as a 3D edge
+      ProjectBoundNodes(geometry, config, type, radius, "surface", ADT.get(), true, per_nodes, &indicesSet); // TODO -  these should not be projected as a 3D edge
     }
 
     // auto BoundADT = CreateADT(geometry, "edge");
@@ -303,8 +306,10 @@ void CRadialBasisFunctionInterpolation::SolveRBF_System(CGeometry* geometry, CCo
 
           auto indices = iMarker.second;          // TODO -   use auto& instead?? 
           
-          auto BoundADT = CreateADT(geometry, iType, iMarker.first);
-          ProjectBoundNodes(geometry, config, type, radius, iType, BoundADT.get(), false, nodes, &indices);
+          // auto BoundADT = CreateADT(geometry, iType, iMarker.first);
+          auto ADT = CreateADT_per(geometry, iType, iMarker.first);
+          cout << "projecting: " << iType << endl;
+          ProjectBoundNodes(geometry, config, type, radius, iType, ADT.get(), false, nodes, &indices);
         }
         
 
@@ -470,7 +475,7 @@ void CRadialBasisFunctionInterpolation::SetBoundNodes(CGeometry* geometry, CConf
                   if(idx_PeriodicMarker < config->GetMarker_Periodic_Donor2(idx_PeriodicMarker)){
                     nodes.push_back(new CRadialBasisFunctionNode(iNode, iMarker, iVertex));
                     nodes.back()->setNodetype("edge"); 
-                    nodes.back()->SetDomainVertex();
+                    nodes.back()->SetDomainVertex(); // TODO -  Function can be removed
                   }else{
                     per_nodes.push_back(new CRadialBasisFunctionNode(iNode, iMarker, iVertex));
                     per_nodes.back()->setNodetype("edge");
@@ -1322,11 +1327,12 @@ void CRadialBasisFunctionInterpolation::SetCorrection(CGeometry* geometry, CConf
   const su2double CorrectionRadius = config->GetRBF_DataRedCorrectionFactor()*MaxErrorGlobal;
 
 
-  /*--- Construction of the AD tree consisting of the non-selected boundary nodes ---*/
+  /*--- Construction of the AD tree consisting of the selected boundary nodes ---*/
 
-  /*--- Number of non-selected boundary nodes ---*/
-  const auto nNonSelectedBound = nodes.size() - nCtrlNodesLocal;
-  auto nVertexBound = nNonSelectedBound + per_nodes.size();
+  /*--- Number of selected boundary nodes ---*/
+  const auto nVertexNonPer = nodes.size();
+  const auto nVertexPer   = per_nodes.size();
+  auto nVertexBound = nVertexNonPer + nVertexPer;
 
   /*--- Vector storing the coordinates of the boundary nodes ---*/
   vector<su2double> Coord_bound(nDim*nVertexBound);
@@ -1334,47 +1340,34 @@ void CRadialBasisFunctionInterpolation::SetCorrection(CGeometry* geometry, CConf
   /*--- Vector storing the IDs of the boundary nodes ---*/
   vector<unsigned long> PointIDs(nVertexBound);   
 
-  int ghost_cnt = 0;
+
+  // TODO -  add note that selected control nodes are also included as to avoid problems with high aspect ratio cells near boundaries!
+
   /*--- Storing boundary node information ---*/
-  unsigned long i = 0;
-  for(auto iVertex = 0ul; iVertex < nodes.size(); iVertex++){
-    // if (!nodes[iVertex]->GetControl()){
-      PointIDs[i] = iVertex;
+
+  for(auto iVertex = 0ul; iVertex < nVertexNonPer; iVertex++){
+      PointIDs[iVertex] = iVertex;
       auto iNode = nodes[iVertex]->GetIndex();
       auto coord = geometry->nodes->GetCoord(iNode);
       for(auto iDim = 0u; iDim < nDim; iDim++){
-        Coord_bound[i*nDim + iDim] = coord[iDim]; 
-      } 
-      i++;
-    // }    
+        Coord_bound[iVertex*nDim + iDim] = coord[iDim]; 
+      }
   }
 
-  for (auto iVertex = 0ul; iVertex < per_nodes.size(); iVertex++){
-    auto err = per_nodes[iVertex]->GetError();
-    if (GeometryToolbox::SquaredNorm(nDim, err) > EPS) {
-      PointIDs[i] = nodes.size() + iVertex;
-      auto iNode = per_nodes[iVertex]->GetIndex();
-      auto coord = geometry->nodes->GetCoord(iNode);
-      
-      for (auto iDim = 0u; iDim < nDim; iDim++) {
-        Coord_bound[i*nDim+iDim] = coord[iDim];
-      }
-      i++;
+
+  for (auto iVertex = 0ul; iVertex < nVertexPer; iVertex++){
+    PointIDs[iVertex + nVertexNonPer] = nVertexNonPer + iVertex;
+    auto iNode = per_nodes[iVertex]->GetIndex();
+    auto coord = geometry->nodes->GetCoord(iNode);
+    
+    for (auto iDim = 0u; iDim < nDim; iDim++) {
+      Coord_bound[(iVertex + nVertexNonPer) * nDim + iDim] = coord[iDim];
     }
   }
-
   
-  nVertexBound = i + ghost_cnt;
-  Coord_bound.resize(nVertexBound*nDim);
-  PointIDs.resize(nVertexBound);
-
-
   
   /*--- Construction of AD tree ---*/
   CADTPointsOnlyClass BoundADT(nDim, nVertexBound, Coord_bound.data(), PointIDs.data(), false);
-
-
-  
 
   /*--- ID of nearest boundary node ---*/
   unsigned long pointID;
@@ -1394,11 +1387,7 @@ void CRadialBasisFunctionInterpolation::SetCorrection(CGeometry* geometry, CConf
     
     /*--- Get error of nearest node ---*/
     auto err = (pointID < nodes.size()) ? nodes[pointID]->GetError() : per_nodes[pointID-nodes.size()]->GetError();
-    if (nodes[pointID]->GetControl()) {
-      for(auto iDim = 0u; iDim < nDim; iDim++) {
-        err[iDim] = 0.0;
-      }
-    }
+    
     /*--- Apply correction to the internal node ---*/
     for(auto iDim = 0u; iDim < nDim; iDim++){
       geometry->nodes->AddCoord(internalNodes[iNode], iDim, -rbf*err[iDim]); 
@@ -1513,6 +1502,9 @@ void CRadialBasisFunctionInterpolation::SetCorrectionSurface(CGeometry* geometry
 
 void CRadialBasisFunctionInterpolation::AddControlNode(unsigned long maxErrorNode){ 
   nodes[maxErrorNode]->setControl();
+
+  vector<su2double> zero(nDim, 0.0);
+  nodes[maxErrorNode]->SetError(zero.data(), nDim);
   // control_node_indices.insert(maxErrorNode);
   // ctrl_nodes_type[nodes[maxErrorNode]->getNodetype()].insert(maxErrorNode);
   ctrl_node_indices[nodes[maxErrorNode]->getNodetype()][nodes[maxErrorNode]->GetMarker()].insert(maxErrorNode);
@@ -1718,6 +1710,69 @@ unique_ptr<CADTPointsOnlyClass> CRadialBasisFunctionInterpolation::CreateADT(CGe
   return unique_ptr<CADTPointsOnlyClass>( new CADTPointsOnlyClass(nDim, size, Coord_bound.data(), PointIDs.data(), false));
 }
 
+unique_ptr<CADTPointsOnlyClass> CRadialBasisFunctionInterpolation::CreateADT_per(CGeometry* geometry, const string& type, const unsigned short marker) {
+  auto indices = node_indices[type][marker];
+  
+  
+  unsigned long size = indices.size();
+
+  /*--- Vector storing the coordinates of the boundary nodes ---*/ // original + 2 periodic images
+  vector<su2double> Coord_bound(size * nDim * 3);
+
+  /*--- Vector storing the IDs of the boundary nodes ---*/
+  vector<unsigned long> PointIDs(size * 3);
+
+  auto type_idx = node_indices[type];
+
+  unsigned long cnt = 0; // TODO -  this cnt was added, likely that idx_i can be replaced with for (auto x : idx_i) ....
+  for (auto idx_i : indices){
+
+    // // the sliding points on the periodic interface are not included in the KD tree. This is because their normal is not accurate when transforming to cylindrical coords. 
+    // // likely a result of how the normal is calculated in cartesian coords. (approximation of normal)
+    // if(nodes[idx_i]->GetDomainVertex() || geometry->nodes->GetPeriodicBoundary(nodes[idx_i]->GetIndex())){
+    //   domainVertexCnt++;
+    //   continue;
+    // }
+    for (auto i = 0u; i < 3; i++) {
+      PointIDs[cnt+size*i] = nodes[idx_i]->GetVertex(); 
+    }
+    
+    su2double* coord = IsCylindrical ? nodes[idx_i]->GetCylCoord() : geometry->nodes->GetCoord(nodes[idx_i]->GetIndex());
+    // // TODO -  NOTE this is only valid for a single periodic direction
+    if (IsCylindrical) {
+      for (auto iDim = 0u; iDim < nDim; iDim++){
+        if (iDim == 1) {
+          Coord_bound[cnt*nDim + iDim] = coord[iDim];
+          Coord_bound[(cnt+size)*nDim + iDim] = coord[iDim] + PeriodicAngle;
+          Coord_bound[(cnt+2*size)*nDim + iDim] = coord[iDim] - PeriodicAngle;
+        } else {
+          Coord_bound[cnt*nDim + iDim] = coord[iDim];
+          Coord_bound[(cnt+size)*nDim + iDim] = coord[iDim];
+          Coord_bound[(cnt+2*size)*nDim + iDim] = coord[iDim];
+        }
+      }
+    } else {
+      for (auto iDim = 0u; iDim < nDim; iDim++){
+        Coord_bound[cnt*nDim + iDim] = coord[iDim];
+        Coord_bound[(cnt+size)*nDim + iDim] = coord[iDim] + PeriodicLength[iDim];
+        Coord_bound[(cnt+2*size)*nDim + iDim] = coord[iDim] - PeriodicLength[iDim];
+      }
+    }
+    cnt++;
+  }
+
+  // // inclusion of periodic nodes:
+  
+
+  // Coord_bound.resize(size * nDim);
+  // PointIDs.resize(size);
+
+  /*--- Construction of AD tree ---*/
+  //TODO check if last bool (GlobalTree) needs to be true
+  return unique_ptr<CADTPointsOnlyClass>( new CADTPointsOnlyClass(nDim, size*3, Coord_bound.data(), PointIDs.data(), false));
+}
+
+
 
 void CRadialBasisFunctionInterpolation::ProjectBoundNodes(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type, const su2double radius, const string& nodetype, CADTPointsOnlyClass* BoundADT, bool SetError, vector<CRadialBasisFunctionNode*>& target_nodes, vector<unsigned long>* project_idx) {
   
@@ -1741,39 +1796,27 @@ void CRadialBasisFunctionInterpolation::ProjectBoundNodes(CGeometry* geometry, C
     if( SetError && nodetype != target_nodes[x]->getNodetype()) continue;
 
     auto node = target_nodes[x]->GetIndex();
-    if (node == 181){
-      cout << "check" << endl;
-    }
+
     auto iMarker = target_nodes[x]->GetMarker();
     // cout << iMarker << endl;
     auto coord = IsCylindrical ? target_nodes[x]->GetCylCoord() : geometry->nodes->GetCoord(node); 
 
-    // cout << "initial coord: " << coord[0] << " " << coord[1] << " " << coord[2] << endl;
+
     su2double new_coord[nDim];
     ApplyRBF(coord, type, radius, new_coord); // RBF displaced coord is stored in new_coord.
-    // cout << "displaced coord: " << new_coord[0] << " " << new_coord[1] << " " << new_coord[2] << endl;
 
-    bool isVertex = target_nodes[x]->GetDomainVertex();
+
+
     unsigned long pointID;
     su2double dist;
     int rankID;
-    if (isVertex == NO) {
-      BoundADT->DetermineNearestNode(new_coord, dist, pointID, rankID);
-    } 
-    
-    bool isEdge3D = ((nDim == 3 && nodetype == "edge") || (nodetype == "surface" && geometry->nodes->GetPeriodicBoundary(target_nodes[x]->GetIndex())) );
-    
-    
-    // if(nodetype=="surface" && geometry->nodes->GetPeriodicBoundary(target_nodes[x]->GetIndex())) {
-    //   cout << target_nodes[x]->GetIndex() << endl;
-    // }
 
+    BoundADT->DetermineNearestNode(new_coord, dist, pointID, rankID); 
 
-    // if(nodetype=="surface" && isEdge3D == true){
-    //   cout << "check" << endl;
-    // }
-   
-    ApplyProjection(geometry, config, iMarker, pointID, isEdge3D, isVertex, target_nodes[x]->getNodetype(), coord, new_coord, projection);  // This should return the projection  
+    // TODO -  start here check if works correctly for some test cases and then check if projection functions can be made more concise
+    bool isEdge3D = (nDim == 3 && nodetype == "edge");    
+  
+    ApplyProjection(geometry, config, iMarker, pointID, isEdge3D, target_nodes[x]->getNodetype(), coord, new_coord, projection);  // This should return the projection  
 
 
     // cout << "coord after projection: " << new_coord[0]-projection[0] << " " << new_coord[1] - projection[1] << " " << new_coord[2] - projection[2] <<  endl;
@@ -1786,7 +1829,9 @@ void CRadialBasisFunctionInterpolation::ProjectBoundNodes(CGeometry* geometry, C
         cyl_to_cart(new_coord, temp);
         delta_cyl_to_Cart(temp, projection);
       }
-
+      // if(nodetype == "surface" && geometry->nodes->GetPeriodicBoundary(node)){
+      //   cout << "error mag: " << GeometryToolbox::SquaredNorm(nDim, projection) << endl;
+      // 
       target_nodes[x]->SetError(projection, nDim);
       } else {
       for (auto iDim = 0u; iDim < nDim; iDim++) {
@@ -1824,33 +1869,20 @@ void CRadialBasisFunctionInterpolation::ApplyRBF(const su2double* coord, const R
   }
 }
 
-void CRadialBasisFunctionInterpolation::ApplyProjection(CGeometry* geometry, CConfig* config, unsigned short iMarker, unsigned long pointID, bool isEdge3D, bool isVertex, const string& nodetype, su2double* coord, su2double* new_coord, su2double* projection) {
-
-  if (isVertex){
-    ProjectVertex(coord, new_coord, projection);
-  } else if (isEdge3D) {
-    ProjectEdge3D(geometry, config, iMarker, pointID, new_coord, nodetype, projection);
-  } else {
-    ProjectDefault(geometry, iMarker, pointID, new_coord, projection);
-  }
+void CRadialBasisFunctionInterpolation::ApplyProjection(CGeometry* geometry, CConfig* config, unsigned short iMarker, unsigned long pointID, bool isEdge3D, const string& nodetype, su2double* coord, su2double* new_coord, su2double* projection) {
+  // check the diff between these two and might be able to combine them in a smart way
+  ProjectDefault(geometry, config, iMarker, pointID, new_coord, nodetype, projection);
 }
 
 
-void CRadialBasisFunctionInterpolation::ProjectVertex(su2double* coord, su2double* new_coord, su2double* projection) {   
-  for (auto iDim = 0u; iDim < nDim; iDim++){
-    if (PeriodicAxis[iDim] == 0) {
-      projection[iDim] =  new_coord[iDim] - coord[iDim];
-    } else {
-      projection[iDim] = 0;
-    }
-  }
-}
+void CRadialBasisFunctionInterpolation::ProjectDefault(CGeometry* geometry, CConfig* config, unsigned short iMarker, unsigned long pointID, su2double* new_coord, const string& nodetype, su2double* projection) {
 
-void CRadialBasisFunctionInterpolation::ProjectDefault(CGeometry* geometry, unsigned short iMarker, unsigned long pointID, su2double* new_coord, su2double* projection) {
+  // START HERE something funky is going on with the normal when transforming to cylindrical coords in case of a vertex node
   auto closestNode = geometry->vertex[iMarker][pointID]->GetNode();
   
   su2double closest_point_coord[nDim];
   auto cart_coord = geometry->nodes->GetCoord(closestNode);
+
   if (IsCylindrical) {
     // auto cart_coord = geometry->nodes->GetCoord(closestNode);
     cart_to_cyl(cart_coord, closest_point_coord);
@@ -1858,6 +1890,70 @@ void CRadialBasisFunctionInterpolation::ProjectDefault(CGeometry* geometry, unsi
     copy(cart_coord, cart_coord + nDim, closest_point_coord);
   }
 
+  su2double min_dist = numeric_limits<su2double>::max();
+  int nearest_img = 0;
+  // finding periodic image
+  for (int img = 0; img < 3; img++) {
+    su2double shifted_coord[nDim];
+    
+    if (IsCylindrical) {
+      for (auto iDim = 0u; iDim < nDim; iDim++){
+        
+        if (iDim == 1) {
+          if (img == 0){
+            shifted_coord[iDim] = closest_point_coord[iDim];
+          }
+          else if (img ==1){
+            shifted_coord[iDim] = closest_point_coord[iDim] + PeriodicAngle;
+          }
+          else {
+            shifted_coord[iDim] = closest_point_coord[iDim] - PeriodicAngle;
+          }
+        } else {
+
+          if (img == 0){
+            shifted_coord[iDim] = closest_point_coord[iDim];
+          }
+          else if (img ==1){
+            shifted_coord[iDim] = closest_point_coord[iDim] + PeriodicLength[iDim];
+          }
+          else {
+            shifted_coord[iDim] = closest_point_coord[iDim] - PeriodicLength[iDim];
+          }
+        }
+      }
+    } else {
+      for (auto iDim = 0u; iDim < nDim; iDim++){
+        if (img == 0){
+          shifted_coord[iDim] = closest_point_coord[iDim];
+        }
+        else if (img ==1){
+          shifted_coord[iDim] = closest_point_coord[iDim] + PeriodicLength[iDim];
+        }
+        else {
+          shifted_coord[iDim] = closest_point_coord[iDim] - PeriodicLength[iDim];
+        }
+      }
+    }
+
+    su2double dist = GeometryToolbox::SquaredDistance(nDim, new_coord, shifted_coord);
+    if (dist < min_dist) {
+      min_dist = dist;
+      nearest_img = img;
+    }
+  }
+
+  if (nearest_img == 1) {
+    for (auto iDim = 0u; iDim < nDim; iDim++) {
+      closest_point_coord[iDim] += PeriodicLength[iDim];
+    }
+  }
+  else if(nearest_img == 2) {
+    for (auto iDim = 0u; iDim < nDim; iDim++) {
+      closest_point_coord[iDim] -= PeriodicLength[iDim];
+    }
+  }
+  
   auto test_var = geometry->GetnVertex(iMarker);
   if (test_var < pointID){
     cout << "warning" << endl;
@@ -1872,7 +1968,6 @@ void CRadialBasisFunctionInterpolation::ProjectDefault(CGeometry* geometry, unsi
     copy(cart_normal, cart_normal + nDim, normal);
   }
 
-  // cout << "normal: " << normal[0] << " " << normal[1] << " " << normal[2] << endl;
 
   // magnitude first normal
   auto mag_normal = GeometryToolbox::Norm(nDim, normal);
@@ -1895,132 +1990,54 @@ void CRadialBasisFunctionInterpolation::ProjectDefault(CGeometry* geometry, unsi
   for(auto iDim = 0u; iDim < nDim; iDim++){ 
     projection[iDim] = dot_product*normal[iDim]/pow(mag_normal,2);
   }
-}
 
-void CRadialBasisFunctionInterpolation::ProjectEdge3D(CGeometry* geometry, CConfig* config, unsigned short iMarker, unsigned long pointID, su2double* new_coord, const string& nodetype, su2double* projection) {
-  
-  // closest node on the original marker
-  auto closestNode = geometry->vertex[iMarker][pointID]->GetNode();
+  // part for the double projection of some edges 
+  if (nodetype=="edge" && nDim == 3){
 
-  // corresponding closest coordinate
-  su2double closest_point_coord[nDim];
-  auto cart_coord = geometry->nodes->GetCoord(closestNode);
-   
-  if (IsCylindrical) {
-    // auto cart_coord = geometry->nodes->GetCoord(closestNode);
-    cart_to_cyl(cart_coord, closest_point_coord);
-  } else{
-    copy(cart_coord, cart_coord + nDim, closest_point_coord);
-  }
-  // cout << closest_point_coord[0] << " " << closest_point_coord[1] << " " << closest_point_coord[2] << endl;
-  // auto closest_point_coord = geometry->nodes->GetCoord(closestNode);
-  su2double dist_vec[nDim];
-  GeometryToolbox::Distance(nDim, new_coord, closest_point_coord, dist_vec);
-
-
-  auto cart_normal = geometry->vertex[iMarker][pointID]->GetNormal();
-  su2double normal[nDim];
-  if (IsCylindrical){
-    delta_Cart_to_cyl(geometry->vertex[iMarker][pointID]->GetCoord(), cart_normal, normal);
-  } else{
-    copy(cart_normal, cart_normal + nDim, normal);
-  }
-
-  // cout << "normal: " << normal[0] << " " << normal[1] << " " << normal[2] << endl;
-
-  // magnitude first normal
-  auto mag_normal1 = GeometryToolbox::Norm(nDim, normal);
-
-  for (auto iDim = 0u; iDim < nDim; iDim++){
-    if (abs(normal[iDim])/mag_normal1 < 0.017){
-      normal[iDim] = 0;
+    // find the second marker that is not periodic
+    unsigned short mark = 0; 
+    for( auto i = 0u; i < config->GetnMarker_All(); i++){
+      if(geometry->nodes->GetVertex(closestNode, i) != -1 && i != iMarker && !config->GetMarker_All_PerBound(i)){
+        break;
+      } 
+      mark++;    
     }
-  }
-  // cout << "unit normal: " << normal[0]/mag_normal1 << " " << normal[1]/mag_normal1 << " " << normal[2]/mag_normal1 << endl;
 
-  // 
-  // second normal
-  unsigned short mark = 0; 
-  for( auto i = 0u; i < config->GetnMarker_All(); i++){
-    if(geometry->nodes->GetVertex(closestNode, i) != -1 && i != iMarker ){
-      break;
-    } 
-    mark++;    
-  }
-  
-  auto iNode = geometry->nodes->GetVertex(closestNode, mark);
+    // TODO -  this if statement can likely be removed
+    if (mark == config->GetnMarker_All()) {
+      SU2_MPI::Error("ProjectEdge3D has only found a single marker for a 3D edge!!!!", CURRENT_FUNCTION);
+    }
 
-  if (mark == config->GetnMarker_All()) {
-    // magnitude first normal
-    auto mag_normal = GeometryToolbox::Norm(nDim, normal);
+    auto iNode = geometry->nodes->GetVertex(closestNode, mark);
+
+    cart_normal = geometry->vertex[mark][iNode]->GetNormal();
+    su2double normal2[nDim];
+    if (IsCylindrical){
+      delta_Cart_to_cyl(geometry->vertex[iMarker][pointID]->GetCoord(), cart_normal, normal2);
+    } else{
+      copy(cart_normal, cart_normal + nDim, normal2);
+    }
+
+
+    auto mag_normal_test = GeometryToolbox::Norm(nDim, normal2);
+
+    for (auto iDim = 0u; iDim < nDim; iDim++){
+      if (abs(normal2[iDim])/mag_normal_test < 0.017){
+        normal2[iDim] = 0;
+      }
+    }
 
     // get dot product
-    auto dot_product = GeometryToolbox::DotProduct(nDim, normal, dist_vec);
-
-    // get projection
-    for(auto iDim = 0u; iDim < nDim; iDim++){ 
-      projection[iDim] = dot_product*normal[iDim]/pow(mag_normal,2);
-    }
-    return;
-  }
-
-  cart_normal = geometry->vertex[mark][iNode]->GetNormal();
-  su2double normal2[nDim];
-  if (IsCylindrical){
-    delta_Cart_to_cyl(geometry->vertex[iMarker][pointID]->GetCoord(), cart_normal, normal2);
-  } else{
-    copy(cart_normal, cart_normal + nDim, normal2);
-  }
-
-  // cout << "normal2: " << normal2[0] << " " << normal2[1] << " " << normal2[2] << endl;
-
-  // magnitude first normal
-  auto mag_normal2 = GeometryToolbox::Norm(nDim, normal2);
-
-  for (auto iDim = 0u; iDim < nDim; iDim++){
-    if (abs(normal2[iDim])/mag_normal2 < 0.017){
-      normal2[iDim] = 0;
-    }
-  }
-  // cout << "unit normal: " << normal2[0]/mag_normal2 << " " << normal2[1]/mag_normal2 << " " << normal2[2]/mag_normal2 << endl;
-
-
-  if (nodetype == "surface") {     
-
-    su2double edgeVec[nDim];
-    GeometryToolbox::CrossProduct(normal, normal2, edgeVec);
-    auto e_norm = GeometryToolbox::Norm(nDim, edgeVec);
-    for (auto iDim = 0u; iDim< nDim; iDim++){ edgeVec[iDim] = edgeVec[iDim]/e_norm;}
-
-    auto dot_ep = GeometryToolbox::DotProduct(nDim, PeriodicAxis, edgeVec); // TODO -  what if PeriodicAxis is not a unit vector.
-    for (auto iDim = 0u; iDim < nDim; iDim++) { edgeVec[iDim] -= dot_ep*PeriodicAxis[iDim];}
-
-    e_norm = GeometryToolbox::Norm(nDim, edgeVec);
-    for (auto iDim = 0u; iDim< nDim; iDim++){ edgeVec[iDim] = edgeVec[iDim]/e_norm;}
-
-
-
-    auto dp1 = GeometryToolbox::DotProduct(nDim, PeriodicAxis, dist_vec);
-    auto dp2 = GeometryToolbox::DotProduct(nDim, edgeVec, dist_vec);
-
-    for(auto iDim = 0u; iDim < nDim; iDim++){ 
-      projection[iDim] = dist_vec[iDim] - (dp1*PeriodicAxis[iDim] + dp2*edgeVec[iDim]);
-    }
-  } 
-  
-  
-  else {
-    // get dot product
-    auto dot_product1 = GeometryToolbox::DotProduct(nDim, normal, dist_vec);
     auto dot_product2 = GeometryToolbox::DotProduct(nDim, normal2, dist_vec);
 
-    // magnitude first normal
-    auto mag_normal = GeometryToolbox::Norm(nDim, normal);
+    // magnitude second normal
     auto mag_normal2 = GeometryToolbox::Norm(nDim, normal2);
 
     // get projection
     for(auto iDim = 0u; iDim < nDim; iDim++){ 
-      projection[iDim] = dot_product1*normal[iDim]/pow(mag_normal,2) + dot_product2*normal2[iDim]/pow(mag_normal2,2);
+      projection[iDim] += dot_product2*normal2[iDim]/pow(mag_normal2,2);
     }
-  } 
+
+
+  }
 }
