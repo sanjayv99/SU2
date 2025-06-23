@@ -278,6 +278,21 @@ void CRadialBasisFunctionInterpolation::SolveRBF_System(CGeometry* geometry, CCo
       ProjectBoundNodes(geometry, config, type, radius, "surface", ADT.get(), true, per_nodes, &indicesSet); // TODO -  these should not be projected as a 3D edge
     }
 
+
+    markers = per_node_indices["displaced"];
+    for (auto mark : markers) {
+      su2double localError[nDim];
+      for (auto idx : mark.second) {
+
+        /*--- Compute nodal error ---*/
+        GetNodalError(geometry, config, type, radius, per_nodes[idx], Derivative, localError);
+
+        /*--- Setting error ---*/
+        per_nodes[idx]->SetError(localError, nDim);
+      }
+    }
+
+
     // auto BoundADT = CreateADT(geometry, "edge");
     // ProjectBoundNodes(geometry, config, type, radius, "edge", BoundADT.get(), true, per_nodes);
 
