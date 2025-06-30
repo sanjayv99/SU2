@@ -110,7 +110,7 @@ public:
   * \param[in] geometry - Geometrical definition of the problem.
   * \param[in] config - Definition of the particular problem.
   */
-  void SetBoundNodes(CGeometry* geometry, CConfig* config);
+  void SetBoundNodes(CGeometry* geometry, CConfig* config, bool Derivative);
 
   /*!
   * \brief Selecting internal nodes for the volumetric deformation.
@@ -308,7 +308,7 @@ public:
       for (unsigned short iDim = 0; iDim < nDim; iDim++) {
         // su2double diff = boolPeriodic[iDim] ? (per_length[iDim]/PI_NUMBER * sin( (a[iDim] - b[iDim]) * PI_NUMBER / per_length[iDim])) : (a[iDim] - b[iDim]);
         su2double diff;
-        if (PeriodicAxis[iDim]) {
+        if (SU2_TYPE::GetValue(PeriodicAxis[iDim])) {
             diff = PeriodicLength[iDim] / PI_NUMBER * sin((a[iDim] - b[iDim]) * PI_NUMBER / PeriodicLength[iDim]);
         } else {
             diff = a[iDim] - b[iDim];
@@ -347,7 +347,6 @@ public:
   void GetNodalDeformation(CGeometry* geometry, CConfig* config, CRadialBasisFunctionNode* iNode, su2double* varCoord);
   su2double ComputeDistance(const su2double* ctrlCoords, const su2double* targetCoords);
 
-  unique_ptr<CADTPointsOnlyClass> CreateADT(CGeometry* geometry, const string& type, const unsigned short marker);
   void ProjectBoundNodes(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type, const su2double radius, const string& nodetype, CADTPointsOnlyClass* BoundADT, bool SetError, vector<CRadialBasisFunctionNode*>& target_nodes, vector<unsigned long>* project_idx = nullptr);
   void ApplyRBF(const su2double* coord, const RADIAL_BASIS& type, const su2double radius, su2double* new_coord);
   void ApplyProjection(CGeometry* geometry, CConfig* config, unsigned short iMarker, unsigned long pointID, const string& nodetype, su2double* new_coord, su2double* projection);
