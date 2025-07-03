@@ -208,7 +208,7 @@ void CRadialBasisFunctionInterpolation::SolveRBF_System(CGeometry* geometry, CCo
           auto indicesSet = mark.second;
           std::vector<unsigned long> indices(indicesSet.begin(), indicesSet.end());
           
-          auto ADT = CreateADT_per(geometry, itype, mark.first);
+          auto ADT = CreateADT(geometry, itype, mark.first, config->GetnMarker_Periodic() != 0);
           ProjectBoundNodes(geometry, config, type, radius, itype, ADT.get(), false, nodes, &indices);
           }
         
@@ -269,7 +269,7 @@ void CRadialBasisFunctionInterpolation::SolveRBF_System(CGeometry* geometry, CCo
             per_nodes[idx]->SetError(localError, nDim);
           }
         } else {
-          auto ADT = CreateADT_per(geometry, iType, mark.first);
+          auto ADT = CreateADT(geometry, iType, mark.first, config->GetnMarker_Periodic() != 0);
           auto indicesSet = mark.second;
           ProjectBoundNodes(geometry, config, type, radius, iType, ADT.get(), true, per_nodes, &indicesSet);
         }
@@ -301,7 +301,7 @@ void CRadialBasisFunctionInterpolation::SolveRBF_System(CGeometry* geometry, CCo
 
           auto indices = iMarker.second;          // TODO -   use auto& instead?? 
           
-          auto ADT = CreateADT_per(geometry, iType, iMarker.first);
+          auto ADT = CreateADT(geometry, iType, iMarker.first, config->GetnMarker_Periodic() != 0);
           cout << "projecting: " << iType << endl;
           ProjectBoundNodes(geometry, config, type, radius, iType, ADT.get(), false, nodes, &indices);
         }
@@ -1256,7 +1256,7 @@ void CRadialBasisFunctionInterpolation::GetInterpError(CGeometry* geometry, CCon
     auto nodes_edge = node_indices[i_type];
 
     for (auto mark : nodes_edge) {
-      auto BoundADT = CreateADT_per(geometry, i_type, mark.first);
+      auto BoundADT = CreateADT(geometry, i_type, mark.first, config->GetnMarker_Periodic() != 0);
 
       auto indices = mark.second;  
 
@@ -1572,23 +1572,21 @@ void CRadialBasisFunctionInterpolation::SetPeriodicVars(CConfig* config){
       if (periodicAngles[iDim] != 0.0) {
         
         /*--- For a 2D domain the rotational axis is perpendicular to the 2D plane (z-axis) ---*/
-        if (nDim == 2 && iDim != 2) {
+        if (nDim == 2 && iDim != Z_DIR) {
           SU2_MPI::Error("Rotational periodicity can only be applied around the third coordinate axis for a 2D domain.", CURRENT_FUNCTION);
         } 
         
         /*--- Store Rotational axis, periodic angle. 
                 Present errors in case of multiple rotational axes or periodic angles. ---*/
         if (rotationalAngleCnt == 0) {
-          RotationalAxis = iDim; // TODO -  this parameter is only used within this function
+          RotationalAxis = iDim; 
           PeriodicAngle = periodicAngles[iDim];
           IsCylindrical = true;
-          PeriodicAxis[1] = 1; // setting theta coordinate as a periodic one 
         } else if (RotationalAxis != iDim) {
           SU2_MPI::Error("Only a single rotationally periodic angle can be provided with MARKER_PERIODIC.", CURRENT_FUNCTION);
         } else if (fabs(periodicAngles[iDim]) != fabs(PeriodicAngle)) {
           SU2_MPI::Error("Two different values of periodic angles detected in MARKER_PERIODIC.", CURRENT_FUNCTION);
         }
-
         rotationalAngleCnt++;
       }
     }
@@ -1613,7 +1611,6 @@ void CRadialBasisFunctionInterpolation::SetPeriodicVars(CConfig* config){
           }
 
           /*--- Save periodic axes and lengths ---*/
-          PeriodicAxis[iDim] = 1;
           PeriodicLength[iDim] = fabs(periodicTranslation[iDim]);
         }
     }
@@ -1671,64 +1668,46 @@ void CRadialBasisFunctionInterpolation::delta_cyl_to_Cart(const su2double* init_
 }
 
 
-unique_ptr<CADTPointsOnlyClass> CRadialBasisFunctionInterpolation::CreateADT_per(CGeometry* geometry, const string& type, const unsigned short marker) {
-
-  // // TODO -  change to allow for non periodic domains too. 
+unique_ptr<CADTPointsOnlyClass> CRadialBasisFunctionInterpolation::CreateADT(CGeometry* geometry, const string& type, const unsigned short marker, bool periodic) {
+  // note current implementation only allows for a single periodic direction
+  
   auto indices = node_indices[type][marker];
-  
-  
+    
   unsigned long size = indices.size();
-
-  /*--- Vector storing the coordinates of the boundary nodes ---*/ // original + 2 periodic images
-  vector<su2double> Coord_bound(size * nDim * 3);
+  int nr_markers = periodic ? 3 : 1; // 3: original + 2 periodic images
+  
+  /*--- Vector storing the coordinates of the boundary nodes ---*/ 
+  vector<su2double> Coord_bound(size * nDim * nr_markers);
 
   /*--- Vector storing the IDs of the boundary nodes ---*/
-  vector<unsigned long> PointIDs(size * 3);
+  vector<unsigned long> PointIDs(size * nr_markers);
 
   auto type_idx = node_indices[type];
 
-  unsigned long cnt = 0; 
-  for (auto idx_i : indices){ // TODO -  is this way better or. unsigned long cnt = 0; cnt < size(); cnt++) and then proceed with idx_i = indices[cnt]
+  auto nVertex = geometry->GetnVertex(marker);
 
-    // // the sliding points on the periodic interface are not included in the KD tree. This is because their normal is not accurate when transforming to cylindrical coords. 
-    // // likely a result of how the normal is calculated in cartesian coords. (approximation of normal)
-    // if(nodes[idx_i]->GetDomainVertex() || geometry->nodes->GetPeriodicBoundary(nodes[idx_i]->GetIndex())){
-    //   domainVertexCnt++;
-    //   continue;
-    // }
-    for (auto i = 0u; i < 3; i++) {
-      PointIDs[cnt+size*i] = nodes[idx_i]->GetVertex(); 
+  for (auto idx_i = 0ul; idx_i < indices.size(); idx_i++) {
+
+    auto iNode = nodes[indices[idx_i]];
+
+    for (auto i = 0u; i < nr_markers; i++) {
+      PointIDs[ idx_i + size* i] = iNode->GetVertex() + i * nVertex;
     }
     
-    su2double* coord = IsCylindrical ? nodes[idx_i]->GetCylCoord() : geometry->nodes->GetCoord(nodes[idx_i]->GetIndex());
-    // // TODO -  NOTE this is only valid for a single periodic direction
-    if (IsCylindrical) {
-      for (auto iDim = 0u; iDim < nDim; iDim++){
-        if (iDim == 1) {
-          Coord_bound[cnt*nDim + iDim] = coord[iDim];
-          Coord_bound[(cnt+size)*nDim + iDim] = coord[iDim] + PeriodicAngle;
-          Coord_bound[(cnt+2*size)*nDim + iDim] = coord[iDim] - PeriodicAngle;
-        } else {
-          Coord_bound[cnt*nDim + iDim] = coord[iDim];
-          Coord_bound[(cnt+size)*nDim + iDim] = coord[iDim];
-          Coord_bound[(cnt+2*size)*nDim + iDim] = coord[iDim];
-        }
-      }
-    } else {
-      for (auto iDim = 0u; iDim < nDim; iDim++){
-        Coord_bound[cnt*nDim + iDim] = coord[iDim];
-        Coord_bound[(cnt+size)*nDim + iDim] = coord[iDim] + PeriodicLength[iDim];
-        Coord_bound[(cnt+2*size)*nDim + iDim] = coord[iDim] - PeriodicLength[iDim];
+    su2double* coord = IsCylindrical ? iNode->GetCylCoord() : geometry->nodes->GetCoord(iNode->GetIndex());
+    // 0 is original image
+    // 1 is positive
+    // 2 is negative
+    
+    // loop through dimensions 
+    su2double angular_periodic_shift[3] = {0.0, +PeriodicAngle, -PeriodicAngle};
+    for (auto iDim = 0u; iDim < nDim; iDim++){
+      su2double translation_periodic_shift[3] = {0.0, +PeriodicLength[iDim], -PeriodicLength[iDim]};
+      for (auto image = 0; image < nr_markers; image++) {
+        Coord_bound[(idx_i + image * size)*nDim + iDim] = coord[iDim] + translation_periodic_shift[image] + ((iDim == RotationalAxis) ? translation_periodic_shift[image] : 0.0); //original
       }
     }
-    cnt++;
   }
-
-  // // inclusion of periodic nodes:
-  
-
-  // Coord_bound.resize(size * nDim);
-  // PointIDs.resize(size);
 
   /*--- Construction of AD tree ---*/
   //TODO check if last bool (GlobalTree) needs to be true
@@ -1836,6 +1815,10 @@ void CRadialBasisFunctionInterpolation::ApplyRBF(const su2double* coord, const R
 }
 
 void CRadialBasisFunctionInterpolation::ApplyProjection(CGeometry* geometry, CConfig* config, unsigned short iMarker, unsigned long pointID, const string& nodetype, su2double* new_coord, su2double* projection) {
+  auto nVertex = geometry->GetnVertex(iMarker);
+  auto decodedID = pointID%nVertex; 
+  auto nearest_img = pointID / nVertex;
+  pointID = decodedID; // TODO -  directly use decodedID in next part of code and rename the variable
   
   auto closestNode = geometry->vertex[iMarker][pointID]->GetNode();
   
@@ -1849,59 +1832,7 @@ void CRadialBasisFunctionInterpolation::ApplyProjection(CGeometry* geometry, CCo
     copy(cart_coord, cart_coord + nDim, closest_point_coord);
   }
 
-  su2double min_dist = numeric_limits<su2double>::max();
-  int nearest_img = 0;
-  // finding periodic image
-  for (int img = 0; img < 3; img++) {
-    su2double shifted_coord[nDim];
-    
-    if (IsCylindrical) {
-      for (auto iDim = 0u; iDim < nDim; iDim++){
-        
-        if (iDim == 1) {
-          if (img == 0){
-            shifted_coord[iDim] = closest_point_coord[iDim];
-          }
-          else if (img ==1){
-            shifted_coord[iDim] = closest_point_coord[iDim] + PeriodicAngle;
-          }
-          else {
-            shifted_coord[iDim] = closest_point_coord[iDim] - PeriodicAngle;
-          }
-        } else {
-
-          if (img == 0){
-            shifted_coord[iDim] = closest_point_coord[iDim];
-          }
-          else if (img ==1){
-            shifted_coord[iDim] = closest_point_coord[iDim] + PeriodicLength[iDim];
-          }
-          else {
-            shifted_coord[iDim] = closest_point_coord[iDim] - PeriodicLength[iDim];
-          }
-        }
-      }
-    } else {
-      for (auto iDim = 0u; iDim < nDim; iDim++){
-        if (img == 0){
-          shifted_coord[iDim] = closest_point_coord[iDim];
-        }
-        else if (img ==1){
-          shifted_coord[iDim] = closest_point_coord[iDim] + PeriodicLength[iDim];
-        }
-        else {
-          shifted_coord[iDim] = closest_point_coord[iDim] - PeriodicLength[iDim];
-        }
-      }
-    }
-
-    su2double dist = GeometryToolbox::SquaredDistance(nDim, new_coord, shifted_coord);
-    if (dist < min_dist) {
-      min_dist = dist;
-      nearest_img = img;
-    }
-  }
-
+  
   if (nearest_img == 1) {
     for (auto iDim = 0u; iDim < nDim; iDim++) {
       closest_point_coord[iDim] += PeriodicLength[iDim];
@@ -1927,7 +1858,6 @@ void CRadialBasisFunctionInterpolation::ApplyProjection(CGeometry* geometry, CCo
     copy(cart_normal, cart_normal + nDim, normal);
   }
 
-  // normal[1] = 0; // TODO -   hardcoded
 
   // magnitude first normal
   auto mag_normal = GeometryToolbox::Norm(nDim, normal);
@@ -1999,3 +1929,6 @@ void CRadialBasisFunctionInterpolation::ApplyProjection(CGeometry* geometry, CCo
     }
   }
 }
+
+
+// ref value of min mesh Q: 23.567189

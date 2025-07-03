@@ -66,10 +66,9 @@ protected:
   unordered_map<string, unordered_map<unsigned short, unordered_set<unsigned long>>> ctrl_node_indices;
   // unordered_map<string, unordered_set<unsigned long>> ctrl_nodes_type;  // map containing the control nodes of the different types in case of DR
   
-  su2double PeriodicAxis[3] = {0.0,0.0,0.0};
   vector<su2double> PeriodicLength{0,0,0};
   su2double PeriodicAngle{0.0};
-  unsigned short RotationalAxis;
+  int RotationalAxis = -1;
 
   bool IsCylindrical = false; 
 
@@ -308,7 +307,7 @@ public:
       for (unsigned short iDim = 0; iDim < nDim; iDim++) {
         // su2double diff = boolPeriodic[iDim] ? (per_length[iDim]/PI_NUMBER * sin( (a[iDim] - b[iDim]) * PI_NUMBER / per_length[iDim])) : (a[iDim] - b[iDim]);
         su2double diff;
-        if (SU2_TYPE::GetValue(PeriodicAxis[iDim])) {
+        if (SU2_TYPE::GetValue(PeriodicLength[iDim])) {
             diff = PeriodicLength[iDim] / PI_NUMBER * sin((a[iDim] - b[iDim]) * PI_NUMBER / PeriodicLength[iDim]);
         } else {
             diff = a[iDim] - b[iDim];
@@ -375,5 +374,5 @@ public:
   }
 
   void SetCorrectionSurface(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type);
-  unique_ptr<CADTPointsOnlyClass> CreateADT_per(CGeometry* geometry, const string& type, const unsigned short marker);
+  unique_ptr<CADTPointsOnlyClass> CreateADT(CGeometry* geometry, const string& type, const unsigned short marker, bool periodic);
 };
