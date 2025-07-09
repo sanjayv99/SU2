@@ -112,8 +112,4 @@ class CRadialBasisFunctionNode{
   }
 
   inline su2double* GetCylCoord(){ return cylindrical_coord;}
-
-  inline void SetDomainVertex() {DomainVertex = true;}
-
-  inline bool GetDomainVertex() {return DomainVertex;}
 };

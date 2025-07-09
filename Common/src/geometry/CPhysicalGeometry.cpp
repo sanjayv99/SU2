@@ -3365,7 +3365,6 @@ void CPhysicalGeometry::SetBoundaries(CConfig* config) {
       config->SetMarker_All_Moving(iMarker, config->GetMarker_CfgFile_Moving(Marker_Tag));
       config->SetMarker_All_Deform_Mesh(iMarker, config->GetMarker_CfgFile_Deform_Mesh(Marker_Tag));
       config->SetMarker_All_Deform_Mesh_Sym_Plane(iMarker, config->GetMarker_CfgFile_Deform_Mesh_Sym_Plane(Marker_Tag));
-      config->SetMarker_All_Deform_Mesh_Internal(iMarker, config->GetMarker_CfgFile_Deform_Mesh_Internal(Marker_Tag));
       config->SetMarker_All_Deform_Mesh_Slide(iMarker, config->GetMarker_CfgFile_Deform_Mesh_Slide(Marker_Tag));
       config->SetMarker_All_Fluid_Load(iMarker, config->GetMarker_CfgFile_Fluid_Load(Marker_Tag));
       config->SetMarker_All_PyCustom(iMarker, config->GetMarker_CfgFile_PyCustom(Marker_Tag));
@@ -3391,7 +3390,6 @@ void CPhysicalGeometry::SetBoundaries(CConfig* config) {
       config->SetMarker_All_Moving(iMarker, NO);
       config->SetMarker_All_Deform_Mesh(iMarker, NO);
       config->SetMarker_All_Deform_Mesh_Sym_Plane(iMarker, NO);
-      config->SetMarker_All_Deform_Mesh_Internal(iMarker, NO);
       config->SetMarker_All_Deform_Mesh_Slide(iMarker, NO);
       config->SetMarker_All_Fluid_Load(iMarker, NO);
       config->SetMarker_All_PyCustom(iMarker, NO);
@@ -3762,7 +3760,6 @@ void CPhysicalGeometry::LoadUnpartitionedSurfaceElements(CConfig* config, CMeshR
       config->SetMarker_All_Moving(iMarker, config->GetMarker_CfgFile_Moving(Marker_Tag));
       config->SetMarker_All_Deform_Mesh(iMarker, config->GetMarker_CfgFile_Deform_Mesh(Marker_Tag));
       config->SetMarker_All_Deform_Mesh_Sym_Plane(iMarker, config->GetMarker_CfgFile_Deform_Mesh_Sym_Plane(Marker_Tag));
-      config->SetMarker_All_Deform_Mesh_Internal(iMarker, config->GetMarker_CfgFile_Deform_Mesh_Internal(Marker_Tag));
       config->SetMarker_All_Deform_Mesh_Slide(iMarker, config->GetMarker_CfgFile_Deform_Mesh_Slide(Marker_Tag));
       config->SetMarker_All_Fluid_Load(iMarker, config->GetMarker_CfgFile_Fluid_Load(Marker_Tag));
       config->SetMarker_All_PyCustom(iMarker, config->GetMarker_CfgFile_PyCustom(Marker_Tag));

@@ -71,15 +71,7 @@ protected:
   int RotationalAxis = -1;
 
   bool IsCylindrical = false; 
-
   su2double dataReductionTolerance = 0;
-
-
-  enum class ProjectionType {
-    DEFAULT,
-    PERIODIC_SURFACE,
-    VERTEX
-  };
 
   
 public:
@@ -109,7 +101,7 @@ public:
   * \param[in] geometry - Geometrical definition of the problem.
   * \param[in] config - Definition of the particular problem.
   */
-  void SetBoundNodes(CGeometry* geometry, CConfig* config, bool Derivative);
+  void SetBoundNodes(CGeometry* geometry, CConfig* config, bool Derivative, bool& surfaceCorrection);
 
   /*!
   * \brief Selecting internal nodes for the volumetric deformation.
@@ -230,7 +222,7 @@ public:
   * \param[in] radius - Support radius of the radial basis function.
   * \param[in] internalNodes - Internal nodes.
   */
-  void UpdateGridCoord(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type, const su2double radius, const vector<unsigned long>& internalNodes);
+  void UpdateGridCoord(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type, const su2double radius, const vector<unsigned long>& internalNodes, bool surfaceCorrection);
 
   /*!
   * \brief Updating the internal node coordinates.
@@ -321,46 +313,42 @@ public:
     return sqrt(d);
   }
 
-  void Cart_to_Cyl(CGeometry* geometry, CConfig* config);
-  void delta_Cart_to_cyl(const su2double* init_coord_cart, const su2double* var_coord_cart, su2double* var_coord_cyl);
-  void delta_cyl_to_Cart(const su2double* init_coord_cart, su2double* var_coord);
+  void TransformBoundNodesToCylindrical(CGeometry* geometry, CConfig* config);
+  void CartDispToCyl(const su2double* init_coord_cart, const su2double* var_coord_cart, su2double* var_coord_cyl);
+  void CylDispToCart(const su2double* init_coord_cart, su2double* var_coord);
 
-  inline void cart_to_cyl(const su2double* coord, su2double* cyl_coord) const {
-    cyl_coord[0] = GeometryToolbox::Norm(2, coord);
-    cyl_coord[1] = atan2(coord[1], coord[0]);
+  inline void CartToCyl(const su2double* coord, su2double* cyl_coord) const {
+    int idx1 = (RotationalAxis + 1) % 3;
+    int idx2 = (RotationalAxis + 2) % 3;
+
+    cyl_coord[0] = sqrt(coord[idx1] * coord[idx1] + coord[idx2] * coord[idx2]);
+    cyl_coord[1] = atan2(coord[idx2], coord[idx1]);
 
     if (nDim == 3){
-      cyl_coord[2] = coord[2];
+      cyl_coord[2] = coord[RotationalAxis];
     }
   }
 
-  inline void cyl_to_cart(const su2double* coord, su2double* cart_coord) const {
-    cart_coord[0] = coord[0]*cos(coord[1]);
-    cart_coord[1] = coord[0]*sin(coord[1]);
+  inline void CylToCart(const su2double* coord, su2double* cart_coord) const {
+    int idx1 = (RotationalAxis + 1) % 3;
+    int idx2 = (RotationalAxis + 2) % 3;
+
+    cart_coord[idx1] = coord[0]*cos(coord[1]);
+    cart_coord[idx2] = coord[0]*sin(coord[1]);
 
     if (nDim == 3){
-      cart_coord[2] = coord[2];
+      cart_coord[RotationalAxis] = coord[2];
     }
   }
   
   void GetNodalDeformation(CGeometry* geometry, CConfig* config, CRadialBasisFunctionNode* iNode, su2double* varCoord);
   su2double ComputeDistance(const su2double* ctrlCoords, const su2double* targetCoords);
 
-  void ProjectBoundNodes(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type, const su2double radius, const string& nodetype, CADTPointsOnlyClass* BoundADT, bool SetError, vector<CRadialBasisFunctionNode*>& target_nodes, vector<unsigned long>* project_idx = nullptr);
+  template <typename T>
+  void ProjectBoundNodes(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type, const su2double radius, const string& nodetype, bool SetError, vector<CRadialBasisFunctionNode*>& target_nodes, T mark);
   void ApplyRBF(const su2double* coord, const RADIAL_BASIS& type, const su2double radius, su2double* new_coord);
-  void ApplyProjection(CGeometry* geometry, CConfig* config, unsigned short iMarker, unsigned long pointID, const string& nodetype, su2double* new_coord, su2double* projection);
+  void ApplyProjection(CGeometry* geometry, CConfig* config, unsigned short iMarker, CADTPointsOnlyClass* BoundADT, const string& nodetype, su2double* new_coord, su2double* projection);
 
-
-//   std::unordered_map<unsigned short, std::vector<unsigned long>> ConvertToVectorMap(
-//     const std::unordered_map<unsigned short, std::unordered_set<unsigned long>>& input) {
-//     std::unordered_map<unsigned short, std::vector<unsigned long>> output;
-//     for (const auto& pair : input) {
-//       const auto& key = pair.first;
-//       const auto& value = pair.second;
-//       output[key] = std::vector<unsigned long>(value.begin(), value.end());
-//     }
-//     return output;
-// }
 
   std::unordered_map<unsigned short, std::vector<unsigned long>> ConvertToVectorMap(
     const std::unordered_map<unsigned short, std::unordered_set<unsigned long>>& input) {
@@ -375,4 +363,20 @@ public:
 
   void SetCorrectionSurface(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type);
   unique_ptr<CADTPointsOnlyClass> CreateADT(CGeometry* geometry, const string& type, const unsigned short marker, bool periodic);
+
+
+// Helper for std::vector (returns a const reference, no copy) // TODO -  change var names
+template<typename T>
+const std::vector<T>& ToVector(const std::vector<T>& v) {
+    return v;
+}
+
+// Helper for std::unordered_set or std::set (creates a vector copy)
+template<typename Set>
+std::vector<typename Set::value_type> ToVector(const Set& s) {
+    return std::vector<typename Set::value_type>(s.begin(), s.end());
+}
+
+void GetPeriodicNodeErrors(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type, const su2double radius, bool Derivative);
+
 };
