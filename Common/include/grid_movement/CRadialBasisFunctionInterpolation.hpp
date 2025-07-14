@@ -362,7 +362,7 @@ public:
   }
 
   void SetCorrectionSurface(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type);
-  unique_ptr<CADTPointsOnlyClass> CreateADT(CGeometry* geometry, const string& type, const unsigned short marker, bool periodic);
+  unique_ptr<CADTPointsOnlyClass> CreateADT(CGeometry* geometry, const string& type, const short marker, bool periodic);
 
 
 // Helper for std::vector (returns a const reference, no copy) // TODO -  change var names

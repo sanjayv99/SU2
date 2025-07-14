@@ -40,14 +40,14 @@ void CRadialBasisFunctionInterpolation::SetVolume_Deformation(CGeometry* geometr
 
 
   // TODO -  Debug MPI 
-  // {
-  //   if (rank==MASTER_NODE){
-  //     int i = 0;
-  //     while(0==i){
-  //       sleep(1);
-  //     }
-  //   }
-  // }
+  {
+    if (rank==0){
+      int i = 0;
+      while(0==i){
+        sleep(1);
+      }
+    }
+  }
   
 
   /*--- Retrieve type of RBF and its support radius ---*/ 
@@ -265,20 +265,21 @@ void CRadialBasisFunctionInterpolation::SolveRBF_System(CGeometry* geometry, CCo
 
     vector<string> types = {"edge", "surface"};
 
-
+    // iter over nodetype
     for (auto iType : types) {
-      if (node_indices[iType].size() > 0) {
 
-        const auto& markers = node_indices[iType];
-        for (const auto& iMarker : markers) {
-
-          ProjectBoundNodes(geometry, config, type, radius, iType, false, nodes, iMarker);
-        }
-        
-        CtrlTypeVec.push_back(iType);
-        Get_nCtrlNodesGlobal(config);
-        GetInterpCoeffs(geometry, config, type, radius, Derivative, internalNodes, ForwardProjectionDerivative);
+      // check if type is present among local nodes.  
+      // if (node_indices[iType].size() > 0) {
+      
+      // get markers with specific node types. 
+      const auto& markers = node_indices[iType];
+      for (const auto& iMarker : markers) {  
+        ProjectBoundNodes(geometry, config, type, radius, iType, false, nodes, iMarker);
       }
+      
+      CtrlTypeVec.push_back(iType);
+      Get_nCtrlNodesGlobal(config);
+      GetInterpCoeffs(geometry, config, type, radius, Derivative, internalNodes, ForwardProjectionDerivative);
     }
   }
 }
@@ -359,13 +360,15 @@ void CRadialBasisFunctionInterpolation::SetBoundNodes(CGeometry* geometry, CConf
       if (config->GetMarker_All_Deform_Mesh_Slide(iMarker)){
         for (auto iVertex = 0ul; iVertex < geometry->nVertex[iMarker]; iVertex++) {
           auto iNode = geometry->vertex[iMarker][iVertex]->GetNode(); 
+          if (!geometry->nodes->GetDomain(iNode)){
+            continue;
+          }
           
           // counting how many boundaries the node is part of
           unsigned short nVertex = 0;
           
           for (auto jMarker = 0u; jMarker < config->GetnMarker_All(); jMarker++){
-            if (geometry->nodes->GetVertex(iNode, jMarker) != -1){
-              // TODO add consideration for not being a send/receive marker
+            if (geometry->nodes->GetVertex(iNode, jMarker) != -1 && !config->GetMarker_All_SendRecv(jMarker)){
                nVertex++;
             }
           }
@@ -394,7 +397,6 @@ void CRadialBasisFunctionInterpolation::SetBoundNodes(CGeometry* geometry, CConf
                   // if periodic marker is the smaller of the two periodic markers then its saved.
                   auto idx_PeriodicMarker = config->GetMarker_Periodic(config->GetMarker_All_TagBound(jMarker));
                   if(idx_PeriodicMarker < config->GetMarker_Periodic_Donor2(idx_PeriodicMarker)){
-                    // nodes.push_back(new CRadialBasisFunctionNode(iNode, iMarker, iVertex));
                     nodes.push_back(new CRadialBasisFunctionNode(iNode, iMarker, iVertex));
                     nodes.back()->setNodetype("surface");
 
@@ -501,6 +503,12 @@ void CRadialBasisFunctionInterpolation::SetBoundNodes(CGeometry* geometry, CConf
     }    
   }
 
+  for (auto iMarker = 0u; iMarker < config->GetnMarker_CfgFile(); iMarker++) {
+    if (config->GetMarker_CfgFile_Deform_Mesh_Slide(config->GetMarker_CfgFile_TagBound(iMarker))) {
+      node_indices["edge"][iMarker]; 
+    }
+  }
+
   stable_sort(nodes.begin(), nodes.end(), HasSmallerIndex);
   nodes.resize(distance(nodes.begin(), unique(nodes.begin(), nodes.end(), HasEqualIndex)));
 
@@ -509,9 +517,13 @@ void CRadialBasisFunctionInterpolation::SetBoundNodes(CGeometry* geometry, CConf
 
   for(unsigned long x = 0ul; x < nodes.size(); x++){
     auto type = nodes[x]->getNodetype();
-    auto marker = nodes[x]->GetMarker();
-    node_indices[type][marker].push_back(x);
+    auto marker = nodes[x]->GetMarker(); // this is the local marker index
+    auto tag = config->GetMarker_All_TagBound(marker);
+    auto global_marker = config->GetMarker_CfgFile_TagBound(tag);
+    node_indices[type][global_marker].push_back(x);
   }
+
+  
 
   for (unsigned long x = 0ul; x < per_nodes.size(); x++) {
     auto type = per_nodes[x]->getNodetype();
@@ -520,14 +532,15 @@ void CRadialBasisFunctionInterpolation::SetBoundNodes(CGeometry* geometry, CConf
     per_node_indices[type][marker].push_back(x);
   }
   // TODO -  debug output 
-  ofstream out("edge.txt");
+  
+  ofstream out("edge"+to_string(rank)+".txt");
   auto idx = node_indices["edge"];
   for (auto& pair : idx) {
       const unsigned short& marker = pair.first;      // marker (key)
       const std::vector<unsigned long>& indices = pair.second;  // indices (value)
 
       for (auto i : indices) {
-          out << nodes[i]->GetIndex() /*<< "\t" << nodes[i]->GetMarker() << "\t" << marker*/ << endl;
+          out << geometry->nodes->GetGlobalIndex(nodes[i]->GetIndex())  /*<< "\t" << nodes[i]->GetMarker() << "\t" << marker*/ << endl;
       }
   }
   out.close();
@@ -545,21 +558,21 @@ void CRadialBasisFunctionInterpolation::SetBoundNodes(CGeometry* geometry, CConf
   out2.close();
 
 
-  ofstream out3("disp.txt");
+  ofstream out3("disp"+to_string(rank)+".txt");
   auto idx3 = node_indices["displaced"];
   for (auto& pair : idx3) {
       const unsigned short& marker = pair.first;      // marker (key)
       const std::vector<unsigned long>& indices = pair.second;  // indices (value)
 
       for (auto i : indices) {
-          out3 << nodes[i]->GetIndex() << endl;
+          out3 << geometry->nodes->GetGlobalIndex(nodes[i]->GetIndex()) << endl;
       }
   }
   out3.close();
 
-  ofstream out4("per_nodes.txt");
+  ofstream out4("per_nodes"+to_string(rank)+".txt");
   for (auto i : per_nodes){
-    out4 << i->GetIndex() << /*"\t" <<  i->getNodetype()  <<*/  endl;
+    out4 << geometry->nodes->GetGlobalIndex(i->GetIndex()) << /*"\t" <<  i->getNodetype()  <<*/  endl;
   }
   out4.close();
 }
@@ -596,7 +609,7 @@ void CRadialBasisFunctionInterpolation::GetInterpMat_parallel(CGeometry* geometr
   interpMat.Initialize(nCtrlNodesGlobal);
 
   // Total number of elems in the lower triangular matrix
-  unsigned long N_lowerTriangle = (nCtrlNodesGlobal*(nCtrlNodesGlobal+1))/2;
+  su2double N_lowerTriangle = (nCtrlNodesGlobal*(nCtrlNodesGlobal+1))/2; // NOTE this must be a su2double, otherwise the ceil operation does not work correctly.
 
   // global rbf evaluations are stored in rbf_vals_all
   vector<su2double> rbf_vals_all(N_lowerTriangle);
@@ -1589,13 +1602,16 @@ void CRadialBasisFunctionInterpolation::CylDispToCart(const su2double* init_coor
 }
 
 
-unique_ptr<CADTPointsOnlyClass> CRadialBasisFunctionInterpolation::CreateADT(CGeometry* geometry, const string& type, const unsigned short marker, bool periodic) {
-  // note current implementation only allows for a single periodic direction
+unique_ptr<CADTPointsOnlyClass> CRadialBasisFunctionInterpolation::CreateADT(CGeometry* geometry, const string& type, const short marker, bool periodic) {
   
   auto indices = node_indices[type][marker];
+  // TODO -  
+  cout << rank << " " << marker << " " << indices.size() << endl;
+
+ 
     
   unsigned long size = indices.size();
-  int nr_markers = periodic ? 3 : 1; // 3: original + 2 periodic images
+  int nr_markers = periodic ? 3 : 1; // 3: original + `2 periodic images
   
   /*--- Vector storing the coordinates of the boundary nodes ---*/ 
   vector<su2double> Coord_bound(size * nDim * nr_markers);
@@ -1603,9 +1619,14 @@ unique_ptr<CADTPointsOnlyClass> CRadialBasisFunctionInterpolation::CreateADT(CGe
   /*--- Vector storing the IDs of the boundary nodes ---*/
   vector<unsigned long> PointIDs(size * nr_markers);
 
+   if (marker == -1) {
+    cout << "SIZE: " << size << endl;
+    return unique_ptr<CADTPointsOnlyClass>( new CADTPointsOnlyClass(nDim, size*3, Coord_bound.data(), PointIDs.data(), true));
+  }
+
   auto type_idx = node_indices[type];
 
-  auto nVertex = geometry->GetnVertex(marker);
+  auto nVertex = geometry->GetnVertex(marker); // it breaks here
 
   for (auto idx_i = 0ul; idx_i < indices.size(); idx_i++) {
 
@@ -1632,8 +1653,9 @@ unique_ptr<CADTPointsOnlyClass> CRadialBasisFunctionInterpolation::CreateADT(CGe
   }
 
   /*--- Construction of AD tree ---*/
-  //TODO check if last bool (GlobalTree) needs to be true
-  return unique_ptr<CADTPointsOnlyClass>( new CADTPointsOnlyClass(nDim, size*3, Coord_bound.data(), PointIDs.data(), false));
+  // TODO -  
+  // cout << rank << " grootte: " << size*nr_markers << endl;
+  return unique_ptr<CADTPointsOnlyClass>( new CADTPointsOnlyClass(nDim, size*3, Coord_bound.data(), PointIDs.data(), true));
 }
 
 
@@ -1641,14 +1663,20 @@ template <typename T>
 void CRadialBasisFunctionInterpolation::ProjectBoundNodes(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type, const su2double radius, const string& nodetype, bool SetError, vector<CRadialBasisFunctionNode*>& target_nodes, T marker) {
     
   auto markerIdx = marker.first;
+  auto tag = config->GetMarker_CfgFile_TagBound(markerIdx);
+  auto localIdx = config->GetMarker_All_TagBound(tag);
+  
   auto nodeIndices = ToVector(marker.second); // returns reference to vector or creates vector from set.
   
   auto BoundADT = CreateADT(geometry, nodetype, markerIdx, config->GetnMarker_Periodic() != 0);
 
+  
+  SU2_MPI::Barrier(SU2_MPI::GetComm()); // TODO -  still required? 
+  
   su2double projection[nDim];
 
   for (auto x : nodeIndices) {
-    
+
     // When calculating error skip nodes that are selected as control nodes. 
     if( SetError && target_nodes[x]->GetControl()) continue;
     
@@ -1658,8 +1686,10 @@ void CRadialBasisFunctionInterpolation::ProjectBoundNodes(CGeometry* geometry, C
 
     su2double new_coord[nDim];
     ApplyRBF(coord, type, radius, new_coord); // RBF displaced coord is stored in new_coord.
-
-    ApplyProjection(geometry, config, markerIdx, BoundADT.get(), nodetype, new_coord, projection);  // This should return the projection  
+    if (rank == 0 ) {
+    cout << node << endl;
+    }
+    ApplyProjection(geometry, config, localIdx, BoundADT.get(), nodetype, new_coord, projection);  // This should return the projection  
 
     if (SetError) {      
 
@@ -1685,7 +1715,7 @@ void CRadialBasisFunctionInterpolation::ProjectBoundNodes(CGeometry* geometry, C
         new_coord[iDim] = iNonLinear_iter * new_coord[iDim];
       }
     
-      geometry->vertex[markerIdx][target_nodes[x]->GetVertex()]->SetVarCoord(new_coord);
+      geometry->vertex[localIdx][target_nodes[x]->GetVertex()]->SetVarCoord(new_coord);
     }
   }
 }
@@ -1768,6 +1798,10 @@ void CRadialBasisFunctionInterpolation::ApplyProjection(CGeometry* geometry, CCo
       normal[iDim] = 0;
     }
   }
+ // TODO -  I don't think the issue is with the fact that the normal of the periodic nodes is calculated slightly off. 
+ // since the node that is placed wrongly, for that node the nearest node is not the periodic one.
+ // so what else could cause this issue, since the normal seems fine for the other nodes. Is it part of send/receive markers and updated twice or something. Else weird that when more ranks are used, it seems like it occures more often at that boundary.... 
+  if (rank == MASTER_NODE) { cout << "node: " << geometry->nodes->GetGlobalIndex(closestNode) << " normal: " << normal[0] << " " << normal[1] << " " << "nearest rank: " << rankID <<  endl;}
 
   su2double dist_vec[nDim];
   GeometryToolbox::Distance(nDim, new_coord, closest_point_coord, dist_vec);
