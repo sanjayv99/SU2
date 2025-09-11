@@ -41,15 +41,31 @@ class CRadialBasisFunctionNode{
   unsigned short marker_idx;  /*!< \brief Marker index. */
   unsigned long vertex_idx;   /*!< \brief Vertex index. */
     
-  su2double error[3];         /*!< \brief Nodal data reduction error; */
-  string nodetype; // TODO add description
+  su2double error[3];         /*!< \brief Nodal data reduction error; */ // TODO - set initially to zero? 
+  // string nodetype; // TODO add description
   bool control = false; // TODO add description
   bool periodic = false;
   bool DomainVertex = false;
   
   su2double cylindrical_coord[3];
 
+  su2double new_coord[3];
+  unsigned long nearest_node;
+  int nearest_rank;
+  su2double nearest_normal[3];
+  su2double nearest_normal2[3];
+  su2double nearest_coord[3];
+
+  
   public:
+
+  enum class NODETYPE {
+    DISPLACED,
+    EDGE,
+    SURFACE
+  };
+
+  NODETYPE NodeType;
 
   /*!
   * \brief Constructor of the class.
@@ -69,13 +85,13 @@ class CRadialBasisFunctionNode{
   * \brief Returns local vertex index.
   * \return Local vertex index.
   */
-  inline unsigned long GetVertex(){return vertex_idx;}
+  inline unsigned long GetVertex() const {return vertex_idx;}
 
   /*!
   * \brief Returns local marker index.
   * \return Local marker index.
   */
-  inline unsigned short GetMarker(){return marker_idx;}
+  inline unsigned short GetMarker() const {return marker_idx;}
 
   /*!
   * \brief Set error of the RBF node.
@@ -97,9 +113,11 @@ class CRadialBasisFunctionNode{
   */
   inline su2double* GetError(){ return error;}
 
-  inline void setNodetype(const string& type) { nodetype = type;}
+  // inline void setNodetype(const string& type) { nodetype = type;}
+  inline void SetNodeType(NODETYPE type) {NodeType = type;}
 
-  inline const string& getNodetype(){return nodetype;}
+  // inline const string& getNodetype(){return nodetype;}
+  inline NODETYPE GetNodeType() const { return NodeType; }
 
   inline void setControl(){control = true;}
 
@@ -111,5 +129,49 @@ class CRadialBasisFunctionNode{
     for (auto iDim = 0u; iDim < nDim; iDim++) cylindrical_coord[iDim] = cyl_coord[iDim];
   }
 
-  inline su2double* GetCylCoord(){ return cylindrical_coord;}
+  inline const su2double* GetCylCoord() const { return cylindrical_coord;}
+
+
+  inline void SetNewCoord(const su2double* newCoord, unsigned short nDim) {
+    for (auto iDim = 0u; iDim < nDim; iDim++) new_coord[iDim] = newCoord[iDim];
+  }
+
+  inline const su2double* GetNewCoord() const { return new_coord;}
+  
+  inline void AddNewCoord(const su2double val_coord, unsigned short iDim) {
+    new_coord[iDim] += val_coord;
+  }
+
+  inline void SetNearestNode(const unsigned long ID) {
+    nearest_node = ID;
+  }
+
+  inline unsigned long GetNearestNode() const {
+    return nearest_node;
+  }
+
+  inline void SetNearestRank( const int ID) {
+    nearest_rank = ID;
+  }
+  inline int GetNearestRank() const {
+    return nearest_rank;
+  }
+
+  inline void SetNearestNormal(const su2double* val_normal, unsigned short nDim) {
+    for (auto iDim = 0u; iDim < nDim; iDim++) nearest_normal[iDim] = val_normal[iDim];
+  }
+
+  inline const su2double* GetNearestNormal() const { return nearest_normal;}
+
+  inline void SetNearestNormal2(const su2double* val_normal, unsigned short nDim) {
+    for (auto iDim = 0u; iDim < nDim; iDim++) nearest_normal2[iDim] = val_normal[iDim];
+  }
+
+  inline const su2double* GetNearestNormal2() const { return nearest_normal2;}
+
+  inline void SetNearestCoord(const su2double* val_coord, unsigned short nDim) {
+    for (auto iDim = 0u; iDim < nDim; iDim++) nearest_coord[iDim] = val_coord[iDim];
+  }
+
+  inline const su2double* GetNearestCoord() const { return nearest_coord;}
 };

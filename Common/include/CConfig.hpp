@@ -3059,6 +3059,12 @@ public:
   unsigned short GetnMarker_Deform_Mesh(void) const { return nMarker_Deform_Mesh; }
 
   /*!
+   * \brief Get the total number of sliding RBF markers at the boundary.
+   * \return Total number of sliding RBF markers at the boundary.
+   */
+  unsigned short GetnMarker_Deform_Mesh_Slide(void) const { return nMarker_Deform_Mesh_Slide; }
+
+  /*!
    * \brief Get the total number of markers in which the flow load is computed/employed.
    * \return Total number of markers in which the flow load is computed/employed.
    */
@@ -3356,7 +3362,7 @@ public:
    * \return Value of the marker <i>val_marker</i> that is in the geometry file
    *         for the surface that has the tag.
    */
-  short GetMarker_All_TagBound(string val_tag)  {
+  short GetMarker_All_TagBound(string val_tag) const {
     for (unsigned short iMarker = 0; iMarker < nMarker_All; iMarker++) {
       if (val_tag == Marker_All_TagBound[iMarker]) return iMarker;
     }
@@ -6800,6 +6806,9 @@ public:
    * \return Internal index for a gradient boundary  condition <i>val_marker</i>.
    */
   unsigned short GetMarker_SobolevBC(const string& val_marker) const;
+
+  // TODO -   add description
+  short GetMarker_Local(unsigned short val_marker) const;
 
   /*!
    * \brief Get the name of the surface defined in the geometry file.

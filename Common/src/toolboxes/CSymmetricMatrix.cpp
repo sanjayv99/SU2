@@ -28,7 +28,7 @@
 #include "../../include/toolboxes/CSymmetricMatrix.hpp"
 #include "../../include/parallelization/mpi_structure.hpp"
 #include "../../include/linear_algebra/blas_structure.hpp"
-
+#include <fstream> // TODO -  
 using namespace std;
 
 #if defined(HAVE_MKL)
@@ -56,9 +56,14 @@ void CSymmetricMatrix::CholeskyDecomposeParallel(const int n, const int rank, co
   for (auto i = 0; i < n; i++) {
     if (i % size == rank) {
         auto res = std::sqrt(Get(i, i));
+        
+        if (isnan(res)) SU2_MPI::Error("NaN encountered during Cholesky (diagional element not positive definite)", CURRENT_FUNCTION);
+
         Set(i, i, res);
         for (auto j = i + 1; j < n; j++) {
             res = Get(j, i) / Get(i, i);
+            if (isnan(res)) SU2_MPI::Error("NaN encountered in Cholesky column division", CURRENT_FUNCTION);
+
             Set(j, i, res);
         }
     }
@@ -120,6 +125,18 @@ void CSymmetricMatrix::ComputeLInverse(CSymmetricMatrix& L_inv, const int rank, 
           L_inv(i, j) = SU2_TYPE::GetValue(column[i]);
       }
   }
+  // TODO -  remove statement
+  //   if (rank == 0) {
+  //   unsigned long cnt = 0;
+  //   ofstream mat("L_inv.txt");
+  //   for (auto row_i = 0ul; row_i < n; row_i++) {
+  //     for (auto col_i = 0ul; col_i <= row_i; col_i++) {
+  //       mat << L_inv.Get(row_i,col_i) << "\t";
+  //     }
+  //     mat << endl;
+  //   }
+  //   mat.close();
+  // }
 }
 
 void CSymmetricMatrix::ComputeAInverse(const CSymmetricMatrix& L_inv, const int rank, const int size) {
@@ -144,7 +161,9 @@ void CSymmetricMatrix::ComputeAInverse(const CSymmetricMatrix& L_inv, const int 
     SU2_MPI::Bcast(column.data() + j, n - j, MPI_DOUBLE, j % size, SU2_MPI::GetComm());
 
     for (auto i = j; i < n; ++i) {
+        if (isnan(SU2_TYPE::GetValue(column[i]))) SU2_MPI::Error("Nan found in Ainverse calculation", CURRENT_FUNCTION);
         Set(i,j, SU2_TYPE::GetValue(column[i]));
+        
     }
   }
 }
@@ -177,6 +196,7 @@ void CSymmetricMatrix::CalcInv(bool is_spd) {
   /*--- Compute inverse from decomposed matrices. ---*/
   if (is_spd) {
     #ifdef HAVE_MPI
+      // TODO -  add comments etc. 
       int rank = SU2_MPI::GetRank();
       int size = SU2_MPI::GetSize();
 

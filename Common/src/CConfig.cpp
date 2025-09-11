@@ -8933,6 +8933,11 @@ unsigned short CConfig::GetMarker_SobolevBC(const string& val_marker) const {
   return iMarker_Sobolev;
 }
 
+short CConfig::GetMarker_Local(unsigned short val_marker) const {
+  const auto tag = GetMarker_CfgFile_TagBound(val_marker);
+  return GetMarker_All_TagBound(tag);
+}
+
 su2double CConfig::GetExhaust_Temperature_Target(const string& val_marker) const {
   unsigned short iMarker_EngineExhaust;
   for (iMarker_EngineExhaust = 0; iMarker_EngineExhaust < nMarker_EngineExhaust; iMarker_EngineExhaust++)
