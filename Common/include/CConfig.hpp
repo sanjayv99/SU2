@@ -6807,7 +6807,10 @@ public:
    */
   unsigned short GetMarker_SobolevBC(const string& val_marker) const;
 
-  // TODO -   add description
+  /*!
+  * \brief Get the local index for a global boundary <i>val_marker</i>.
+  * \return local index for a global boundary <i>val_marker</i>, -1 if marker is not in local domain.
+  */
   short GetMarker_Local(unsigned short val_marker) const;
 
   /*!

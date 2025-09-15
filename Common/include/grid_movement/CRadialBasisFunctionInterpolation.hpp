@@ -65,8 +65,8 @@ protected:
     }
   };
 
-  unordered_map<CRadialBasisFunctionNode::NODETYPE, unordered_map<unsigned short, vector<unsigned long>>, NodeTypeHash> node_indices; // map containing the indices for the different type of nodes
-  unordered_map<CRadialBasisFunctionNode::NODETYPE, unordered_map<unsigned short, vector<unsigned long>>, NodeTypeHash> per_node_indices;
+  unordered_map<CRadialBasisFunctionNode::NODETYPE, unordered_map<unsigned short, unordered_set<unsigned long>>, NodeTypeHash> node_indices; // map containing the indices for the different type of nodes
+  unordered_map<CRadialBasisFunctionNode::NODETYPE, unordered_map<unsigned short, unordered_set<unsigned long>>, NodeTypeHash> per_node_indices;
   unordered_map<CRadialBasisFunctionNode::NODETYPE, unordered_map<unsigned short, unordered_set<unsigned long>>, NodeTypeHash> ctrl_node_indices;
 
   vector<CRadialBasisFunctionNode*> per_nodes; // periodic nodes
@@ -432,34 +432,11 @@ public:
   
   su2double ComputeDistance(const su2double* ctrlCoords, const su2double* targetCoords);
 
-
-  std::unordered_map<unsigned short, std::vector<unsigned long>> ConvertToVectorMap(const std::unordered_map<unsigned short, std::unordered_set<unsigned long>>& input) {
-    std::unordered_map<unsigned short, std::vector<unsigned long>> output;
-    for (const auto& pair : input) {
-        const auto key = pair.first;
-        const auto& value = pair.second;
-        output[key] = std::vector<unsigned long>(value.begin(), value.end());
-    }
-    return output;
-  }
-
   void SetCorrectionSurface(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type);
 
 
 
-// Helper for std::vector (returns a const reference, no copy) // TODO -  change var names
-template<typename T>
-const std::vector<T>& ToVector(const std::vector<T>& v) {
-    return v;
-}
-
-// Helper for std::unordered_set or std::set (creates a vector copy)
-template<typename Set>
-std::vector<typename Set::value_type> ToVector(const Set& s) {
-    return std::vector<typename Set::value_type>(s.begin(), s.end());
-}
-
-void GetPeriodicNodeErrors(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type, const su2double radius, bool Derivative);
+  void GetPeriodicNodeErrors(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type, const su2double radius, bool Derivative);
 
 
 
@@ -468,10 +445,10 @@ void GetPeriodicNodeErrors(CGeometry* geometry, CConfig* config, const RADIAL_BA
   * \param[in] geometry - Geometrical definition of the problem.
   * \param[in] targetNodes - Nodes of specific type and global marker.
   * \param[in] markerLocal - Index of local marker.
-  * \param[in] isPeriodic - Determines whether ADT will include periodic images
-  * \return Pointer to constructed AD tree 
+  * \param[in] isPeriodic - Determines whether ADT will include periodic images.
+  * \return Pointer to ADT object. 
   */
-  unique_ptr<CADTPointsOnlyClass> CreateADT(CGeometry* geometry, const vector<unsigned long>& targetNodes, const short markerLocal, bool isPeriodic) const;
+  unique_ptr<CADTPointsOnlyClass> CreateADT(CGeometry* geometry, const unordered_set<unsigned long>& targetNodes, const short markerLocal, bool isPeriodic) const; //DONE
 
   /*!
   * \brief Applies Radial Basis Function interpolation to update node coordinates.
@@ -524,7 +501,7 @@ void GetPeriodicNodeErrors(CGeometry* geometry, CConfig* config, const RADIAL_BA
   * \return Non-local nearest node data.
   */
   
-  vector<su2double> ExchangeNearestNodeData(CGeometry* geometry, CConfig* config, const unsigned short marker, /*const unordered_set<unsigned long>& targetSet,*/ const vector<CRadialBasisFunctionNode*>& targetNodes, const CRadialBasisFunctionNode::NODETYPE nodetype) const;
+  vector<su2double> ExchangeNearestNodeData(CGeometry* geometry, CConfig* config, const unsigned short marker, const unordered_set<unsigned long>& targetSet,const vector<CRadialBasisFunctionNode*>& targetNodes, const CRadialBasisFunctionNode::NODETYPE nodetype) const;
 
   /*!
   * \brief Assigns nearest node data collected from other MPI ranks
@@ -534,7 +511,7 @@ void GetPeriodicNodeErrors(CGeometry* geometry, CConfig* config, const RADIAL_BA
   * \param[in] targetNodes - Set of target nodes of specific type and marker whose nearest node data is set or updated
   */
 
-  void SetNearestNodeData(CGeometry* geometry, CConfig* config, const vector<su2double>& responseRecvBuffer, /*const unordered_set<unsigned long>& targetSet,*/ const vector<CRadialBasisFunctionNode*>& targetNodes);
+  void SetNearestNodeData(CGeometry* geometry, CConfig* config, const vector<su2double>& responseRecvBuffer, const unordered_set<unsigned long>& targetSet, const vector<CRadialBasisFunctionNode*>& targetNodes);
 
   /*!
   * \brief Updates the coordinate variation for a RBF node.
@@ -588,28 +565,6 @@ void GetPeriodicNodeErrors(CGeometry* geometry, CConfig* config, const RADIAL_BA
   * \param[in] nearestCoord - Nearest coordinate. 
   */
   void GetNearestCoord( CVertex* const nearestVertex, su2double* const nearestCoord ) const;
-
-  /*!
-  * \brief Creates a vector of the sliding target nodes.
-  * \param[in] indices - Indices of the considered sliding nodes.
-  * \param[in] nodes - considered nodes.
-  * \return  Vector of the sliding target nodes. 
-  */
-
-  template <typename IndexContainer>
-  inline vector<CRadialBasisFunctionNode*> GetSlidingNodes( const IndexContainer& indices, const vector<CRadialBasisFunctionNode*>& nodes) {
-
-    const auto& nodeIndices = ToVector(indices); // returns reference to vector or creates vector from set.
-    vector<CRadialBasisFunctionNode*> slidingNodes;
-    slidingNodes.reserve(nodes.size());
-    
-    for (auto jIndex : nodeIndices) {
-      slidingNodes.push_back(nodes[jIndex]);
-    }
-
-    return slidingNodes;
-  }
-
 };
 
 
