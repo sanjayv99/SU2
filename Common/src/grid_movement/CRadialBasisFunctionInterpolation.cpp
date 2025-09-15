@@ -75,7 +75,7 @@ void CRadialBasisFunctionInterpolation::SetVolume_Deformation(CGeometry* geometr
   
   vector<unsigned long> internalNodes; 
   SetInternalNodes(geometry, config, internalNodes); 
-  
+  SU2_MPI::Error("some error", CURRENT_FUNCTION);
   /*--- Looping over the number of deformation iterations ---*/
   for (auto iNonlinear_Iter = 0ul; iNonlinear_Iter < Nonlinear_Iter; iNonlinear_Iter++) {
     
@@ -450,6 +450,19 @@ const bool CRadialBasisFunctionInterpolation::SetBoundNodes(CGeometry* geometry,
               } else {
                   add_node(nodes, iNode, iMarker, iVertex, NODETYPE::DISPLACED);
               }
+
+              if (config->GetMarker_All_Deform_Mesh_IL(iMarker)) {
+                // auto& target_list = isPrimaryPeriodicNode(geometry, config, iNode) ? nodes : per_nodes;
+                IL_nodes.push_back(nodes.back());
+
+                if(geometry->nodes->GetPeriodicBoundary(iNode)){
+                  auto& target_list = isPrimaryPeriodicNode(geometry, config, iNode) ? nodes : per_nodes;
+                  IL_nodes.push_back(target_list.back());
+                } else {
+                    IL_nodes.push_back(nodes.back());
+              }
+
+              }
           }
         }
       }
@@ -479,6 +492,9 @@ const bool CRadialBasisFunctionInterpolation::SetBoundNodes(CGeometry* geometry,
 
   stable_sort(per_nodes.begin(), per_nodes.end(), HasSmallerIndex);
   per_nodes.resize(distance(per_nodes.begin(), unique(per_nodes.begin(), per_nodes.end(), HasEqualIndex)));
+
+  stable_sort(IL_nodes.begin(), IL_nodes.end(), HasSmallerIndex);
+  IL_nodes.resize(distance(IL_nodes.begin(), unique(IL_nodes.begin(), IL_nodes.end(), HasEqualIndex)));
 
   // filling the mappings
   for(unsigned long x = 0ul; x < nodes.size(); x++){
@@ -550,8 +566,13 @@ const bool CRadialBasisFunctionInterpolation::SetBoundNodes(CGeometry* geometry,
     out5 << geometry->nodes->GetGlobalIndex(i->GetIndex()) << /*"\t" <<  i->getNodetype()  <<*/  endl;
   }
   out5.close();
-  return surfaceCorrection;
-}
+
+  ofstream out6("IL"+to_string(rank)+".txt");
+  for (auto i : IL_nodes){
+    out6 << geometry->nodes->GetGlobalIndex(i->GetIndex()) << /*"\t" <<  i->getNodetype()  <<*/  endl;
+  }
+  out6.close();
+  return surfaceCorrection;}
 
 const bool CRadialBasisFunctionInterpolation::isPrimaryPeriodicNode(CGeometry* geometry, CConfig* config, const unsigned long nodeIndex) const {
   bool isPrimaryNode = false;
@@ -776,7 +797,28 @@ void CRadialBasisFunctionInterpolation::SetCtrlNodeDerivatives(CGeometry* geomet
   
 }
 
-void CRadialBasisFunctionInterpolation::SetInternalNodes(CGeometry* geometry, CConfig* config, vector<unsigned long>& internalNodes) const { 
+void CRadialBasisFunctionInterpolation::SetInternalNodes(CGeometry* geometry, CConfig* config, vector<unsigned long>& internalNodes) { 
+  
+  const auto nWallPoints = IL_nodes.size();
+
+  vector<su2double> CoordBound(nDim*nWallPoints);
+  vector<unsigned long> PointIDs(nWallPoints);
+  
+  unsigned long nodeCounter = 0;
+  for (auto iNode : IL_nodes){
+    // TODO -  IL nodes are not yet transformed to cylindrical 
+    const su2double* coord =geometry->nodes->GetCoord(iNode->GetIndex());
+
+    for ( auto iDim = 0u; iDim < nDim; iDim++) {
+      CoordBound[nodeCounter*nDim + iDim] = coord[iDim]; 
+    }
+
+    PointIDs[nodeCounter] = iNode->GetMarker();
+    nodeCounter++;
+  }
+   
+  CADTPointsOnlyClass adt(nDim, nWallPoints*nDim, CoordBound.data(), PointIDs.data(), true);
+
 
   /*--- helper function to check if node is in the nodes vector ---*/
   auto is_in_nodes = [&](unsigned long iNode) {
@@ -788,10 +830,24 @@ void CRadialBasisFunctionInterpolation::SetInternalNodes(CGeometry* geometry, CC
   for (auto iNode = 0ul; iNode < geometry->GetnPoint(); iNode++) {    
     if (!geometry->nodes->GetBoundary(iNode)) {
       internalNodes.push_back(iNode);
+      
+      su2double dist;
+      unsigned long pointID;
+      int rankID;
+      adt.DetermineNearestNode(geometry->nodes->GetCoord(iNode), dist, pointID, rankID); 
+      if (  abs(dist - 0.00012760937024042232) < 1e-5) {
+        IL_edge.push_back(iNode);
+      }
+
+
     } else if (geometry->nodes->GetPeriodicBoundary(iNode) && !is_in_nodes(iNode)) {      
       internalNodes.push_back(iNode);
     }
   }  
+
+  ofstream out_edge("il_edge.txt");
+  for (auto i : IL_edge) out_edge << i << endl;
+  out_edge.close();
   
   /*--- In case of a parallel computation, the nodes on the send/receive markers are included as internal nodes
           if they are not already a boundary node with known deformation ---*/

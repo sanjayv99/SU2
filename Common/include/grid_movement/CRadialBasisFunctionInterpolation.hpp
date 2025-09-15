@@ -57,7 +57,10 @@ protected:
   vector<CRadialBasisFunctionNode::NODETYPE> CtrlTypeVec;                                     /*!< \brief This vector contains the control nodes at that moment */  
   vector<CRadialBasisFunctionNode*> nodes;                        // vector containing all boundary nodes
   // unordered_map<string, unordered_map<unsigned short, vector<unsigned long>>> node_indices; // map containing the indices for the different type of nodes
-  
+
+  vector<CRadialBasisFunctionNode*> IL_nodes;
+  vector<unsigned long> IL_edge;
+
   struct NodeTypeHash {
     std::size_t operator()(CRadialBasisFunctionNode::NODETYPE t) const noexcept {
       using U = typename std::underlying_type<CRadialBasisFunctionNode::NODETYPE>::type;
@@ -133,7 +136,7 @@ public:
   * \param[in] config - Definition of the particular problem. 
   * \param[in] internalNodes - Internal nodes.
   */
-  void SetInternalNodes(CGeometry* geometry, CConfig* config, vector<unsigned long>& internalNodes) const; //DONE
+  void SetInternalNodes(CGeometry* geometry, CConfig* config, vector<unsigned long>& internalNodes); //DONE
 
   /*!
   * \brief Solving the RBF system to obtain the interpolation coefficients or sensitivity update.
