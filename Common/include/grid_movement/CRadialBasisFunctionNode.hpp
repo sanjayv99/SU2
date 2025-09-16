@@ -42,7 +42,6 @@ class CRadialBasisFunctionNode{
   unsigned long vertex_idx;   /*!< \brief Vertex index. */
     
   su2double error[3];         /*!< \brief Nodal data reduction error; */ // TODO - set initially to zero? 
-  // string nodetype; // TODO add description
   bool control = false; // TODO add description
   bool periodic = false;
   bool DomainVertex = false;
@@ -55,6 +54,7 @@ class CRadialBasisFunctionNode{
   su2double nearest_normal[3];
   su2double nearest_normal2[3];
   su2double nearest_coord[3];
+  su2double var_coord[3];
 
   
   public:
@@ -62,7 +62,9 @@ class CRadialBasisFunctionNode{
   enum class NODETYPE {
     DISPLACED,
     EDGE,
-    SURFACE
+    SURFACE,
+    IL_WALL,
+    IL_EDGE
   };
 
   NODETYPE NodeType;
@@ -174,4 +176,10 @@ class CRadialBasisFunctionNode{
   }
 
   inline const su2double* GetNearestCoord() const { return nearest_coord;}
+
+  inline void SetVarCoord(const su2double* val_coord, unsigned short nDim) {
+    for (auto iDim = 0u; iDim < nDim; iDim++) var_coord[iDim] = val_coord[iDim];
+  }
+
+  inline const su2double* GetVarCoord() const { return var_coord;}
 };

@@ -57,9 +57,9 @@ protected:
   vector<CRadialBasisFunctionNode::NODETYPE> CtrlTypeVec;                                     /*!< \brief This vector contains the control nodes at that moment */  
   vector<CRadialBasisFunctionNode*> nodes;                        // vector containing all boundary nodes
   // unordered_map<string, unordered_map<unsigned short, vector<unsigned long>>> node_indices; // map containing the indices for the different type of nodes
+  unordered_map<unsigned short, vector<unsigned long>> InflationLayerSurfNodes;
+  unordered_map<unsigned short, vector<unsigned long>> InflationLayerEdgeNodes;
 
-  vector<CRadialBasisFunctionNode*> IL_nodes;
-  vector<unsigned long> IL_edge;
 
   struct NodeTypeHash {
     std::size_t operator()(CRadialBasisFunctionNode::NODETYPE t) const noexcept {
