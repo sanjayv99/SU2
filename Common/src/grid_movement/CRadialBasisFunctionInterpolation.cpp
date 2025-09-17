@@ -81,11 +81,13 @@ void CRadialBasisFunctionInterpolation::SetVolume_Deformation(CGeometry* geometr
   for (auto iMarker : InflationLayerSurfNodes){
 
     for(auto iNode : iMarker.second) {
-      node_indices[NODETYPE::IL_WALL][iMarker.first].insert(iNode);
+      auto marker = nodes[iNode]->GetMarker(); // this is the local marker index
+      auto tag = config->GetMarker_All_TagBound(marker);
+      auto global_marker = config->GetMarker_CfgFile_TagBound(tag);
+      node_indices[NODETYPE::IL_WALL][global_marker].insert(iNode);
       // su2double* vc = geometry->vertex[nodes[iNode]->GetMarker()][nodes[iNode]->GetVertex()]->GetVarCoord();
       // cout << geometry->nodes->GetCoord(nodes[iNode]->GetIndex())[0] + vc[0] << "\t" << geometry->nodes->GetCoord(nodes[iNode]->GetIndex())[1] + vc[1] << endl;
     }
-    cout << endl;
 
     CtrlTypeVec.resize(1);
     CtrlTypeVec[0] = NODETYPE::IL_WALL;
@@ -94,13 +96,15 @@ void CRadialBasisFunctionInterpolation::SetVolume_Deformation(CGeometry* geometr
     const RHS_Data rhs = (Derivative && dataReduction) ?  RHS_Data::SENSITIVITY : RHS_Data::DISPLACEMENT;
     su2double radius_IL = 1;
     GetInterpolationCoefficients(geometry, config, kindRBF, radius_IL, internalNodes, ForwardProjectionDerivative, rhs, invInterpMat );
-    cout << endl;
+
     // free displacement:  
+    ofstream free_disp("freeDisp.txt");
     for (auto iNode : InflationLayerEdgeNodes[iMarker.first]){
       ApplyRBF(geometry, kindRBF, radius_IL, nodes[iNode]);
-      cout << nodes[iNode]->GetNewCoord()[0] << " " << nodes[iNode]->GetNewCoord()[1] << endl;
+      free_disp << nodes[iNode]->GetNewCoord()[0] << " " << nodes[iNode]->GetNewCoord()[1] << endl;
+      
     }  
-    cout << endl;
+    free_disp.close();
     
 
     auto wallMarkerIdx = iMarker.first;
@@ -112,6 +116,8 @@ void CRadialBasisFunctionInterpolation::SetVolume_Deformation(CGeometry* geometr
     vector<unsigned long> PointIDs(nVertex);
     unsigned long ii = 0;
 
+
+    ofstream update_ctrl("ctrlUpdate.txt");
     /*--- Loop through wall nodes ---*/
     for( auto jNode = 0ul; jNode < nVertex ; jNode++){
 
@@ -120,13 +126,15 @@ void CRadialBasisFunctionInterpolation::SetVolume_Deformation(CGeometry* geometr
 
       auto var_coord = geometry->vertex[wallMarkerIdx][jNode]->GetVarCoord();
       for(auto iDim = 0u; iDim < nDim; iDim++){
-
         /*--- Applying the deformation ---*/
         geometry->nodes->AddCoord(geometry->vertex[wallMarkerIdx][jNode]->GetNode(), iDim, var_coord[iDim]/Nonlinear_iter);
         /*--- store updated position ---*/
         Coord_bound[ii++] = geometry->nodes->GetCoord(geometry->vertex[wallMarkerIdx][jNode]->GetNode())[iDim];
       }
+      update_ctrl << geometry->nodes->GetCoord(geometry->vertex[wallMarkerIdx][jNode]->GetNode())[0] << "\t" << geometry->nodes->GetCoord(geometry->vertex[wallMarkerIdx][jNode]->GetNode())[1] << endl;
     }
+    
+    update_ctrl.close();
     
 
     /*--- Update of boundary to obtain normals of updated geometry ---*/
@@ -150,7 +158,9 @@ void CRadialBasisFunctionInterpolation::SetVolume_Deformation(CGeometry* geometr
     su2double added_thickness;
 
     /*--- Loop over inflation layer wall nodes ---*/
-    cout << endl;
+    
+    ofstream il_out("edgeUpdate.txt");
+
     for ( auto iNode : InflationLayerEdgeNodes[wallMarkerIdx]){
       /*--- Get nearest wall node ---*/
       WallADT.DetermineNearestNode(nodes[iNode]->GetNewCoord(), dist, pointID, rankID);
@@ -170,11 +180,12 @@ void CRadialBasisFunctionInterpolation::SetVolume_Deformation(CGeometry* geometr
 
       /*--- Get required change in inflation layer thickness 
         sign changes depending on whether the normal is pointing outward/inward ---*/
-      if (dp >= 0){
-        added_thickness = + IL_height - abs(dp); 
-      }else{
-        added_thickness = - IL_height + abs(dp);
-      }
+      // if (dp >= 0){
+      //   added_thickness = + IL_height - abs(dp); 
+      // }else{
+      //   added_thickness = - IL_height + abs(dp);
+      // }
+      added_thickness =  IL_height - dp;
 
       
       /*--- Apply required change in coordinates and store variation w.r.t. initial coordinates. ---*/
@@ -184,14 +195,14 @@ void CRadialBasisFunctionInterpolation::SetVolume_Deformation(CGeometry* geometr
         
         var_coord[iDim] = (nodes[iNode]->GetNewCoord()[iDim] - geometry->nodes->GetCoord(nodes[iNode]->GetIndex())[iDim])*Nonlinear_iter;
       }
-      cout << nodes[iNode]->GetNewCoord()[0] << "\t" << nodes[iNode]->GetNewCoord()[1] << endl;
+      il_out << nodes[iNode]->GetNewCoord()[0] << "\t" << nodes[iNode]->GetNewCoord()[1] << endl;
       nodes[iNode]->SetVarCoord(var_coord, nDim);
       
 
       // iNode->SetNewCoord(var_coord, nDim);
     }
+    il_out.close();
 
-    exit(0);
 
     // revert geometry: 
     for( auto jNode = 0ul; jNode < nVertex ; jNode++){
@@ -211,7 +222,12 @@ void CRadialBasisFunctionInterpolation::SetVolume_Deformation(CGeometry* geometr
 
   for (auto iMarker : InflationLayerEdgeNodes) {
     for(auto iNode : iMarker.second) {
-      node_indices[NODETYPE::IL_EDGE][nodes[iNode]->GetMarker()].insert(iNode);
+
+      auto marker = nodes[iNode]->GetMarker(); // this is the local marker index
+      auto tag = config->GetMarker_All_TagBound(marker);
+      auto global_marker = config->GetMarker_CfgFile_TagBound(tag);
+
+      node_indices[NODETYPE::IL_EDGE][global_marker].insert(iNode);
     }
   }
 
@@ -838,8 +854,8 @@ void CRadialBasisFunctionInterpolation::SetBoundaryDisplacements(CGeometry* geom
     const auto& markerToNodeSet = dataRed ? ctrl_node_indices[iType] : node_indices[iType];
 
     for (const auto& iMarker : markerToNodeSet){
-      // const auto& markerLocal = config->GetMarker_Local(iMarker.first); // TODO -  this does not return iMarker.first for some reason
-      const auto& markerLocal = iMarker.first;
+      const auto& markerLocal = config->GetMarker_Local(iMarker.first); // TODO -  this does not return iMarker.first for some reason
+      // const auto& markerLocal = iMarker.first;
       /*--- If the marker is moving then its nodal displacement is added to the deformation vector,
               else it is set to zero ---*/
       const bool isMoving = ((config->GetMarker_All_Moving(markerLocal) == YES) && (Kind_SU2 == SU2_COMPONENT::SU2_CFD)) ||
@@ -852,10 +868,7 @@ void CRadialBasisFunctionInterpolation::SetBoundaryDisplacements(CGeometry* geom
         auto baseIndex = ctrlNodeIndex * nDim;
         if (isMoving) {
           su2double varCoord[3] = {0.0, 0.0, 0.0};
-          GetNodalDeformation(geometry, config, nodes[iNode], varCoord);
-
-          cout << geometry->nodes->GetCoord(nodes[iNode]->GetIndex())[0] + varCoord[0] << " " << geometry->nodes->GetCoord(nodes[iNode]->GetIndex())[1] + varCoord[1] << endl;
-          
+          GetNodalDeformation(geometry, config, nodes[iNode], varCoord);          
           for (auto iDim = 0u; iDim < nDim; iDim++){
             CtrlNodeDeformation[baseIndex + iDim] = SU2_TYPE::GetValue(varCoord[iDim]);
           }
@@ -1262,6 +1275,8 @@ void CRadialBasisFunctionInterpolation::SetCtrlNodeCoords(CGeometry* geometry, C
   vector<su2double> localCoords(localCoordsSize, 0.0);  
   const bool dataRed = config->GetRBF_DataReduction();
 
+  ofstream ctrl_out("ctrlCoord.txt");
+
   /*--- Gathering local control node coordinates, cylindrical if necessary. ---*/  
   for (const auto& iType : CtrlTypeVec) {
     const auto& markerToNodeSet = dataRed ? ctrl_node_indices[iType] : node_indices[iType];
@@ -1271,9 +1286,11 @@ void CRadialBasisFunctionInterpolation::SetCtrlNodeCoords(CGeometry* geometry, C
         for (auto iDim = 0u; iDim < nDim; iDim++) {
           localCoords[index++] = coord[iDim];
         }
+        ctrl_out << coord[0] << "\t" << coord[1] << endl; 
       }
     }
   }
+  ctrl_out.close();
 
   /*--- Distributing global control node coordinates among all processes ---*/
   CtrlCoords.resize(nCtrlNodesGlobal*nDim);
