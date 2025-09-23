@@ -60,6 +60,8 @@ protected:
   unordered_map<unsigned short, vector<unsigned long>> InflationLayerSurfNodes;
   unordered_map<unsigned short, vector<unsigned long>> InflationLayerEdgeNodes;
 
+  unordered_map<unsigned short, vector<unsigned long>> layerNodes;
+
 
   struct NodeTypeHash {
     std::size_t operator()(CRadialBasisFunctionNode::NODETYPE t) const noexcept {
@@ -183,8 +185,8 @@ public:
   * \param[in] rhs - Determines whether right hand side vector of RBF system contains displacement or sensitivity. 
   * \param[in] invInterpMatrix - Inverse of the interpolation matrix.
   */
-  void GetInterpolationCoefficients(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type, const su2double radius, const vector<unsigned long>& internalNodes, bool ForwardProjectionDerivative, RHS_Data rhs, su2passivematrix& invInterpMatrix); //DONE
-
+  void GetInterpolationCoefficients(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type, const su2double radius, const vector<unsigned long>& internalNodes, bool ForwardProjectionDerivative, RHS_Data rhs, su2passivematrix& invInterpMatrix, bool isInflationLayer);
+   
   /*!
   * \brief Gathering of the control node coordinates.
   * \param[in] geometry - Geometrical definition of the problem.
@@ -197,7 +199,7 @@ public:
   * \param[in] geometry - Geometrical definition of the problem.
   * \param[in] config - Definition of the particular problem.
   */
-  void SetBoundaryDisplacements(CGeometry* geometry, CConfig* config); //DONE
+  void SetBoundaryDisplacements(CGeometry* geometry, CConfig* config, bool isInflationLayer); 
   
   /*!
   * \brief Build the sensitivity vector for the rhs of the RBF system. 
@@ -431,7 +433,7 @@ public:
   * \param[in] iNode - Node for which the deformation is obtained.
   * \param[in] varCoord - Resulting variation in coordinates.
   */  
-  void GetNodalDeformation(CGeometry* geometry, CConfig* config, const CRadialBasisFunctionNode* const iNode, su2double* varCoord) const; //DONE
+  void GetNodalDeformation(CGeometry* geometry, CConfig* config, const CRadialBasisFunctionNode* const iNode, su2double* varCoord, bool isInflationLayer) const; 
   
   su2double ComputeDistance(const su2double* ctrlCoords, const su2double* targetCoords);
 

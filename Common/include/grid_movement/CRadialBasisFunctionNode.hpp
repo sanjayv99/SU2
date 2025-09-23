@@ -55,6 +55,7 @@ class CRadialBasisFunctionNode{
   su2double nearest_normal2[3];
   su2double nearest_coord[3];
   su2double var_coord[3];
+  su2double init_coord[3];
 
   
   public:
@@ -182,4 +183,11 @@ class CRadialBasisFunctionNode{
   }
 
   inline const su2double* GetVarCoord() const { return var_coord;}
+
+  
+  inline void SetInitCoord(const su2double* initCoord, unsigned short nDim) {
+    for (auto iDim = 0u; iDim < nDim; iDim++) init_coord[iDim] = initCoord[iDim];
+  }
+
+  inline const su2double* GetInitCoord() const { return init_coord;}
 };
