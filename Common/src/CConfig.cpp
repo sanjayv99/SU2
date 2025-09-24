@@ -2362,6 +2362,7 @@ void CConfig::SetConfig_Options() {
   addBoolOption("DEFORM_CONSOLE_OUTPUT", Deform_Output, false);
   /* DESCRIPTION: Number of nonlinear deformation iterations (surface deformation increments) */
   addUnsignedLongOption("DEFORM_NONLINEAR_ITER", GridDef_Nonlinear_Iter, 1);
+  addUnsignedLongOption("DEFORM_NONLINEAR_ITER_IL", GridDef_Nonlinear_Iter_IL, 1); // TODO -  description
   /* DESCRIPTION: Deform coefficient (-1.0 to 0.5) */
   addDoubleOption("DEFORM_COEFF", Deform_Coeff, 1E6);
   /* DESCRIPTION: Deform limit in m or inches */
@@ -2601,6 +2602,7 @@ void CConfig::SetConfig_Options() {
 
   /* DESCRIPTION: Radius for radial basis function. */
   addDoubleOption("RADIAL_BASIS_FUNCTION_PARAMETER", RadialBasisFunction_Parameter, 1.0);
+  addDoubleOption("RADIAL_BASIS_FUNCTION_PARAMETER_IL", RadialBasisFunction_Parameter_IL, 1.0);
 
   /* DESCRIPTION: Tolerance to prune small coefficients from the RBF interpolation matrix. */
   addDoubleOption("RADIAL_BASIS_FUNCTION_PRUNE_TOLERANCE", RadialBasisFunction_PruneTol, 1e-6);

@@ -650,6 +650,7 @@ private:
   su2double Min_Beta_RoeTurkel,     /*!< \brief Minimum value of Beta for the Roe-Turkel low Mach preconditioner. */
   Max_Beta_RoeTurkel;               /*!< \brief Maximum value of Beta for the Roe-Turkel low Mach preconditioner. */
   unsigned long GridDef_Nonlinear_Iter;  /*!< \brief Number of nonlinear increments for grid deformation. */
+  unsigned long GridDef_Nonlinear_Iter_IL;  /*!< \brief Number of nonlinear increments for grid deformation. */
   unsigned short Deform_StiffnessType;   /*!< \brief Type of element stiffness imposed for FEA mesh deformation. */
   bool Deform_Mesh;                      /*!< \brief Determines whether the mesh will be deformed. */
   bool Deform_Output;                    /*!< \brief Print the residuals during mesh deformation to the console. */
@@ -1038,6 +1039,7 @@ private:
   RADIAL_BASIS Kind_RadialBasisFunction;     /*!< \brief type of radial basis function to use for radial basis FSI. */
   bool RadialBasisFunction_PolynomialOption; /*!< \brief Option of whether to include polynomial terms in Radial Basis Function Interpolation or not. */
   su2double RadialBasisFunction_Parameter;   /*!< \brief Radial basis function parameter (radius). */
+  su2double RadialBasisFunction_Parameter_IL;   /*!< \brief Radial basis function parameter (radius). */
   su2double RadialBasisFunction_PruneTol;    /*!< \brief Tolerance to prune the RBF interpolation matrix. */
   bool Prestretch;                           /*!< \brief Read a reference geometry for optimization purposes. */
   string Prestretch_FEMFileName;             /*!< \brief File name for reference geometry. */
@@ -4369,6 +4371,7 @@ public:
    * \return Number of nonlinear increments for mesh deformation.
    */
   unsigned long GetGridDef_Nonlinear_Iter(void) const { return GridDef_Nonlinear_Iter; }
+  unsigned long GetGridDef_Nonlinear_Iter_IL(void) const { return GridDef_Nonlinear_Iter_IL; }
 
   /*!
    * \brief Get information about whether the mesh will be deformed using pseudo linear elasticity.
@@ -9240,6 +9243,7 @@ public:
    * \brief Get the basis function radius to use for radial basis function interpolation for FSI.
    */
   su2double GetRadialBasisFunctionParameter(void) const { return RadialBasisFunction_Parameter; }
+  su2double GetRadialBasisFunctionParameter_IL(void) const { return RadialBasisFunction_Parameter_IL; }
 
   /*!
    * \brief Get the tolerance used to prune the interpolation matrix (making it sparser).
