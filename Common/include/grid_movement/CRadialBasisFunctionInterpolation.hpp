@@ -572,6 +572,8 @@ public:
   * \param[in] nearestCoord - Nearest coordinate. 
   */
   void GetNearestCoord( CVertex* const nearestVertex, su2double* const nearestCoord ) const;
+
+  void SetInternalNodesDerivative(CGeometry* geometry, CConfig* config, vector<unsigned long>& internalNodes);
 };
 
 
