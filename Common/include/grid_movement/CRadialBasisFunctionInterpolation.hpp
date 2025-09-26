@@ -61,7 +61,7 @@ protected:
   unordered_map<unsigned short, vector<unsigned long>> InflationLayerEdgeNodes;
 
   unordered_map<unsigned short, vector<unsigned long>> layerNodes;
-
+  int nIter;
 
   struct NodeTypeHash {
     std::size_t operator()(CRadialBasisFunctionNode::NODETYPE t) const noexcept {
