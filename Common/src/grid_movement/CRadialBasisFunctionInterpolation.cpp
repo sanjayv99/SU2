@@ -42,7 +42,7 @@ void CRadialBasisFunctionInterpolation::SetVolume_Deformation(CGeometry* geometr
 
   // TODO -  Debug MPI 
   // {
-  //   if (rank == 0){
+  //   if (rank == 2){
   //     int i = 0;
   //     while(0 == i){
   //       sleep(1);
@@ -454,7 +454,7 @@ void CRadialBasisFunctionInterpolation::SolveRBF_System(CGeometry* geometry, CCo
 
   if (IsCylindrical) TransformBoundaryNodesToCylindricalCoords(geometry);
 
-  if (dataReduction && nCtrlNodesLocal == 0) { 
+  if (dataReduction && nCtrlNodesGlobal == 0) { 
     InitializeDataReduction(geometry, config, Derivative, maxErrorNodeLocal, maxErrorLocal);
   } 
 
