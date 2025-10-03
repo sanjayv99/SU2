@@ -825,7 +825,8 @@ private:
   SurfSens_FileName,             /*!< \brief Output file for the sensitivity on the surface (discrete adjoint). */
   VolSens_FileName,              /*!< \brief Output file for the sensitivity in the volume (discrete adjoint). */
   ObjFunc_Hess_FileName,         /*!< \brief Hessian approximation obtained by the Sobolev smoothing solver. */
-  *DataDriven_Method_FileNames;    /*!< \brief Dataset information for data-driven fluid models. */
+  *DataDriven_Method_FileNames,    /*!< \brief Dataset information for data-driven fluid models. */
+  Mesh_Qual_FileName;           // TODO -   add description
 
   bool
   Wrt_Performance,           /*!< \brief Write the performance summary at the end of a calculation.  */
@@ -833,6 +834,7 @@ private:
   Wrt_MeshQuality,           /*!< \brief Write the mesh quality statistics to the visualization files.  */
   Wrt_MultiGrid,             /*!< \brief Write the coarse grids to the visualization files.  */
   Wrt_Projected_Sensitivity, /*!< \brief Write projected sensitivities (dJ/dx) on surfaces to ASCII file. */
+  Wrt_MeshQualStatistics,   // TODO -  add description
   Plot_Section_Forces;       /*!< \brief Write sectional forces for specified markers. */
   unsigned short
   Console_Output_Verb,  /*!< \brief Level of verbosity for console output */
@@ -4449,6 +4451,10 @@ public:
    */
   su2double GetRBF_DataRedCorrectionFactor(void) const { return RBF_GreedyCorrectionFactor; }
 
+  // TODO -  
+  bool GetWrt_Mesh_Qual_Statistics(void) const { return Wrt_MeshQualStatistics; }
+
+
   /*!
    * \brief Get the kind of SU2 software component.
    * \return Kind of the SU2 software component.
@@ -5758,6 +5764,8 @@ public:
    * \return Name of the file with the appropriate objective function extension.
    */
   string GetObjFunc_Extension(string val_filename) const;
+
+  string GetMesh_Qual_FileName(void) const { return Mesh_Qual_FileName; } // TODO -  add description
 
   /*!
    * \brief Get functional that is going to be used to evaluate the residual flow convergence.

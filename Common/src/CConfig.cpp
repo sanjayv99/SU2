@@ -2391,6 +2391,8 @@ void CConfig::SetConfig_Options() {
   addDoubleOption("RBF_GREEDY_TOLERANCE", RBF_GreedyTolerance, 1E-2);
   /* DESCRIPTION: Tolerance for the data reduction methods used in RBF mesh deformation. */
   addDoubleOption("RBF_GREEDY_CORRECTION_FACTOR", RBF_GreedyCorrectionFactor, 1E-2);
+  addBoolOption("WRT_MESH_QUAL_STATISTICS", Wrt_MeshQualStatistics, false);
+  addStringOption("MESH_QUAL_FILENAME", Mesh_Qual_FileName, string("mesh_qualitity_statistics.dat"));
 
   /*!\par CONFIG_CATEGORY: FEM flow solver definition \ingroup Config*/
   /*--- Options related to the finite element flow solver---*/

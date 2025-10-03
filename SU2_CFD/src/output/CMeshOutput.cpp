@@ -28,6 +28,7 @@
 
 #include "../../include/output/CMeshOutput.hpp"
 #include "../../../Common/include/geometry/CGeometry.hpp"
+// #include "CMeshOutput.hpp"
 
 CMeshOutput::CMeshOutput(CConfig *config, unsigned short nDim) : COutput(config, nDim, false) {
 
@@ -79,4 +80,62 @@ void CMeshOutput::LoadVolumeData(CConfig *config, CGeometry *geometry, CSolver *
     SetVolumeOutputValue("VOLUME_RATIO",  iPoint, geometry->Volume_Ratio[iPoint]);
   }
 
+}
+
+
+void CMeshOutput::WriteMeshQualityStatistics(CConfig *config, CGeometry *geometry) {
+  auto nZone = config->GetnZone();
+  auto iZone = config->GetiZone();
+
+  su2double orthoMin = *min_element(geometry->Orthogonality.begin(), geometry->Orthogonality.end()),
+  orthoMax = *max_element(geometry->Orthogonality.begin(), geometry->Orthogonality.end()),
+  arMin = *min_element(geometry->Aspect_Ratio.begin(), geometry->Aspect_Ratio.end()),
+  arMax = *max_element(geometry->Aspect_Ratio.begin(), geometry->Aspect_Ratio.end()),
+  vrMin = *min_element(geometry->Volume_Ratio.begin(), geometry->Volume_Ratio.end()),
+  vrMax = *max_element(geometry->Volume_Ratio.begin(), geometry->Volume_Ratio.end());
+
+  su2double Global_Ortho_Min, Global_Ortho_Max;
+  SU2_MPI::Allreduce(&orthoMin, &Global_Ortho_Min, 1, MPI_DOUBLE, MPI_MIN, SU2_MPI::GetComm());
+  SU2_MPI::Allreduce(&orthoMax, &Global_Ortho_Max, 1, MPI_DOUBLE, MPI_MAX, SU2_MPI::GetComm());
+
+  su2double Global_AR_Min, Global_AR_Max;
+  SU2_MPI::Allreduce(&arMin, &Global_AR_Min, 1, MPI_DOUBLE, MPI_MIN, SU2_MPI::GetComm());
+  SU2_MPI::Allreduce(&arMax, &Global_AR_Max, 1, MPI_DOUBLE, MPI_MAX, SU2_MPI::GetComm());
+
+  su2double Global_VR_Min, Global_VR_Max;
+  SU2_MPI::Allreduce(&vrMin, &Global_VR_Min, 1, MPI_DOUBLE, MPI_MIN, SU2_MPI::GetComm());
+  SU2_MPI::Allreduce(&vrMax, &Global_VR_Max, 1, MPI_DOUBLE, MPI_MAX, SU2_MPI::GetComm());
+
+  auto fileName = config->GetMesh_Qual_FileName();
+  if (nZone > 1) fileName += "_" + PrintingToolbox::to_string(iZone);
+  fileName += ".dat";
+
+  ofstream file;
+  file.open(fileName);
+  file.precision(6);
+  file << "Min. Orthogonality [deg]";
+  file.width(25);
+  file << "Max. Orthogonality [deg]";
+  file.width(25);
+  file << "Min. Aspect Ratio [deg]";
+  file.width(25);
+  file << "Max. Aspect Ratio [deg]";
+  file.width(25);
+  file << "Min. Volume Ratio [deg]";
+  file.width(25);
+  file << "Max. Volume Ratio [deg]\n";
+  
+  file << Global_Ortho_Min;
+  file.width(25);
+  file << Global_Ortho_Max;
+  file.width(25);
+  file << Global_AR_Min;
+  file.width(25);
+  file << Global_AR_Max;
+  file.width(25);
+  file << Global_VR_Min;
+  file.width(25);
+  file << Global_VR_Max;
+
+  file.close();
 }

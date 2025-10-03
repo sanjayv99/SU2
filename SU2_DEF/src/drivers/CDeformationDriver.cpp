@@ -481,7 +481,7 @@ void CDeformationDriver::OutputFiles() {
   for (iZone = 0; iZone < nZone; iZone++) {
     /*--- Compute Mesh Quality if requested. Necessary geometry preprocessing re-done beforehand. ---*/
 
-    if (config_container[iZone]->GetWrt_MeshQuality() && !driver_config->GetStructuralProblem()) {
+    if ((config_container[iZone]->GetWrt_MeshQuality() || config_container[iZone]->GetWrt_Mesh_Qual_Statistics()) && !driver_config->GetStructuralProblem()) {
       if (rank == MASTER_NODE) cout << "Recompute geometry properties necessary to evaluate mesh quality statistics.\n";
 
       geometry_container[iZone][INST_0][MESH_0]->SetPoint_Connectivity();
@@ -514,6 +514,11 @@ void CDeformationDriver::OutputFiles() {
         output_container[iZone]->WriteToFile(config_container[iZone], geometry_container[iZone][INST_0][MESH_0],
                                              FileFormat[iFile]);
     }
+
+    if (config_container[iZone]->GetWrt_Mesh_Qual_Statistics()) {
+      static_cast<CMeshOutput*>(output_container[iZone])->WriteMeshQualityStatistics(config_container[iZone], geometry_container[iZone][INST_0][MESH_0]);
+    }
+
   }
 
   if (!driver_config->GetDeform_Mesh()) {

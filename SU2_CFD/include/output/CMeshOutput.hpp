@@ -64,4 +64,6 @@ public:
    */
   void LoadVolumeData(CConfig *config, CGeometry *geometry, CSolver **solver, unsigned long iPoint) override;
 
+  void WriteMeshQualityStatistics(CConfig *config, CGeometry *geometry);
+
 };
