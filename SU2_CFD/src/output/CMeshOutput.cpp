@@ -87,13 +87,15 @@ void CMeshOutput::WriteMeshQualityStatistics(CConfig *config, CGeometry *geometr
   auto nZone = config->GetnZone();
   auto iZone = config->GetiZone();
 
-  su2double orthoMin = *min_element(geometry->Orthogonality.begin(), geometry->Orthogonality.end()),
-  orthoMax = *max_element(geometry->Orthogonality.begin(), geometry->Orthogonality.end()),
-  arMin = *min_element(geometry->Aspect_Ratio.begin(), geometry->Aspect_Ratio.end()),
-  arMax = *max_element(geometry->Aspect_Ratio.begin(), geometry->Aspect_Ratio.end()),
-  vrMin = *min_element(geometry->Volume_Ratio.begin(), geometry->Volume_Ratio.end()),
-  vrMax = *max_element(geometry->Volume_Ratio.begin(), geometry->Volume_Ratio.end());
+  auto nPoints = geometry->GetnPointDomain();
 
+  su2double orthoMin = *min_element(geometry->Orthogonality.begin(), geometry->Orthogonality.begin()+nPoints),
+  orthoMax = *max_element(geometry->Orthogonality.begin(), geometry->Orthogonality.begin()+nPoints),
+  arMin = *min_element(geometry->Aspect_Ratio.begin(), geometry->Aspect_Ratio.begin()+nPoints),
+  arMax = *max_element(geometry->Aspect_Ratio.begin(), geometry->Aspect_Ratio.begin()+nPoints),
+  vrMin = *min_element(geometry->Volume_Ratio.begin(), geometry->Volume_Ratio.begin()+nPoints),
+  vrMax = *max_element(geometry->Volume_Ratio.begin(), geometry->Volume_Ratio.begin()+nPoints);
+  
   su2double Global_Ortho_Min, Global_Ortho_Max;
   SU2_MPI::Allreduce(&orthoMin, &Global_Ortho_Min, 1, MPI_DOUBLE, MPI_MIN, SU2_MPI::GetComm());
   SU2_MPI::Allreduce(&orthoMax, &Global_Ortho_Max, 1, MPI_DOUBLE, MPI_MAX, SU2_MPI::GetComm());
@@ -105,37 +107,39 @@ void CMeshOutput::WriteMeshQualityStatistics(CConfig *config, CGeometry *geometr
   su2double Global_VR_Min, Global_VR_Max;
   SU2_MPI::Allreduce(&vrMin, &Global_VR_Min, 1, MPI_DOUBLE, MPI_MIN, SU2_MPI::GetComm());
   SU2_MPI::Allreduce(&vrMax, &Global_VR_Max, 1, MPI_DOUBLE, MPI_MAX, SU2_MPI::GetComm());
-
-  auto fileName = config->GetMesh_Qual_FileName();
-  if (nZone > 1) fileName += "_" + PrintingToolbox::to_string(iZone);
-  fileName += ".dat";
-
-  ofstream file;
-  file.open(fileName);
-  file.precision(6);
-  file << "Min. Orthogonality [deg]";
-  file.width(25);
-  file << "Max. Orthogonality [deg]";
-  file.width(25);
-  file << "Min. Aspect Ratio [deg]";
-  file.width(25);
-  file << "Max. Aspect Ratio [deg]";
-  file.width(25);
-  file << "Min. Volume Ratio [deg]";
-  file.width(25);
-  file << "Max. Volume Ratio [deg]\n";
   
-  file << Global_Ortho_Min;
-  file.width(25);
-  file << Global_Ortho_Max;
-  file.width(25);
-  file << Global_AR_Min;
-  file.width(25);
-  file << Global_AR_Max;
-  file.width(25);
-  file << Global_VR_Min;
-  file.width(25);
-  file << Global_VR_Max;
+  if (rank == MASTER_NODE) {
+    auto fileName = config->GetMesh_Qual_FileName();
+    if (nZone > 1) fileName += "_" + PrintingToolbox::to_string(iZone);
+    fileName += ".dat";
 
-  file.close();
+    ofstream file;
+    file.open(fileName);
+    file.precision(6);
+    file << "Min. Orthogonality [deg]";
+    file.width(25);
+    file << "Max. Orthogonality [deg]";
+    file.width(25);
+    file << "Min. Aspect Ratio [deg]";
+    file.width(25);
+    file << "Max. Aspect Ratio [deg]";
+    file.width(25);
+    file << "Min. Volume Ratio [deg]";
+    file.width(25);
+    file << "Max. Volume Ratio [deg]\n";
+    
+    file << Global_Ortho_Min;
+    file.width(25);
+    file << Global_Ortho_Max;
+    file.width(25);
+    file << Global_AR_Min;
+    file.width(25);
+    file << Global_AR_Max;
+    file.width(25);
+    file << Global_VR_Min;
+    file.width(25);
+    file << Global_VR_Max;
+
+    file.close();
+  }
 }
