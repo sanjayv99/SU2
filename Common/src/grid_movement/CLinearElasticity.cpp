@@ -166,7 +166,6 @@ particular, the linear elasticity equations hold only for small deformations. --
 }
 
 void CLinearElasticity::UpdateGridCoord(CGeometry* geometry, CConfig* config) {
-  cout << "updating the grid coordinates" << endl;
   unsigned short iDim;
   unsigned long iPoint, total_index;
   su2double new_coord;
