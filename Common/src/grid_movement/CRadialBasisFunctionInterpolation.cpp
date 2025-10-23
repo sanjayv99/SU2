@@ -41,14 +41,14 @@ void CRadialBasisFunctionInterpolation::SetVolume_Deformation(CGeometry* geometr
 
 
   // TODO -  Debug MPI 
-  {
-    if (rank == 0){
-      int i = 0;
-      while(0 == i){
-        sleep(1);
-      }
-    }
-  }
+  // {
+  //   if (rank == 0){
+  //     int i = 0;
+  //     while(0 == i){
+  //       sleep(1);
+  //     }
+  //   }
+  // }
   // if (rank == MASTER_NODE) cout << "this is the development code!" << endl;
   
 
