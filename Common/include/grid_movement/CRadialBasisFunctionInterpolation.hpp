@@ -49,6 +49,7 @@ protected:
   unsigned long nCtrlNodesGlobal{0};      /*!< \brief Total number of control nodes.*/
   unsigned long nCtrlNodesLocal{0};      /*!< \brief Total number of local control nodes.*/
   su2activematrix CtrlCoords;             /*!< \brief Coordinates of the control nodes.*/
+  vector<su2double> CtrlNormals;
   
 
   su2double MaxErrorGlobal{0.0};          /*!< \brief Maximum error data reduction algorithm.*/
@@ -89,6 +90,8 @@ protected:
   vector<unsigned long> primaryMarker = {9, 10, 11};
   vector<unsigned long> secondaryMarker = {12, 13, 5};
 
+  vector<su2double*> sharpEdgeLoc;
+  bool sharpEdge = false;
 
 
   
@@ -187,7 +190,7 @@ public:
   * \param[in] rhs - Determines whether right hand side vector of RBF system contains displacement or sensitivity. 
   * \param[in] invInterpMatrix - Inverse of the interpolation matrix.
   */
-  void GetInterpolationCoefficients(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type, const su2double radius, const vector<unsigned long>& internalNodes, bool ForwardProjectionDerivative, RHS_Data rhs, su2passivematrix& invInterpMatrix, bool isInflationLayer);
+  void GetInterpolationCoefficients(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type, const su2double radius, const vector<unsigned long>& internalNodes, bool ForwardProjectionDerivative, RHS_Data rhs, su2passivematrix& invInterpMatrix);
    
   /*!
   * \brief Gathering of the control node coordinates.
@@ -201,7 +204,7 @@ public:
   * \param[in] geometry - Geometrical definition of the problem.
   * \param[in] config - Definition of the particular problem.
   */
-  void SetBoundaryDisplacements(CGeometry* geometry, CConfig* config, bool isInflationLayer); 
+  void SetBoundaryDisplacements(CGeometry* geometry, CConfig* config); 
   
   /*!
   * \brief Build the sensitivity vector for the rhs of the RBF system. 
@@ -227,7 +230,7 @@ public:
   * \param[in] radius - Support radius of the radial basis function.
   * \param[in] interpMat - Interpolation matrix.
   */
-  void GetInterpolationMatrixSequential(CGeometry* geometry, const RADIAL_BASIS& type, const su2double radius, CSymmetricMatrix& interpMat) const; //DONE
+  void GetInterpolationMatrixSequential(CGeometry* geometry, const RADIAL_BASIS& type, const su2double radius, CSymmetricMatrix& interpMat, bool varySupport) const ; 
 
   /*!
   * \brief Computation of the interpolation matrix in parallel.
@@ -245,7 +248,7 @@ public:
   * \param[in] radius - Support radius of the radial basis function.
   * \param[in] invInterpMat - Inverted interpolation matrix. 
   */
-  void GetInverseInterpolationMatrix(CGeometry* geometry, const RADIAL_BASIS& type, const su2double radius, su2passivematrix& invInterpMat) const; //DONE
+  void GetInverseInterpolationMatrix(CGeometry* geometry, const RADIAL_BASIS& type, const su2double radius, su2passivematrix& invInterpMat) const;
   
   /*!
   * \brief Computation of interpolation coefficients
@@ -435,7 +438,7 @@ public:
   * \param[in] iNode - Node for which the deformation is obtained.
   * \param[in] varCoord - Resulting variation in coordinates.
   */  
-  void GetNodalDeformation(CGeometry* geometry, CConfig* config, const CRadialBasisFunctionNode* const iNode, su2double* varCoord, bool isInflationLayer) const; 
+  void GetNodalDeformation(CGeometry* geometry, CConfig* config, const CRadialBasisFunctionNode* const iNode, su2double* varCoord) const; 
   
   su2double ComputeDistance(const su2double* ctrlCoords, const su2double* targetCoords);
 
@@ -574,6 +577,9 @@ public:
   void GetNearestCoord( CVertex* const nearestVertex, su2double* const nearestCoord ) const;
 
   void SetInternalNodesDerivative(CGeometry* geometry, CConfig* config, vector<unsigned long>& internalNodes);
+
+  void CheckSharpEdge(CGeometry* geometry, unsigned long iNode);
+  unsigned long retrieveIndex(unsigned long index_in);
 };
 
 

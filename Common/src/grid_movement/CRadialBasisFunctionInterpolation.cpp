@@ -85,308 +85,388 @@ void CRadialBasisFunctionInterpolation::SetVolume_Deformation(CGeometry* geometr
   
   // if(!Derivative) {
 
-  //   const int inflationLayerIter = config->GetGridDef_Nonlinear_Iter_IL();
-
-  //   // ofstream free_disp("freeDisp" + to_string(rank)+ ".txt");
-  //   // ofstream update_ctrl("ctrlUpdate" + to_string(rank)+ ".txt");                                                  
-  //   // ofstream il_out("edgeUpdate" + to_string(rank)+ ".txt");
-  //   // ofstream layercoord("layercoord" + to_string(rank)+ ".txt");
-  //   // ofstream initial("initcoord" + to_string(rank)+ ".txt");
-
-  //   for (auto iMarker : InflationLayerSurfNodes){
-  //     if (find(secondaryMarker.begin(), secondaryMarker.end(), iMarker.first) != secondaryMarker.end()) continue;
-  //     bool addPeriodic = find(primaryMarker.begin(), primaryMarker.end(), iMarker.first) != primaryMarker.end();
-  //     vector<unsigned long>::iterator it;
-  //     unsigned short secMar;
-  //     if (addPeriodic) {
-  //       it = find(primaryMarker.begin(), primaryMarker.end(), iMarker.first);
-  //       secMar = secondaryMarker[distance(primaryMarker.begin(), it)];
-  //     }
+    const int inflationLayerIter = config->GetGridDef_Nonlinear_Iter_IL();
 
 
-  //     for(auto iNode : iMarker.second) {
-  //       auto marker = nodes[iNode]->GetMarker(); // this is the local marker index
-  //       auto tag = config->GetMarker_All_TagBound(marker);
-  //       auto global_marker = config->GetMarker_CfgFile_TagBound(tag);
-  //       node_indices[NODETYPE::IL_WALL][global_marker].insert(iNode);
-  //     }
+    for (auto iMarker : InflationLayerSurfNodes){
+      ofstream free_disp("freeDisp" + to_string(rank)+ ".txt");
+      ofstream update_ctrl("ctrlUpdate" + to_string(rank)+ ".txt");                                                  
+      ofstream il_out("edgeUpdate" + to_string(rank)+ ".txt");
+      ofstream layercoord("layercoord" + to_string(rank)+ ".txt");
+      ofstream initial("initcoord" + to_string(rank)+ ".txt");
 
 
-  //     // add nodes from other side of periodic boundary if necessary: 
-  //     if (addPeriodic) {
-  //       auto secNodes = InflationLayerSurfNodes[secMar];
-  //       for (auto iNode : secNodes) {
-  //         auto marker = nodes[iNode]->GetMarker(); // this is the local marker index
-  //         auto tag = config->GetMarker_All_TagBound(marker);
-  //         auto global_marker = config->GetMarker_CfgFile_TagBound(tag);
-  //         node_indices[NODETYPE::IL_WALL][global_marker].insert(iNode);
-  //       }
-  //     }
+      // detect if secondary periodic marker has to be included. 
+      if (find(secondaryMarker.begin(), secondaryMarker.end(), iMarker.first) != secondaryMarker.end()) continue;
+      bool addPeriodic = find(primaryMarker.begin(), primaryMarker.end(), iMarker.first) != primaryMarker.end();
+      vector<unsigned long>::iterator it;
+      unsigned short secMar;
+      if (addPeriodic) {
+        it = find(primaryMarker.begin(), primaryMarker.end(), iMarker.first);
+        secMar = secondaryMarker[distance(primaryMarker.begin(), it)];
+      }
 
 
-  //     auto marker = iMarker.first; // this is the local marker index
-  //     auto tag = config->GetMarker_All_TagBound(marker);
-  //     auto global_marker = config->GetMarker_CfgFile_TagBound(tag);
+      for(auto iNode : iMarker.second) {
+        auto marker = nodes[iNode]->GetMarker(); // this is the local marker index
+        auto tag = config->GetMarker_All_TagBound(marker);
+        auto global_marker = config->GetMarker_CfgFile_TagBound(tag);
+        node_indices[NODETYPE::IL_WALL][global_marker].insert(iNode);
 
-  //     auto edge_nodes = InflationLayerEdgeNodes[iMarker.first];
-  //     for(auto iNode : edge_nodes) {
-  //       node_indices[NODETYPE::IL_EDGE][global_marker].insert(iNode);
-  //       const su2double* coord = geometry->nodes->GetCoord(nodes[iNode]->GetIndex());
-  //       nodes[iNode]->SetInitCoord(coord, nDim);
-  //       // initial << coord[0] << "\t" << coord[1] << endl;
-  //     }
+        if (!sharpEdge) CheckSharpEdge(geometry, iNode);
+
+        if (tag == "tube5") {
+          sharpEdge = true;
+          su2double* add = new su2double[2];
+          add[0] = 0.005399038544511799;      
+          add[1] = 0.001099999259465228;
+          sharpEdgeLoc.push_back(add);
+        } else if (tag == "tube6") {
+          sharpEdge = true;
+          su2double* add = new su2double[2];
+          add[0] = 0.01019903854451180;      
+          add[1] = 0.001099999259465228;
+          sharpEdgeLoc.push_back(add);
+        } else if (tag == "tube7") {
+          sharpEdge = true;
+          su2double* add = new su2double[2];
+          add[0] = 0.01499903854451180;      
+          add[1] = 0.001099999259465228;
+          sharpEdgeLoc.push_back(add);
+        }
+      }
+      
+    
+      // sharpEdge = true;
+      // su2double* add = new su2double[2];
+      // add[0] = 0.005399038544511799;      
+      // add[1] = 0.001099999259465228;
+      // sharpEdgeLoc.push_back(add);
+
+
+
+      // add nodes from other side of periodic boundary if necessary: 
+      if (addPeriodic) {
+        auto secNodes = InflationLayerSurfNodes[secMar];
+        for (auto iNode : secNodes) {
+          auto marker = nodes[iNode]->GetMarker(); // this is the local marker index
+          auto tag = config->GetMarker_All_TagBound(marker);
+          auto global_marker = config->GetMarker_CfgFile_TagBound(tag);
+          node_indices[NODETYPE::IL_WALL][global_marker].insert(iNode);
+        }
+      }
+
+
+      auto marker = iMarker.first; // this is the local marker index
+      auto tag = config->GetMarker_All_TagBound(marker);
+      cout << "considered tag: " << tag << endl;
+      auto global_marker = config->GetMarker_CfgFile_TagBound(tag);
+
+      auto edge_nodes = InflationLayerEdgeNodes[iMarker.first];
+      for(auto iNode : edge_nodes) {
+        node_indices[NODETYPE::IL_EDGE][global_marker].insert(iNode);
+        const su2double* coord = geometry->nodes->GetCoord(nodes[iNode]->GetIndex());
+        nodes[iNode]->SetInitCoord(coord, nDim);
+        // initial << coord[0] << "\t" << coord[1] << endl;
+      }
   
-  //     if (addPeriodic) {
-  //       marker = secMar; // this is the local marker index
-  //       tag = config->GetMarker_All_TagBound(marker);
-  //       global_marker = config->GetMarker_CfgFile_TagBound(tag);
+      if (addPeriodic) {
+        marker = secMar; // this is the local marker index
+        tag = config->GetMarker_All_TagBound(marker);
+        global_marker = config->GetMarker_CfgFile_TagBound(tag);
 
-  //       edge_nodes = InflationLayerEdgeNodes[secMar];
-  //       for(auto iNode : edge_nodes) {
-  //         node_indices[NODETYPE::IL_EDGE][global_marker].insert(iNode);
-  //         const su2double* coord = geometry->nodes->GetCoord(nodes[iNode]->GetIndex());
-  //         nodes[iNode]->SetInitCoord(coord, nDim);
-  //         // initial << coord[0] << "\t" << coord[1] << endl;
-  //       }
-  //     }
-
-  //     // initial.close();
-
-  //     CtrlTypeVec.resize(1);
-  //     CtrlTypeVec[0] = NODETYPE::IL_WALL;
-  //     su2passivematrix invInterpMat;
-  //     auto dataReduction = config->GetRBF_DataReduction();
-  //     const RHS_Data rhs = (Derivative && dataReduction) ?  RHS_Data::SENSITIVITY : RHS_Data::DISPLACEMENT;
-  //     const su2double radius_IL = config->GetRadialBasisFunctionParameter_IL();
+        edge_nodes = InflationLayerEdgeNodes[secMar];
+        for(auto iNode : edge_nodes) {
+          node_indices[NODETYPE::IL_EDGE][global_marker].insert(iNode);
+          const su2double* coord = geometry->nodes->GetCoord(nodes[iNode]->GetIndex());
+          nodes[iNode]->SetInitCoord(coord, nDim);
+          // initial << coord[0] << "\t" << coord[1] << endl;
+        }
+      }
+      
 
       
-  //     for (auto i = 0; i < inflationLayerIter; i++) {
 
-  //       GetInterpolationCoefficients(geometry, config, kindRBF, radius_IL, internalNodes, ForwardProjectionDerivative, rhs, invInterpMat, true );
+      CtrlTypeVec.resize(1);
+      CtrlTypeVec[0] = NODETYPE::IL_WALL;
+      su2passivematrix invInterpMat;
+      auto dataReduction = config->GetRBF_DataReduction();
+      const RHS_Data rhs = (Derivative && dataReduction) ?  RHS_Data::SENSITIVITY : RHS_Data::DISPLACEMENT;
+      const su2double radius_IL = config->GetRadialBasisFunctionParameter_IL();
 
-  //       // free displacement: 
-  //       for (auto markers : node_indices[NODETYPE::IL_EDGE]){
-  //         for (auto iNode : markers.second) {
-  //           ApplyRBF(geometry, kindRBF, radius_IL, nodes[iNode]);
-  //           // if (i == inflationLayerIter-1) {
-  //           //   free_disp << nodes[iNode]->GetNewCoord()[0] << " " << nodes[iNode]->GetNewCoord()[1] << endl;
-  //           // }
-  //         }
-  //       }       
+      
+      for (auto i = 0; i < nIter; i++) {
 
-  //       // update coords: 
-  //       unsigned long nVertex = 0;
-  //       for (auto markers : node_indices[NODETYPE::IL_WALL]) {
-  //         nVertex += markers.second.size();
-  //       }
+        if (i==1) {
+          auto edge_nodes = InflationLayerEdgeNodes[iMarker.first];
+          for(auto iNode : edge_nodes) {
+            const su2double* coord = geometry->nodes->GetCoord(nodes[iNode]->GetIndex());
+            initial << coord[0] << "\t" << coord[1] << endl;
+          }
 
-  //       vector<su2double> Coord_bound(nVertex*nDim);
-  //       vector<unsigned long> PointIDs(nVertex);
-  //       unsigned long ii = 0;
+          edge_nodes = InflationLayerEdgeNodes[secMar];
+          for(auto iNode : edge_nodes) {
+            const su2double* coord = geometry->nodes->GetCoord(nodes[iNode]->GetIndex());
+            initial << coord[0] << "\t" << coord[1] << endl;
+          }
+        }
+        // uses 1/n_overall as displacement, basis for free displacement.
+        GetInterpolationCoefficients(geometry, config, kindRBF, radius_IL, internalNodes, ForwardProjectionDerivative, rhs, invInterpMat);
+
+        // free displacement: 
+        for (auto markers : node_indices[NODETYPE::IL_EDGE]){
+          for (auto iNode : markers.second) {
+            // cout  << nodes[iNode]->GetNewCoord()[0] << " " << nodes[iNode]->GetNewCoord()[1] << endl;
+            ApplyRBF(geometry, kindRBF, radius_IL, nodes[iNode]);
+            // cout << nodes[iNode]->GetNewCoord()[0] << " " << nodes[iNode]->GetNewCoord()[1] << endl;
+            if (i == 1) {
+              free_disp << nodes[iNode]->GetNewCoord()[0] << " " << nodes[iNode]->GetNewCoord()[1] << endl;
+            }
+          }
+        }       
+
+   
+
+        // update coords: 
+        unsigned long nVertex = 0;
+        for (auto markers : node_indices[NODETYPE::IL_WALL]) {
+          nVertex += markers.second.size();
+        }
+
+        vector<su2double> Coord_bound(nVertex*nDim);
+        vector<unsigned long> PointIDs(nVertex);
+        unsigned long ii = 0;
 
 
   //       /*--- Loop through wall nodes ---*/
-  //       unsigned long cnt = 0;
-  //       for (auto markers : node_indices[NODETYPE::IL_WALL]) {
-  //         for( auto jNode : markers.second){
-  //           PointIDs[cnt++] = jNode;
+        unsigned long cnt = 0;
+        for (auto markers : node_indices[NODETYPE::IL_WALL]) {
+          for( auto jNode : markers.second){
+            PointIDs[cnt++] = jNode;
 
-  //           auto markerLocal = nodes[jNode]->GetMarker();
-  //           auto ivertex = nodes[jNode]->GetVertex();
+            auto markerLocal = nodes[jNode]->GetMarker();
+            auto ivertex = nodes[jNode]->GetVertex();
 
-  //           auto var_coord = geometry->vertex[markerLocal][ivertex]->GetVarCoord();
-  //           for(auto iDim = 0u; iDim < nDim; iDim++){
+            auto var_coord = geometry->vertex[markerLocal][ivertex]->GetVarCoord();
+            for(auto iDim = 0u; iDim < nDim; iDim++){
   //             /*--- Applying the deformation ---*/
-  //             geometry->nodes->AddCoord(geometry->vertex[markerLocal][ivertex]->GetNode(), iDim, var_coord[iDim]/inflationLayerIter);
-  //             Coord_bound[ii++] = geometry->nodes->GetCoord(nodes[jNode]->GetIndex())[iDim];
-  //           }
-  //           // if (i==inflationLayerIter-1) {
-  //           //   update_ctrl << geometry->nodes->GetCoord(geometry->vertex[markerLocal][ivertex]->GetNode())[0] << "\t" << geometry->nodes->GetCoord(geometry->vertex[markerLocal][ivertex]->GetNode())[1] << endl;
-  //           // }
-  //         }
-  //       }
+              geometry->nodes->AddCoord(geometry->vertex[markerLocal][ivertex]->GetNode(), iDim, var_coord[iDim]/nIter);
+              Coord_bound[ii++] = geometry->nodes->GetCoord(nodes[jNode]->GetIndex())[iDim];
+            }
+            if (i==1) {
+              update_ctrl << geometry->nodes->GetCoord(geometry->vertex[markerLocal][ivertex]->GetNode())[0] << "\t" << geometry->nodes->GetCoord(geometry->vertex[markerLocal][ivertex]->GetNode())[1] << endl;
+            }
+          }
+        }
 
-  //       geometry->SetBoundControlVolume(config, UPDATE);
-  //       CADTPointsOnlyClass WallADT(nDim, nVertex, Coord_bound.data(), PointIDs.data(), true);
+        geometry->SetBoundControlVolume(config, UPDATE);
+        CADTPointsOnlyClass WallADT(nDim, nVertex, Coord_bound.data(), PointIDs.data(), true);
 
-  //       /*--- Inflation layer height ---*/
-  //       su2double IL_height = 0.00012760937024042232;
+        /*--- Inflation layer height ---*/
+        // su2double IL_height = 0.00012760937024042232;
 
-  //       unsigned long pointID;
-  //       int rankID;
-  //       su2double dist; 
+        unsigned long pointID;
+        int rankID;
+        su2double dist; 
         
-  //       /*--- Finding the required displacement of the edge nodes ---*/
-  //       /*--- Distance to nearest wall node and required added inflation layer thickness ---*/
-  //       su2double dist_vec[nDim];
-  //       su2double added_thickness;
+        /*--- Finding the required displacement of the edge nodes ---*/
+        /*--- Distance to nearest wall node and required added inflation layer thickness ---*/
+        su2double dist_vec[nDim];
+        su2double added_thickness;
 
-  //       /*--- Loop over inflation layer wall nodes ---*/
-  //       for (auto markers : node_indices[NODETYPE::IL_EDGE]) {
-  //         for ( auto iNode : markers.second){
-  //           /*--- Get nearest wall node ---*/
-  //           WallADT.DetermineNearestNode(nodes[iNode]->GetNewCoord(), dist, pointID, rankID);
+        /*--- Loop over inflation layer wall nodes ---*/
+        for (auto markers : node_indices[NODETYPE::IL_EDGE]) {
+          for ( auto iNode : markers.second){
+            /*--- Get nearest wall node ---*/
+            WallADT.DetermineNearestNode(nodes[iNode]->GetNewCoord(), dist, pointID, rankID);
             
-  //           auto markerNear = nodes[pointID]->GetMarker();
-  //           auto vertexNear = nodes[pointID]->GetVertex();
+            auto markerNear = nodes[pointID]->GetMarker();
+            auto vertexNear = nodes[pointID]->GetVertex();
 
-  //           /*--- Get normal and make it a unit vector ---*/
-  //           auto normal = geometry->vertex[markerNear][vertexNear]->GetNormal(); 
-  //           auto normal_length = GeometryToolbox::Norm(nDim, normal);
-  //           for(auto iDim = 0u; iDim < nDim; iDim++){
-  //             normal[iDim] = normal[iDim]/normal_length;
-  //           }
+            /*--- Get normal and make it a unit vector ---*/
+            auto normal = geometry->vertex[markerNear][vertexNear]->GetNormal(); 
+            auto normal_length = GeometryToolbox::Norm(nDim, normal);
+            for(auto iDim = 0u; iDim < nDim; iDim++){
+              normal[iDim] = normal[iDim]/normal_length;
+            }
 
-  //           /*--- Get distance vector from edge node to nearest wall node ---*/
-  //           GeometryToolbox::Distance(nDim, nodes[iNode]->GetNewCoord(), geometry->nodes->GetCoord(nodes[pointID]->GetIndex()), dist_vec);
+            /*--- Get distance vector from edge node to nearest wall node ---*/
+            GeometryToolbox::Distance(nDim, nodes[iNode]->GetNewCoord(), geometry->nodes->GetCoord(nodes[pointID]->GetIndex()), dist_vec);
 
-  //           /*--- Dot product to obtain current inflation layer height ---*/
-  //           auto dp = GeometryToolbox::DotProduct(nDim, normal, dist_vec);
+            /*--- Dot product to obtain current inflation layer height ---*/
+            auto dp = GeometryToolbox::DotProduct(nDim, normal, dist_vec);
 
 
-  //           added_thickness =  IL_height - dp;
+            added_thickness =  nodes[iNode]->GetILHeight() - dp;
             
-  //           /*--- Apply required change in coordinates and store variation w.r.t. initial coordinates. ---*/
-  //           su2double var_coord[nDim];
-  //           for(auto iDim = 0u; iDim < nDim; iDim++){
-  //             nodes[iNode]->AddNewCoord(added_thickness * normal[iDim], iDim);
-  //             var_coord[iDim] = (nodes[iNode]->GetNewCoord()[iDim] - geometry->nodes->GetCoord(nodes[iNode]->GetIndex())[iDim])*inflationLayerIter;
-  //           }
-  //           // if (i == inflationLayerIter-1) {
-  //           //   il_out << nodes[iNode]->GetNewCoord()[0] << "\t" << nodes[iNode]->GetNewCoord()[1] << endl;
-  //           // }
-  //           nodes[iNode]->SetVarCoord(var_coord, nDim);
+            /*--- Apply required change in coordinates and store variation w.r.t. initial coordinates. ---*/
+            su2double var_coord[nDim];
+            for(auto iDim = 0u; iDim < nDim; iDim++){
+              nodes[iNode]->AddNewCoord(added_thickness * normal[iDim], iDim);
+              var_coord[iDim] = (nodes[iNode]->GetNewCoord()[iDim] - geometry->nodes->GetCoord(nodes[iNode]->GetIndex())[iDim])*nIter;
+              // geometry->nodes->AddCoord(nodes[iNode]->GetIndex(), iDim, var_coord[iDim]/inflationLayerIter);
+            }
+            if (i == 1) {
+              il_out << nodes[iNode]->GetNewCoord()[0] << "\t" << nodes[iNode]->GetNewCoord()[1] << endl;
+            }
+            nodes[iNode]->SetVarCoord(var_coord, nDim);
             
-  //           // iNode->SetNewCoord(var_coord, nDim);
-  //         }
-  //       }
+            // nodes[iNode]->SetNewCoord(var_coord, nDim);
+          }
+        }
 
+        
+
+        // revert geometry: 
+        for (auto markers : node_indices[NODETYPE::IL_WALL] ) {
+          for( auto iNode : markers.second) {
+            auto localMarker = nodes[iNode]->GetMarker();
+            auto vertex = nodes[iNode]->GetVertex();
+            auto var_coord = geometry->vertex[localMarker][vertex]->GetVarCoord();
+            for(auto iDim = 0u; iDim < nDim; iDim++){
+              /*--- Applying the deformation ---*/
+              geometry->nodes->AddCoord(nodes[iNode]->GetIndex(), iDim, -var_coord[iDim]/nIter);
+            }
+          }
+        }      
+        geometry->SetBoundControlVolume(config, UPDATE);
+
+
+        
+        
+        CtrlTypeVec.resize(2);
+        CtrlTypeVec[0] = NODETYPE::IL_WALL;
+        CtrlTypeVec[1] = NODETYPE::IL_EDGE;
+
+        ofstream layerCoords("layercoords.txt");
+        unsigned long nIter_IL = sharpEdge ? 5 : 1;
+
+        cout << "SHARP EDGE: " << sharpEdge << endl; 
+        for (auto iStep = 0ul; iStep < nIter_IL; iStep++) {
+          cout << "inflation layer step: " << iStep << endl;
+          GetInterpolationCoefficients(geometry, config, kindRBF, radius_IL, internalNodes, ForwardProjectionDerivative, rhs, invInterpMat);
+
+          su2double var_coord[nDim]{0.0};
+          
+          /*--- Loop over the internal nodes ---*/
+          for (auto markers : node_indices[NODETYPE::IL_WALL]){
+            auto localMarker = nodes[*(markers.second).begin()]->GetMarker();
+            for(auto iNode = 0ul; iNode < layerNodes[localMarker].size(); iNode++){
+              auto targetCoords = geometry->nodes->GetCoord(layerNodes[localMarker][iNode]);
+              // layerCoords << targetCoords[0] << "\t" << targetCoords[1] << endl;
+              /*--- Loop for contribution of each control node ---*/
+              for(auto jNode = 0ul; jNode < nCtrlNodesGlobal; jNode++){
+
+                /*--- Determine distance between considered internal and control node ---*/
+                su2double dist = ComputeDistance(CtrlCoords[jNode*nDim], targetCoords);
+                su2double r = radius_IL;
+                
+                /*--- Evaluate RBF based on distance ---*/
+                su2double rbf = SU2_TYPE::GetValue(CRadialBasisFunction::Get_RadialBasisValue(kindRBF, r, dist));
+              
+                /*--- Add contribution to total coordinate variation ---*/
+                for(auto iDim = 0u; iDim < nDim; iDim++){
+                  var_coord[iDim] += rbf*InterpCoeff[jNode * nDim + iDim];
+                }
+              }
+              
+              if (IsCylindrical) CylDispToCart(targetCoords, var_coord);
+              
+              /*--- Apply the coordinate variation and resetting the var_coord vector to zero ---*/
+              for(auto iDim = 0u; iDim < nDim; iDim++){
+                geometry->nodes->AddCoord(layerNodes[localMarker][iNode], iDim, var_coord[iDim]);
+                var_coord[iDim] = 0;  
+              } 
+              auto nc = geometry->nodes->GetCoord(layerNodes[localMarker][iNode]);
+              if (i == 1 && iStep == 4) layercoord << nc[0] << "\t" << nc[1] << endl;
+            } 
+          }
+
+          //update control coords
+          nIter = nIter_IL * nIter;
+          UpdateBoundCoords(geometry, config, kindRBF, radius_IL);
+          nIter = config->GetGridDef_Nonlinear_Iter();
+        }
+
+        layerCoords.close();
+        CtrlTypeVec.resize(1);
+        // CtrlTypeVec[0] = NODETYPE::IL_WALL;
+        
+        // for (auto markers : node_indices[NODETYPE::IL_EDGE]) {
+        //   for(auto iNode : markers.second){
+        //     const su2double* varCoord = nodes[iNode]->GetVarCoord();
+        //     for (auto iDim = 0u; iDim < nDim; iDim++) {
+        //       geometry->nodes->AddCoord(nodes[iNode]->GetIndex(), iDim, varCoord[iDim]/inflationLayerIter);
+        //     }
+        //   }
+        // }
+
+        // for (auto markers : node_indices[NODETYPE::IL_WALL]) {  
+        //   for(auto iNode : markers.second){
+        //     auto localMarker = nodes[iNode]->GetMarker();
+        //     auto vertex = nodes[iNode]->GetVertex();
+        //     const su2double* varCoord = geometry->vertex[localMarker][vertex]->GetVarCoord();
+        //     for (auto iDim = 0u; iDim < nDim; iDim++) {
+        //       geometry->nodes->AddCoord(nodes[iNode]->GetIndex(), iDim, varCoord[iDim]/inflationLayerIter);
+        //     }
+        //   }
+        // }
+        // CtrlTypeVec.resize(1);
+    }
+
+
+      // revert edge back to initial position... 
+      for (auto markers : node_indices[NODETYPE::IL_EDGE]) {
+        for (auto iNode : markers.second) {
+          const su2double* initCoord = nodes[iNode]->GetInitCoord();
+          const su2double* coord = geometry->nodes->GetCoord(nodes[iNode]->GetIndex());
+          su2double varCoord[3];
+          for (auto iDim = 0u; iDim < nDim; iDim++) {
+            varCoord[iDim] = (coord[iDim] - initCoord[iDim])*nIter;
+          }
+          nodes[iNode]->SetVarCoord(varCoord, nDim);
+
+          geometry->nodes->SetCoord(nodes[iNode]->GetIndex(), initCoord);
+
+        }
+      }
+
+
+      node_indices[NODETYPE::IL_WALL].clear();
+      node_indices[NODETYPE::IL_EDGE].clear();
+    
+    sharpEdge = false;
+    sharpEdgeLoc.clear();
+
+    update_ctrl.close();
+    il_out.close();
+    free_disp.close();
+    layercoord.close();
+    initial.close();
+    
+  }
+
+    for (auto iMarker : InflationLayerEdgeNodes) {
+      for(auto iNode : iMarker.second) {
+
+        auto marker = nodes[iNode]->GetMarker(); // this is the local marker index
+        auto tag = config->GetMarker_All_TagBound(marker);
+        auto global_marker = config->GetMarker_CfgFile_TagBound(tag);
+
+        node_indices[NODETYPE::IL_EDGE][global_marker].insert(iNode);
+      }
+    }
+    
   
-
-  //       // revert geometry: 
-  //       for (auto markers : node_indices[NODETYPE::IL_WALL] ) {
-  //         for( auto iNode : markers.second) {
-  //           auto localMarker = nodes[iNode]->GetMarker();
-  //           auto vertex = nodes[iNode]->GetVertex();
-  //           auto var_coord = geometry->vertex[localMarker][vertex]->GetVarCoord();
-  //           for(auto iDim = 0u; iDim < nDim; iDim++){
-  //             /*--- Applying the deformation ---*/
-  //             geometry->nodes->AddCoord(nodes[iNode]->GetIndex(), iDim, -var_coord[iDim]/inflationLayerIter);
-  //           }
-  //         }
-  //       }
-      
-  //       geometry->SetBoundControlVolume(config, UPDATE);
-        
-        
-  //       CtrlTypeVec.resize(2);
-  //       CtrlTypeVec[0] = NODETYPE::IL_WALL;
-  //       CtrlTypeVec[1] = NODETYPE::IL_EDGE;
-
-  //       GetInterpolationCoefficients(geometry, config, kindRBF, radius, internalNodes, ForwardProjectionDerivative, rhs, invInterpMat, true);
-
-  //       su2double var_coord[nDim]{0.0};
-        
-  //       /*--- Loop over the internal nodes ---*/
-  //       for (auto markers : node_indices[NODETYPE::IL_WALL]){
-  //         auto localMarker = nodes[*(markers.second).begin()]->GetMarker();
-  //         for(auto iNode = 0ul; iNode < layerNodes[localMarker].size(); iNode++){
-  //           auto targetCoords = geometry->nodes->GetCoord(layerNodes[localMarker][iNode]);
-  //           /*--- Loop for contribution of each control node ---*/
-  //           for(auto jNode = 0ul; jNode < nCtrlNodesGlobal; jNode++){
-
-  //             /*--- Determine distance between considered internal and control node ---*/
-  //             su2double dist = ComputeDistance(CtrlCoords[jNode*nDim], targetCoords);
-
-  //             /*--- Evaluate RBF based on distance ---*/
-  //             su2double rbf = SU2_TYPE::GetValue(CRadialBasisFunction::Get_RadialBasisValue(kindRBF, radius, dist));
-            
-  //             /*--- Add contribution to total coordinate variation ---*/
-  //             for(auto iDim = 0u; iDim < nDim; iDim++){
-  //               var_coord[iDim] += rbf*InterpCoeff[jNode * nDim + iDim];
-  //             }
-  //           }
-            
-  //           if (IsCylindrical) CylDispToCart(targetCoords, var_coord);
-            
-  //           /*--- Apply the coordinate variation and resetting the var_coord vector to zero ---*/
-  //           for(auto iDim = 0u; iDim < nDim; iDim++){
-  //             geometry->nodes->AddCoord(layerNodes[localMarker][iNode], iDim, var_coord[iDim]);
-  //             var_coord[iDim] = 0;  
-  //           } 
-  //           auto nc = geometry->nodes->GetCoord(layerNodes[localMarker][iNode]);
-  //           // if (i == inflationLayerIter-1) layercoord << nc[0] << "\t" << nc[1] << endl;
-  //         } 
-  //       }
-        
-  //       for (auto markers : node_indices[NODETYPE::IL_EDGE]) {
-  //         for(auto iNode : markers.second){
-  //           const su2double* varCoord = nodes[iNode]->GetVarCoord();
-  //           for (auto iDim = 0u; iDim < nDim; iDim++) {
-  //             geometry->nodes->AddCoord(nodes[iNode]->GetIndex(), iDim, varCoord[iDim]/inflationLayerIter);
-  //           }
-
-  //         }
-  //       }
-
-  //       for (auto markers : node_indices[NODETYPE::IL_WALL]) {  
-  //         for(auto iNode : markers.second){
-  //           auto localMarker = nodes[iNode]->GetMarker();
-  //           auto vertex = nodes[iNode]->GetVertex();
-  //           const su2double* varCoord = geometry->vertex[localMarker][vertex]->GetVarCoord();
-  //           for (auto iDim = 0u; iDim < nDim; iDim++) {
-  //             geometry->nodes->AddCoord(nodes[iNode]->GetIndex(), iDim, varCoord[iDim]/inflationLayerIter);
-  //           }
-  //         }
-  //       }
-  //       CtrlTypeVec.resize(1);
-  //     } 
-
-  //     // revert edge back to initial position... 
-  //     for (auto markers : node_indices[NODETYPE::IL_EDGE]) {
-  //       for (auto iNode : markers.second) {
-  //         const su2double* initCoord = nodes[iNode]->GetInitCoord();
-  //         const su2double* coord = geometry->nodes->GetCoord(nodes[iNode]->GetIndex());
-  //         su2double varCoord[3];
-  //         for (auto iDim = 0u; iDim < nDim; iDim++) {
-  //           varCoord[iDim] = coord[iDim] - initCoord[iDim];
-  //         }
-  //         nodes[iNode]->SetVarCoord(varCoord, nDim);
-
-  //         geometry->nodes->SetCoord(nodes[iNode]->GetIndex(), initCoord);
-
-  //       }
-  //     }
-
-
-  //     node_indices[NODETYPE::IL_WALL].clear();
-  //     node_indices[NODETYPE::IL_EDGE].clear();
-
-  //   }
-
-  //   // update_ctrl.close();
-  //   // il_out.close();
-  //   // free_disp.close();
-  //   // layercoord.close();
-
-  //   for (auto iMarker : InflationLayerEdgeNodes) {
-  //     for(auto iNode : iMarker.second) {
-
-  //       auto marker = nodes[iNode]->GetMarker(); // this is the local marker index
-  //       auto tag = config->GetMarker_All_TagBound(marker);
-  //       auto global_marker = config->GetMarker_CfgFile_TagBound(tag);
-
-  //       node_indices[NODETYPE::IL_EDGE][global_marker].insert(iNode);
-  //     }
-  //   }
-  // }
+  
 
   //----------------------------------------------------------------------------------------
 
   
 
   /*--- Looping over the number of deformation iterations ---*/
-  for (auto iNonlinear_Iter = 0ul; iNonlinear_Iter < nIter; iNonlinear_Iter++) {
+  nIter = config->GetGridDef_Nonlinear_Iter();
+  for (auto iNonlinear_Iter = 0ul; iNonlinear_Iter < 1; iNonlinear_Iter++) {
     
     /*--- Compute min volume in the entire mesh. ---*/
     ComputeDeforming_Element_Volume(geometry, MinVolume, MaxVolume, Screen_Output);
@@ -461,12 +541,12 @@ void CRadialBasisFunctionInterpolation::SolveRBF_System(CGeometry* geometry, CCo
   /*--- While the maximum error is above the tolerance, data reduction algorithm is continued. ---*/
   while(((MaxErrorGlobal > dataReductionTolerance)  || greedyIterations == 0)){ 
     // if(!Derivative){
-    //   CtrlTypeVec.resize(2);
-    //   CtrlTypeVec[0] = NODETYPE::DISPLACED;
-    //   CtrlTypeVec[1] = NODETYPE::IL_EDGE;
-    // } else{
-      CtrlTypeVec.resize(1);
+      CtrlTypeVec.resize(2);
       CtrlTypeVec[0] = NODETYPE::DISPLACED;
+      CtrlTypeVec[1] = NODETYPE::IL_EDGE;
+    // } else{
+      // CtrlTypeVec.resize(1);
+      // CtrlTypeVec[0] = NODETYPE::DISPLACED;
     // }
       
     /*--- In case of a nonzero local error, control nodes are added ---*/
@@ -474,7 +554,7 @@ void CRadialBasisFunctionInterpolation::SolveRBF_System(CGeometry* geometry, CCo
       AddControlNode(config, maxErrorNodeLocal);
     }
 
-    GetInterpolationCoefficients(geometry, config, type, radius, internalNodes, ForwardProjectionDerivative, rhs, invInterpMat, false);
+    GetInterpolationCoefficients(geometry, config, type, radius, internalNodes, ForwardProjectionDerivative, rhs, invInterpMat);
 
     for (const auto &iType : slideCtrlTypes) {
       auto it = node_indices.find(iType);
@@ -484,7 +564,7 @@ void CRadialBasisFunctionInterpolation::SolveRBF_System(CGeometry* geometry, CCo
       ProjectSlidingNodes(geometry, config, type, radius, dataReduction, iType);    
 
       CtrlTypeVec.push_back(iType);
-      GetInterpolationCoefficients(geometry, config, type, radius, internalNodes, ForwardProjectionDerivative, rhs, invInterpMat, false); 
+      GetInterpolationCoefficients(geometry, config, type, radius, internalNodes, ForwardProjectionDerivative, rhs, invInterpMat); 
     }
 
     GetInterpError(geometry, config, type, radius, Derivative, slideCtrlTypes, maxErrorNodeLocal, maxErrorLocal);     
@@ -599,7 +679,7 @@ void CRadialBasisFunctionInterpolation::InitializeDataReduction(CGeometry* geome
   if (rank == MASTER_NODE) cout << "DATA REDUCTION TOLERANCE: " << dataReductionTolerance << "\n" << endl; // TODO -  placed elsewhere in the SU2 output
 }
 
-void CRadialBasisFunctionInterpolation::GetInterpolationCoefficients(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type, const su2double radius, const vector<unsigned long>& internalNodes, bool ForwardProjectionDerivative, RHS_Data rhs, su2passivematrix& invInterpMat, bool isInflationLayer){
+void CRadialBasisFunctionInterpolation::GetInterpolationCoefficients(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type, const su2double radius, const vector<unsigned long>& internalNodes, bool ForwardProjectionDerivative, RHS_Data rhs, su2passivematrix& invInterpMat){
   
   /*---Update global number of control nodes ---*/
   Get_nCtrlNodesGlobal(config);
@@ -609,7 +689,7 @@ void CRadialBasisFunctionInterpolation::GetInterpolationCoefficients(CGeometry* 
 
   /*--- Set right hand side vector ---*/
   if (rhs == RHS_Data::DISPLACEMENT) { 
-    SetBoundaryDisplacements(geometry, config, isInflationLayer);
+    SetBoundaryDisplacements(geometry, config);
   }else{
     SetCtrlNodeDerivatives(geometry, config, ForwardProjectionDerivative);
   }
@@ -704,7 +784,7 @@ const bool CRadialBasisFunctionInterpolation::SetBoundNodes(CGeometry* geometry,
           continue;
 
         const bool isSliding = config->GetMarker_All_Deform_Mesh_Slide(iMarker);
-        // const bool hasInflationLayer = config->GetMarker_All_Deform_Mesh_IL(iMarker);
+        const bool hasInflationLayer = config->GetMarker_All_Deform_Mesh_IL(iMarker);
 
       
         for (auto iVertex = 0ul; iVertex < geometry->nVertex[iMarker]; iVertex++) {
@@ -766,23 +846,23 @@ const bool CRadialBasisFunctionInterpolation::SetBoundNodes(CGeometry* geometry,
             }
           } 
           
-          // else if (hasInflationLayer) {
+          else if (hasInflationLayer) {
 
-          //   // if among primary periodic marker
-          //   if (find(primaryMarker.begin(), primaryMarker.end(), iMarker) != primaryMarker.end()) {
-          //     add_node(nodes, iNode, iMarker, iVertex, NODETYPE::IL_WALL);
-          //   } else if (find(secondaryMarker.begin(), secondaryMarker.end(), iMarker) != secondaryMarker.end()) {
-          //     if (geometry->nodes->GetPeriodicBoundary(iNode)) {
-          //       // include as periodic node
-          //     } else {
-          //       add_node(nodes, iNode, iMarker, iVertex, NODETYPE::IL_WALL);
-          //     }
-          //   } else {
-          //     add_node(nodes, iNode, iMarker, iVertex, NODETYPE::IL_WALL);
-          //   }
+            // if among primary periodic marker
+            if (find(primaryMarker.begin(), primaryMarker.end(), iMarker) != primaryMarker.end()) {
+              add_node(nodes, iNode, iMarker, iVertex, NODETYPE::IL_WALL);
+            } else if (find(secondaryMarker.begin(), secondaryMarker.end(), iMarker) != secondaryMarker.end()) {
+              if (geometry->nodes->GetPeriodicBoundary(iNode)) {
+                // include as periodic node
+              } else {
+                add_node(nodes, iNode, iMarker, iVertex, NODETYPE::IL_WALL);
+              }
+            } else {
+              add_node(nodes, iNode, iMarker, iVertex, NODETYPE::IL_WALL);
+            }
 
 
-          // }
+          }
           
           
           else {
@@ -898,14 +978,15 @@ const bool CRadialBasisFunctionInterpolation::SetBoundNodes(CGeometry* geometry,
   // }
   // out5.close();
 
-  // ofstream out6("IL"+to_string(rank)+".txt");
-  // for (auto iMarker : InflationLayerSurfNodes){
-  //   for (auto i : iMarker.second){
-  //     out6 << geometry->nodes->GetGlobalIndex(nodes[i]->GetIndex()) << /*"\t" <<  i->getNodetype()  <<*/  endl;
-  //   }
-  // }
+  ofstream out6("IL"+to_string(rank)+".txt");
+  for (auto iMarker : InflationLayerSurfNodes){
+    for (auto i : iMarker.second){
+      out6 << geometry->nodes->GetGlobalIndex(nodes[i]->GetIndex()) << /*"\t" <<  i->getNodetype()  <<*/  endl;
+    }
+  }
 
-  // out6.close();
+  out6.close();
+
   return surfaceCorrection;}
 
 
@@ -930,11 +1011,16 @@ const bool CRadialBasisFunctionInterpolation::isPrimaryPeriodicNode(CGeometry* g
 void CRadialBasisFunctionInterpolation::GetInverseInterpolationMatrix(CGeometry* geometry, const RADIAL_BASIS& type, const su2double radius, su2passivematrix& invInterpMat) const {
   CSymmetricMatrix interpMat;
 
+  
+
+  bool varySupport = (sharpEdge && CtrlTypeVec.size() ==  1 && CtrlTypeVec[0] == NODETYPE::IL_WALL) ? true : false;
+
+
   /*---  Build the interpolation matrix in parallel or sequentially ---*/
   #ifdef HAVE_MPI
     GetInterpolationMatrixParallel(geometry, type, radius, interpMat);    
   #else
-    GetInterpolationMatrixSequential(geometry, type, radius, interpMat);    
+    GetInterpolationMatrixSequential(geometry, type, radius, interpMat, varySupport);    
   #endif
   
   /*--- Check if the kernel is symmetric positive definite ---*/
@@ -942,7 +1028,7 @@ void CRadialBasisFunctionInterpolation::GetInverseInterpolationMatrix(CGeometry*
                           (type == RADIAL_BASIS::INV_MULTI_QUADRIC);
 
   /*--- Inverting matrix and transferring data to output variable ---*/
-  interpMat.Invert(kernelIsSPD); 
+  interpMat.Invert(false); 
   invInterpMat = interpMat.StealData();
 }
 
@@ -1005,31 +1091,72 @@ void CRadialBasisFunctionInterpolation::GetInterpolationMatrixParallel(CGeometry
   }
 }
 
-void CRadialBasisFunctionInterpolation::GetInterpolationMatrixSequential(CGeometry* geometry, const RADIAL_BASIS& type, const su2double radius, CSymmetricMatrix& interpMat) const {
+void CRadialBasisFunctionInterpolation::GetInterpolationMatrixSequential(CGeometry* geometry, const RADIAL_BASIS& type, const su2double radius, CSymmetricMatrix& interpMat, bool varySupport) const {
   interpMat.Initialize(nCtrlNodesGlobal);
-    
+
+  ofstream phi("phi.txt");
   /*--- Construction of the interpolation matrix. 
       Since this matrix is symmetric only upper halve has to be considered.
       Evaluates the distance between control nodes and fills matrix with RBF evaluations ---*/  
-  
   for (auto iNode = 0ul; iNode < nCtrlNodesGlobal; iNode++) {
     const auto iOffset = iNode * nDim;    
+    su2double dist_te_i = sharpEdge ? GetDistance(CtrlCoords[iOffset], sharpEdgeLoc[0]) : 0.0;
+
     for (auto jNode = iNode; jNode < nCtrlNodesGlobal; jNode++) {
       const auto jOffset = jNode * nDim;
+      su2double dist_te_j = sharpEdge ? GetDistance(CtrlCoords[jOffset], sharpEdgeLoc[0]) : 0.0;
       const su2double dist = GetDistance(CtrlCoords[iOffset], CtrlCoords[jOffset]);
-      interpMat(iNode, jNode) = SU2_TYPE::GetValue(CRadialBasisFunction::Get_RadialBasisValue(type, radius, dist));
+
+      bool use_contr = true;
+
+      if (sharpEdge && varySupport && dist_te_i < radius && dist_te_j < radius) {
+
+        su2double cos_ang = GeometryToolbox::DotProduct(nDim, &CtrlNormals[iOffset], &CtrlNormals[jOffset]);
+        if (cos_ang < -0.0) {
+          use_contr = false;
+        } 
+      }
+
+      interpMat(iNode, jNode) = use_contr ? SU2_TYPE::GetValue(CRadialBasisFunction::Get_RadialBasisValue(type, radius, dist)) : 0.0;
+      auto out = use_contr ? SU2_TYPE::GetValue(CRadialBasisFunction::Get_RadialBasisValue(type, radius, dist)) : 0.0;
+      phi << out << "\t";
     }
-  }  
+    phi << endl;
+  } 
+  phi.close();
+
+  // for (auto iNode = 0ul; iNode < nCtrlNodesGlobal; iNode++) {
+  //   const auto iOffset = iNode * nDim;    
+    
+  //   for (auto jNode = iNode; jNode < nCtrlNodesGlobal; jNode++) {
+  //     const auto jOffset = jNode * nDim;
+  //     const su2double dist = GetDistance(CtrlCoords[iOffset], CtrlCoords[jOffset]);
+  //     su2double r = radius;
+
+  //     if (varySupport) {
+  //       su2double dist_te1 = GetDistance(CtrlCoords[iOffset], sharpEdgeLoc[0]);
+  //       su2double dist_te2 = GetDistance(CtrlCoords[jOffset], sharpEdgeLoc[0]);
+  //       su2double dist_te = min(dist_te1, dist_te2);
+        
+  //       if (dist_te < 1*radius) {
+            
+  //         su2double reduction_term = (1- dist_te/(1*radius)) * 0.5 * radius;
+  //         r -= reduction_term;
+  //       }
+  //     }
+
+  //     interpMat(iNode, jNode) = SU2_TYPE::GetValue(CRadialBasisFunction::Get_RadialBasisValue(type, r, dist));
+  //   }
+  // } 
 }
 
 
-void CRadialBasisFunctionInterpolation::SetBoundaryDisplacements(CGeometry* geometry, CConfig* config, bool isInflationLayer){
+void CRadialBasisFunctionInterpolation::SetBoundaryDisplacements(CGeometry* geometry, CConfig* config){
   const SU2_COMPONENT Kind_SU2 = config->GetKind_SU2();
   const bool dataRed = config->GetRBF_DataReduction();
   unsigned long ctrlNodeIndex = 0;
-
+  ofstream disp("disp.txt");
   CtrlNodeDeformation.resize(nCtrlNodesLocal*nDim, 0.0);   
-  
   for (const auto& iType : CtrlTypeVec) {
     const auto& markerToNodeSet = dataRed ? ctrl_node_indices[iType] : node_indices[iType];
 
@@ -1048,10 +1175,11 @@ void CRadialBasisFunctionInterpolation::SetBoundaryDisplacements(CGeometry* geom
         auto baseIndex = ctrlNodeIndex * nDim;
         if (isMoving) {
           su2double varCoord[3] = {0.0, 0.0, 0.0};
-          GetNodalDeformation(geometry, config, nodes[iNode], varCoord, isInflationLayer);          
+          GetNodalDeformation(geometry, config, nodes[iNode], varCoord);
           for (auto iDim = 0u; iDim < nDim; iDim++){
             CtrlNodeDeformation[baseIndex + iDim] = SU2_TYPE::GetValue(varCoord[iDim]);
           }
+          disp << varCoord[0] << "\t" << varCoord[1] << endl;
         } else  {
             for (auto iDim = 0u; iDim < nDim; iDim++) {
               CtrlNodeDeformation[baseIndex + iDim] = 0.0;
@@ -1061,15 +1189,19 @@ void CRadialBasisFunctionInterpolation::SetBoundaryDisplacements(CGeometry* geom
       }      
     }
   }
+
+  disp.close();
 }
 
-void CRadialBasisFunctionInterpolation::GetNodalDeformation(CGeometry* geometry, CConfig* config, const CRadialBasisFunctionNode* const iNode, su2double* varCoord, bool isInflationLayer) const {
+void CRadialBasisFunctionInterpolation::GetNodalDeformation(CGeometry* geometry, CConfig* config, const CRadialBasisFunctionNode* const iNode, su2double* varCoord) const {
   /*--- If requested (no by default) impose the surface deflections in
     increments and solve the grid deformation with
     successive small deformations. ---*/
 
-  const auto n = isInflationLayer ? config->GetGridDef_Nonlinear_Iter_IL() : config->GetGridDef_Nonlinear_Iter();
-  const su2double VarIncrement = 1.0 / ( (su2double)nIter);
+  auto nStepsMultiplier = sharpEdge && CtrlTypeVec.size() > 1 ? 5 : 1;
+  // nStepsMultiplier = 1;
+
+  const su2double VarIncrement = 1.0 / ( (su2double)config->GetGridDef_Nonlinear_Iter()*nStepsMultiplier);
 
   const su2double* varCoordCartOrig = iNode->GetNodeType() == NODETYPE::IL_EDGE ? iNode->GetVarCoord() : geometry->vertex[iNode->GetMarker()][iNode->GetVertex()]->GetVarCoord();
   su2double varCoordCart[3] = {0.0, 0.0, 0.0};
@@ -1135,30 +1267,47 @@ void CRadialBasisFunctionInterpolation::SetCtrlNodeDerivatives(CGeometry* geomet
 
 void CRadialBasisFunctionInterpolation::SetInternalNodes(CGeometry* geometry, CConfig* config, vector<unsigned long>& internalNodes) { 
 
-  // unsigned long nWallPoints = 0; 
-  // for (auto iMarker : InflationLayerSurfNodes){
-  //   nWallPoints += iMarker.second.size();
-  // }
 
-  // vector<su2double> CoordBound(nDim*nWallPoints);
-  // vector<unsigned long> PointIDs(nWallPoints);
+    // it is assumed that all cell types at the inflation layer are quad cells.... 
+    
+  int il_type = 9;
+  su2double height = 0.00012760937024042232;
+  ofstream edge_il("edge_il.txt");
+  ofstream il("il_nodes.txt");
+
+  for (unsigned long iElem = 0; iElem < geometry->GetnElem(); ++iElem) {    
+    CPrimalGrid* element = geometry->elem[iElem];
+    auto nFace = element->GetnFaces();
+    for (auto iFace =0; iFace < nFace; iFace++) {
+     auto check  = element->GetNeighbor_Elements(iFace);
+    }
+  }
+
+  /*------------------------- Creating the KD tree ------------------------*/
+  unsigned long nWallPoints = 0; 
+  for (auto iMarker : InflationLayerSurfNodes){
+    nWallPoints += iMarker.second.size();
+  }
+
+  vector<su2double> CoordBound(nDim*nWallPoints);
+  vector<unsigned long> PointIDs(nWallPoints);
   
-  // unsigned long nodeCounter = 0;
-  // for (auto iMarker : InflationLayerSurfNodes) {
-  //   for (auto iNode : iMarker.second) {
-  //     // TODO -  IL nodes are not yet transformed to cylindrical 
-  //     const su2double* coord =geometry->nodes->GetCoord(nodes[iNode]->GetIndex());
+  unsigned long nodeCounter = 0;
+  for (auto iMarker : InflationLayerSurfNodes) {
+    for (auto iNode : iMarker.second) {
+      // TODO -  IL nodes are not yet transformed to cylindrical 
+      const su2double* coord =geometry->nodes->GetCoord(nodes[iNode]->GetIndex());
 
-  //     for ( auto iDim = 0u; iDim < nDim; iDim++) {
-  //       CoordBound[nodeCounter*nDim + iDim] = coord[iDim]; 
-  //     }
+      for ( auto iDim = 0u; iDim < nDim; iDim++) {
+        CoordBound[nodeCounter*nDim + iDim] = coord[iDim]; 
+      }
 
-  //     PointIDs[nodeCounter] = nodes[iNode]->GetMarker();
-  //     nodeCounter++;
-  //   }
-  // }
-  // // TODO -   move to seperate function 
-  // CADTPointsOnlyClass adt(nDim, nWallPoints, CoordBound.data(), PointIDs.data(), true);
+      PointIDs[nodeCounter] = iNode;
+      nodeCounter++;
+    }
+  }
+  // TODO -   move to seperate function 
+  CADTPointsOnlyClass adt(nDim, nWallPoints, CoordBound.data(), PointIDs.data(), true);
 
   /*--- helper function to check if node is in the nodes vector ---`*/
   auto is_in_nodes = [&](unsigned long iNode) {
@@ -1169,80 +1318,197 @@ void CRadialBasisFunctionInterpolation::SetInternalNodes(CGeometry* geometry, CC
   /*--- Add all non-boundary nodes and periodic nodes not already in nodes vector ---*/
   for (auto iNode = 0ul; iNode < geometry->GetnPoint(); iNode++) {    
     if (!geometry->nodes->GetBoundary(iNode)) {
-      internalNodes.push_back(iNode);
-      
-      // su2double dist;
-      // unsigned long pointID;
-      // int rankID;
-      // adt.DetermineNearestNode(geometry->nodes->GetCoord(iNode), dist, pointID, rankID); 
-      // if (  abs(dist - 0.00012760937024042232) < 1e-6) {
-        
-      //     std::set<int> vtk_types;
-      //     for (unsigned long iElem = 0; iElem < geometry->GetnElem(); ++iElem) {
-      //       CPrimalGrid* element = geometry->elem[iElem];
-      //       for (unsigned short jNode = 0; jNode < element->GetnNodes(); ++jNode) {
-      //           if (element->GetNode(jNode) ==  iNode) {
-      //               vtk_types.insert(element->GetVTK_Type());
-      //               break; // If you only want the first match, otherwise remove this
-      //           }
-      //       }
-      //     }
-      //     if (vtk_types.size() >= 2) {
-      //       InflationLayerEdgeNodes[pointID].push_back(nodes.size());
-      //       nodes.push_back(new CRadialBasisFunctionNode(iNode, pointID, 0 /*// TODO -  does this matter? */ ));
-      //       nodes.back()->SetNodeType(NODETYPE::IL_EDGE);
-      //     } else {
-      //       internalNodes.push_back(iNode);
-      //     }   
-        
-        // IL_edge.push_back(new CRadialBasisFunctionNode(iNode, pointID, 0 /*does this matter? */ ) );
-      // } else if (dist < 0.00012760937024042232) {
-        // std::vector<unsigned long> elements_with_node;
-        // std::set<int> vtk_types;
-        // for (unsigned long iElem = 0; iElem < geometry->GetnElem(); ++iElem) {
-        //     CPrimalGrid* element = geometry->elem[iElem];
-        //     for (unsigned short jNode = 0; jNode < element->GetnNodes(); ++jNode) {
-        //         if (element->GetNode(jNode) == iNode) {
-        //             vtk_types.insert(element->GetVTK_Type());
-        //             break;
-        //         }
-        //     }
-        // }
+    
+      su2double dist;
+      unsigned long pointID;
+      int rankID;
+      adt.DetermineNearestNode(geometry->nodes->GetCoord(iNode), dist, pointID, rankID); 
 
-        // if (vtk_types.count(9) > 0) {
-          // layerNodes[pointID].push_back(iNode);
-        // }else {
-        //   internalNodes.push_back(iNode);
-        // }
-
-        
-      // } else{
-      //   internalNodes.push_back(iNode);
+      // if (dist < 0.5 * height ) {
+      //   layerNodes[pointID].push_back(iNode);
       // }
 
+      // if distance is 
+      if ( dist < 1.5 * height ) {
+          
+        // std::set<int> vtk_types;
 
-    } else if (geometry->nodes->GetPeriodicBoundary(iNode) && !is_in_nodes(iNode)) {     
-        // su2double dist;
-        // unsigned long pointID;
-        // int rankID;
-        // adt.DetermineNearestNode(geometry->nodes->GetCoord(iNode), dist, pointID, rankID); 
-
-        // if (dist < 0.00012760937024042232 && !is_in_nodes(iNode)) {
-        //   layerNodes[pointID].push_back(iNode);
-        // } else { 
-          internalNodes.push_back(iNode);
+        // for (auto iElem : geometry->nodes->GetElems(iNode)) {
+        //   vtk_types.insert(geometry->elem[iElem]->GetVTK_Type());
         // }
+
+        std::unordered_map<int,int> vtk_counts;
+        for (auto iElem : geometry->nodes->GetElems(iNode)) {
+            int vtk = geometry->elem[iElem]->GetVTK_Type();           
+            ++vtk_counts[vtk];
+        }
+
+        const size_t nDistinctTypes = vtk_counts.size();
+
+        if (nDistinctTypes >= 2) {
+          const int nIL = (vtk_counts.count(il_type) ? vtk_counts[il_type] : 0);
+
+          // sum all non-IL element counts
+          int nNonIL = 0;
+          for (const auto &p : vtk_counts) {
+              if (p.first != il_type) nNonIL += p.second;
+          }
+
+          // avoid divide-by-zero; if no IL elems then can't classify as IL interior
+          double ratio = (nIL > 0) ? static_cast<double>(nNonIL) / static_cast<double>(nIL)
+                                  : std::numeric_limits<double>::infinity();
+
+          const double ratioThreshold = 1.0; // tune this
+          if (nIL > 0 && ratio < ratioThreshold) {
+              // Mostly IL elements — treat as IL interior (not an IL edge)
+              layerNodes[nodes[pointID]->GetMarker()].push_back(iNode);
+              
+          } else {
+              // Mixed or mostly non-IL — treat as IL edge
+              InflationLayerEdgeNodes[nodes[pointID]->GetMarker()].push_back(nodes.size());
+              nodes.push_back(new CRadialBasisFunctionNode(iNode, nodes[pointID]->GetMarker(), 0));
+              nodes.back()->SetNodeType(NODETYPE::IL_EDGE);
+              nodes.back()->SetILHeight(dist);
+              nodes.back()->SetNearestNode(pointID);
+          }
+          // InflationLayerEdgeNodes[pointID].push_back(nodes.size());
+          // nodes.push_back(new CRadialBasisFunctionNode(iNode, pointID, 0 /*// TODO -  does this matter? */ ));
+          // nodes.back()->SetNodeType(NODETYPE::IL_EDGE);
+          // nodes.back()->SetILHeight(dist);
+        }
+        else if ( nDistinctTypes == 1 && vtk_counts.begin()->first == il_type ) {
+
+          layerNodes[nodes[pointID]->GetMarker()].push_back(iNode);
+        }  
+        else {
+          internalNodes.push_back(iNode);
+        }
+      } else {
+        internalNodes.push_back(iNode);
+      }
+    } else if (geometry->nodes->GetPeriodicBoundary(iNode) && !is_in_nodes(iNode)) {     
+        su2double dist;
+        unsigned long pointID;
+        int rankID;
+        adt.DetermineNearestNode(geometry->nodes->GetCoord(iNode), dist, pointID, rankID); 
+        if ( dist < 1.5 * height ) {
+
+          std::unordered_map<int,int> vtk_counts;
+          for (auto iElem : geometry->nodes->GetElems(iNode)) {
+              int vtk = geometry->elem[iElem]->GetVTK_Type();             
+              ++vtk_counts[vtk];
+          }
+
+          const size_t nDistinctTypes = vtk_counts.size();
+
+          if (nDistinctTypes >= 2) {
+            const int nIL = (vtk_counts.count(il_type) ? vtk_counts[il_type] : 0);
+
+            // sum all non-IL element counts
+            int nNonIL = 0;
+            for (const auto &p : vtk_counts) {
+                if (p.first != il_type) nNonIL += p.second;
+            }
+
+            // avoid divide-by-zero; if no IL elems then can't classify as IL interior
+            double ratio = (nIL > 0) ? static_cast<double>(nNonIL) / static_cast<double>(nIL)
+                                    : std::numeric_limits<double>::infinity();
+
+            const double ratioThreshold = 1.0; // tune this
+            if ( nIL > 0 && ratio < ratioThreshold) {
+                // Mostly IL elements — treat as IL interior (not an IL edge)
+                layerNodes[nodes[pointID]->GetMarker()].push_back(iNode);
+            } else {
+                // Mixed or mostly non-IL — treat as IL edge
+                if (find(primaryMarker.begin(), primaryMarker.end(), nodes[pointID]->GetMarker()) != primaryMarker.end()) {
+                  InflationLayerEdgeNodes[nodes[pointID]->GetMarker()].push_back(nodes.size());
+                  nodes.push_back(new CRadialBasisFunctionNode(iNode, nodes[pointID]->GetMarker(), 0));
+                  nodes.back()->SetNodeType(NODETYPE::IL_EDGE);
+                  nodes.back()->SetILHeight(dist);
+                  nodes.back()->SetNearestNode(pointID);
+                } else {
+                  layerNodes[nodes[pointID]->GetMarker()].push_back(iNode);
+                }
+            }
+
+          } 
+          else if ( nDistinctTypes == 1 && vtk_counts.begin()->first == il_type ) {
+
+            layerNodes[nodes[pointID]->GetMarker()].push_back(iNode);
+          }  
+        } else {
+          internalNodes.push_back(iNode);
+        }
     }
-  }  
+  }
 
 
+  // vector<unsigned long> nodestoremove;
 
-  // ofstream out_edge("il_edge.txt");
-  // for (auto iMarker : InflationLayerEdgeNodes){
-  //   for (auto i : iMarker.second) out_edge << nodes[i]->GetIndex() << endl;
+  // // filter out nodes that are misidentified: 
+  // for (auto& x : InflationLayerEdgeNodes) {
+  //   for (auto xnode : x.second) {
+
+  //     unsigned long cnt = 0;
+  //     auto node = nodes[xnode]->GetIndex();
+  //     for (auto iEdge : geometry->nodes->GetEdges(node)) {
+
+  //       for (auto j = 0; j < geometry->edges->GetnNodes(); j++) {
+  //         auto in = geometry->edges->GetNode(iEdge,j);
+  //         if (in != node) {
+
+  //           if (std::any_of(x.second.begin(), x.second.end(),
+  //               [this, in](unsigned long idx){
+  //                   return idx < this->nodes.size() &&            // bounds safety
+  //                          this->nodes[idx] &&                    // non-null pointer
+  //                          this->nodes[idx]->GetIndex() == in;    // compare
+  //               })) {
+  //             cnt++;
+  //           }
+  //         }
+  //       }
+  //     }
+  //     cout << cnt << endl;
+  //     if (cnt == 0){
+  //       nodestoremove.push_back(xnode);
+  //       layerNodes[x.first].push_back(node);
+  //     }
+  //   }
   // }
   
-  // out_edge.close();
+  // for (auto& x : InflationLayerEdgeNodes) {
+  //   auto& nodeList = x.second;
+  //   nodeList.erase(std::remove_if(nodeList.begin(), nodeList.end(),
+  //       [&](unsigned long idx){ 
+  //           return std::find(nodestoremove.begin(), nodestoremove.end(), idx) != nodestoremove.end(); 
+  //       }), nodeList.end());
+  // }
+
+  // for (auto idx : nodestoremove) {
+  //   nodes[idx] = nullptr;
+  // }
+
+  // nodes.erase(std::remove(nodes.begin(), nodes.end(), nullptr), nodes.end());
+
+
+  
+
+
+  ofstream out_il("il_nodes.txt");
+  for (auto marker : layerNodes) {
+    for (auto iNode : marker.second) {
+      out_il << iNode << endl;
+    }
+  }
+
+  out_il.close();
+
+  ofstream out_edge("il_edge.txt");
+  for (auto iMarker : InflationLayerEdgeNodes){
+    for (auto i : iMarker.second) out_edge << nodes[i]->GetIndex() << endl;
+  }
+  
+  out_edge.close();
   
   /*--- In case of a parallel computation, the nodes on the send/receive markers are included as internal nodes
           if they are not already a boundary node with known deformation ---*/
@@ -1264,12 +1530,14 @@ void CRadialBasisFunctionInterpolation::SetInternalNodes(CGeometry* geometry, CC
   /*--- sorting of the local indices and obtain unique set ---*/
   sort(internalNodes.begin(), internalNodes.end());
   internalNodes.resize(std::distance(internalNodes.begin(), unique(internalNodes.begin(), internalNodes.end())));
+  
 
-  // ofstream out4("int_nodes"+to_string(rank)+".txt");
-  // for (auto i : internalNodes){
-  //   out4 << geometry->nodes->GetGlobalIndex(i) << /*"\t" <<  i->getNodetype()  <<*/  endl;
-  // }
-  // out4.close();
+  ofstream out4("int_nodes"+to_string(rank)+".txt");
+  for (auto i : internalNodes){
+    out4 << geometry->nodes->GetGlobalIndex(i) << /*"\t" <<  i->getNodetype()  <<*/  endl;
+  }
+  out4.close();
+
 }
 
 void CRadialBasisFunctionInterpolation::SetInternalNodesDerivative(CGeometry* geometry, CConfig* config, vector<unsigned long>& internalNodes) { 
@@ -1327,7 +1595,7 @@ void CRadialBasisFunctionInterpolation::ComputeInterpolationCoefficients(const s
           Which for a single coefficient is a summation from j=1 to nCtrlNodesGlobal: Coeff_i = sum( InterpMat_i,j * d_j ).
           The deformation vector is scattered accros the ranks and therefore each rank computes its contribution,
           and finally these contributions are summed. ---*/
-
+  ofstream alpha("alpha.txt");
   vector<su2double> localInterpCoeffSum(nDim * nCtrlNodesGlobal, 0.0);
 
   /*--- Distribute local control node sizes and compute rank specific starting index ---*/
@@ -1358,6 +1626,9 @@ void CRadialBasisFunctionInterpolation::ComputeInterpolationCoefficients(const s
   #else
     InterpCoeff = move(localInterpCoeffSum);
   #endif
+
+  for (auto i : InterpCoeff) alpha << i << endl;
+  alpha.close();
 }
 
 void CRadialBasisFunctionInterpolation::UpdateGridCoord(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type, const su2double radius, const vector<unsigned long>& internalNodes, bool surfaceCorrection){
@@ -1524,9 +1795,9 @@ void CRadialBasisFunctionInterpolation::UpdateBoundCoords(CGeometry* geometry, C
       }
     }
   }
-
+  
   const su2double VarIncrement = 1.0 / ( (su2double)nIter);
-
+  ofstream ctrl_new("ctrl_new.txt");
   unsigned long idx = 0;
   for (auto type : CtrlTypeVec) {
     auto markers = config->GetRBF_DataReduction()
@@ -1543,9 +1814,12 @@ void CRadialBasisFunctionInterpolation::UpdateBoundCoords(CGeometry* geometry, C
         for (auto iDim = 0u; iDim < nDim; iDim++) {
           geometry->nodes->AddCoord(nodes[idx_i]->GetIndex(), iDim, varCoord[iDim] * VarIncrement);   
         }
+        auto c = geometry->nodes->GetCoord(nodes[idx_i]->GetIndex());
+        ctrl_new << c[0] << "\t" << c[1] << endl;
       }
     }
   }
+  ctrl_new.close();
 }
 
 
@@ -1554,23 +1828,33 @@ void CRadialBasisFunctionInterpolation::SetCtrlNodeCoords(CGeometry* geometry, C
   unsigned long localCoordsSize = nCtrlNodesLocal * nDim;
   vector<su2double> localCoords(localCoordsSize, 0.0);  
   const bool dataRed = config->GetRBF_DataReduction();
-
-  // ofstream ctrl_out("ctrlCoord.txt");
-
+  CtrlNormals.resize(nCtrlNodesGlobal*nDim);
+  ofstream ctrl_out("ctrlCoord.txt");
+  ofstream ctrl_norm("control_normals.txt");
   /*--- Gathering local control node coordinates, cylindrical if necessary. ---*/  
   for (const auto& iType : CtrlTypeVec) {
     const auto& markerToNodeSet = dataRed ? ctrl_node_indices[iType] : node_indices[iType];
     for (const auto& iMarker  : markerToNodeSet) {
       for (const auto iNode : iMarker.second) {    
         const su2double* coord = IsCylindrical ? nodes[iNode]->GetCylCoord() : geometry->nodes->GetCoord(nodes[iNode]->GetIndex());
+        
+        su2double* norm = geometry->vertex[nodes[iNode]->GetMarker()][nodes[iNode]->GetVertex()]->GetNormal();
+        su2double mag = GeometryToolbox::Norm(nDim, norm);
+        for (auto iDim = 0u; iDim < nDim; iDim++){  
+            norm[iDim] = norm[iDim]/mag;
+        }
+
         for (auto iDim = 0u; iDim < nDim; iDim++) {
+          CtrlNormals[index] = norm[iDim];
           localCoords[index++] = coord[iDim];
         }
-        // ctrl_out << coord[0] << "\t" << coord[1] << endl; 
+        ctrl_out << coord[0] << "\t" << coord[1] << endl; 
+        ctrl_norm << norm[0] << "\t" << norm[1] << endl;
       }
     }
   }
-  // ctrl_out.close();
+  ctrl_out.close();
+  ctrl_norm.close();
 
   /*--- Distributing global control node coordinates among all processes ---*/
   CtrlCoords.resize(nCtrlNodesGlobal*nDim);
@@ -2191,28 +2475,76 @@ void CRadialBasisFunctionInterpolation::ApplyRBF(CGeometry* geometry, const RADI
   const su2double* coord = IsCylindrical ? node->GetCylCoord() : geometry->nodes->GetCoord(node->GetIndex()); // TODO -  this was temporarily altered for the inflation layer preservation algorithm
   // const su2double* coord = node->GetNodeType() == NODETYPE::IL_EDGE ? node->GetNewCoord() : geometry->nodes->GetCoord(node->GetIndex());
 
-  node->SetNewCoord(coord, nDim);
-
+  bool varySupport = (sharpEdge && CtrlTypeVec.size() ==  1 && CtrlTypeVec[0] == NODETYPE::IL_WALL) ? true : false;
+  node->SetNewCoord(coord, nDim);  
+  su2double dist_te_i = sharpEdge ? GetDistance(coord, sharpEdgeLoc[0]) : 0.0;
   // find contribution of each control node 
   for(auto jNode = 0ul; jNode < nCtrlNodesGlobal; jNode++){
-
 
     const unsigned long offset = jNode*nDim;
 
     /*--- Determine distance between considered internal and control node ---*/
     const su2double dist = GetDistance(CtrlCoords[offset], coord);
+    su2double dist_te_j = sharpEdge ? GetDistance(CtrlCoords[offset], sharpEdgeLoc[0]) : 0.0;
+    bool use_contr = true;
+      if (sharpEdge && dist_te_i < radius && dist_te_j < radius) {
+        auto nearestNode = node->GetNearestNode();
+        auto normal = geometry->vertex[nodes[nearestNode]->GetMarker()][nodes[nearestNode]->GetVertex()]->GetNormal();
+        auto mag = GeometryToolbox::Norm(nDim, normal);
+        for (auto iDim = 0u; iDim < nDim; iDim++){
+          normal[iDim] = normal[iDim]/mag;
+        }
 
+        su2double cos_ang = GeometryToolbox::DotProduct(nDim, normal, &CtrlNormals[offset]);
+        if (cos_ang < -0.0) {
+          use_contr = false;
+        } 
+      }
+
+
+    // su2double r = radius;
+
+    // if (varySupport) {
+    //   su2double dist_te1 = GetDistance(coord, sharpEdgeLoc[0]);
+    //   su2double dist_te2 = GetDistance(CtrlCoords[offset], sharpEdgeLoc[0]);
+    //   su2double dist_te = min(dist_te1, dist_te2);
+      
+    //   if (dist_te < 1*radius) {          
+    //       su2double reduction_term = (1- dist_te/(1*radius)) * 0.5 * radius;
+    //       r -= reduction_term;
+    //     }
+    //   }
     /*--- Evaluate RBF based on distance ---*/
-    const auto rbf = SU2_TYPE::GetValue(CRadialBasisFunction::Get_RadialBasisValue(type, radius, dist));
+    const auto rbf = use_contr ? SU2_TYPE::GetValue(CRadialBasisFunction::Get_RadialBasisValue(type, radius, dist)) : 0.0;
 
     /*--- Add contribution to new coordinates -- -*/
     const su2double* coeff = &InterpCoeff[offset];
-
+    // cout << dist << "\t" << rbf << "\t" << coeff[0] << endl;
     for(auto iDim = 0u; iDim < nDim; iDim++){
       node->AddNewCoord(rbf * coeff[iDim], iDim);
+      
     } 
+    // cout << dist << "\t" << rbf << "\t" << coeff[0] << "\t" << coeff[1] << "\t" << rbf*coeff[0] << "\t" << rbf*coeff[1]  << endl;
   }  
+  // auto nc = node->GetNewCoord();
+  // cout << nc[0] - coord[0] << "\t" << nc[1] - coord[1] << "\t" << coord[0] << "\t" << coord[1] << endl;
 }
+
+// unsigned long CRadialBasisFunctionInterpolation::retrieveIndex(unsigned long index_in) {
+//   unsigned long start_idx = 0, end_idx = 0;
+  
+//   for (const auto& iType : CtrlTypeVec) {
+//     const auto& markerToNodeSet = node_indices[iType];
+//     for (const auto& iMarker  : markerToNodeSet) {
+//       end_idx += iMarker.second.size();
+//       if (index_in < end_idx) {
+//         auto start = iMarker.second.begin();
+//         advance(start, start_idx+index_in);
+//         return *start;
+//       }
+//     }
+//   }
+// }
 
 void CRadialBasisFunctionInterpolation::GetNearestNode(CADTPointsOnlyClass* const BoundADT, CRadialBasisFunctionNode* const node) {
   // TODO -   add comments
@@ -2560,4 +2892,44 @@ void CRadialBasisFunctionInterpolation::UpdateVarCoord(CGeometry* geometry, CCon
   }
   
   geometry->vertex[marker][node->GetVertex()]->SetVarCoord(coordVar);
+}
+
+void CRadialBasisFunctionInterpolation::CheckSharpEdge(CGeometry* geometry, unsigned long iNode) {
+
+  auto marker = nodes[iNode]->GetMarker();
+
+  auto n1 = geometry->vertex[marker][nodes[iNode]->GetVertex()]->GetNormal();
+  auto normal_length = GeometryToolbox::Norm(nDim, n1);
+  for(auto iDim = 0u; iDim < nDim; iDim++){
+    n1[iDim] = n1[iDim]/normal_length;
+  }
+
+  /*--- iterate over edge ---*/
+  for (auto i : geometry->nodes->GetEdges(nodes[iNode]->GetIndex())) {
+    
+    /*--- iterate over nodes of edge ---*/
+    for (auto j = 0; j < geometry->edges->GetnNodes(); j++) {
+      auto in = geometry->edges->GetNode(i,j);
+      
+      /*--- If node on boundary and different from considered one ---*/
+      if ( geometry->nodes->GetBoundary(in) && in != nodes[iNode]->GetIndex() ){
+        
+        auto n = geometry->edges->GetNode(i, j);
+        auto v = geometry->nodes->GetVertex(n, marker);
+        auto n2 = geometry->vertex[marker][v]->GetNormal();
+        auto normal_length = GeometryToolbox::Norm(nDim, n2);
+        for(auto iDim = 0u; iDim < nDim; iDim++){
+          n2[iDim] = n2[iDim]/normal_length;
+        }
+
+        su2double dp = GeometryToolbox::DotProduct(nDim, n1, n2);
+        if (dp > 0.5) {
+          return;
+        }
+      }
+    }
+  }
+  
+  sharpEdgeLoc.push_back(geometry->nodes->GetCoord(nodes[iNode]->GetIndex()));
+  sharpEdge = true;
 }

@@ -56,6 +56,9 @@ class CRadialBasisFunctionNode{
   su2double nearest_coord[3];
   su2double var_coord[3];
   su2double init_coord[3];
+  su2double il_height;
+
+  
 
   
   public:
@@ -190,4 +193,10 @@ class CRadialBasisFunctionNode{
   }
 
   inline const su2double* GetInitCoord() const { return init_coord;}
+
+  inline void SetILHeight(su2double val) {
+    il_height = val;
+  }
+
+  inline su2double GetILHeight() const { return il_height;}
 };
