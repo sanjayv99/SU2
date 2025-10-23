@@ -41,14 +41,14 @@ void CRadialBasisFunctionInterpolation::SetVolume_Deformation(CGeometry* geometr
 
 
   // TODO -  Debug MPI 
-  // {
-  //   if (rank == 2){
-  //     int i = 0;
-  //     while(0 == i){
-  //       sleep(1);
-  //     }
-  //   }
-  // }
+  {
+    if (rank == 0){
+      int i = 0;
+      while(0 == i){
+        sleep(1);
+      }
+    }
+  }
   // if (rank == MASTER_NODE) cout << "this is the development code!" << endl;
   
 
@@ -89,11 +89,7 @@ void CRadialBasisFunctionInterpolation::SetVolume_Deformation(CGeometry* geometr
 
 
     for (auto iMarker : InflationLayerSurfNodes){
-      ofstream free_disp("freeDisp" + to_string(rank)+ ".txt");
-      ofstream update_ctrl("ctrlUpdate" + to_string(rank)+ ".txt");                                                  
-      ofstream il_out("edgeUpdate" + to_string(rank)+ ".txt");
-      ofstream layercoord("layercoord" + to_string(rank)+ ".txt");
-      ofstream initial("initcoord" + to_string(rank)+ ".txt");
+      
 
 
       // detect if secondary periodic marker has to be included. 
@@ -197,7 +193,13 @@ void CRadialBasisFunctionInterpolation::SetVolume_Deformation(CGeometry* geometr
       
       for (auto i = 0; i < nIter; i++) {
 
-        if (i==1) {
+        ofstream free_disp("freeDisp" + to_string(rank)+ ".txt");
+        ofstream update_ctrl("ctrlUpdate" + to_string(rank)+ ".txt");                                                  
+        ofstream il_out("edgeUpdate" + to_string(rank)+ ".txt");
+        ofstream layercoord("layercoord" + to_string(rank)+ ".txt");
+        ofstream initial("initcoord" + to_string(rank)+ ".txt");
+
+        // if (i==nIter-1) {
           auto edge_nodes = InflationLayerEdgeNodes[iMarker.first];
           for(auto iNode : edge_nodes) {
             const su2double* coord = geometry->nodes->GetCoord(nodes[iNode]->GetIndex());
@@ -209,7 +211,7 @@ void CRadialBasisFunctionInterpolation::SetVolume_Deformation(CGeometry* geometr
             const su2double* coord = geometry->nodes->GetCoord(nodes[iNode]->GetIndex());
             initial << coord[0] << "\t" << coord[1] << endl;
           }
-        }
+        // }
         // uses 1/n_overall as displacement, basis for free displacement.
         GetInterpolationCoefficients(geometry, config, kindRBF, radius_IL, internalNodes, ForwardProjectionDerivative, rhs, invInterpMat);
 
@@ -219,7 +221,7 @@ void CRadialBasisFunctionInterpolation::SetVolume_Deformation(CGeometry* geometr
             // cout  << nodes[iNode]->GetNewCoord()[0] << " " << nodes[iNode]->GetNewCoord()[1] << endl;
             ApplyRBF(geometry, kindRBF, radius_IL, nodes[iNode]);
             // cout << nodes[iNode]->GetNewCoord()[0] << " " << nodes[iNode]->GetNewCoord()[1] << endl;
-            if (i == 1) {
+            if (i == nIter-1) {
               free_disp << nodes[iNode]->GetNewCoord()[0] << " " << nodes[iNode]->GetNewCoord()[1] << endl;
             }
           }
@@ -253,9 +255,9 @@ void CRadialBasisFunctionInterpolation::SetVolume_Deformation(CGeometry* geometr
               geometry->nodes->AddCoord(geometry->vertex[markerLocal][ivertex]->GetNode(), iDim, var_coord[iDim]/nIter);
               Coord_bound[ii++] = geometry->nodes->GetCoord(nodes[jNode]->GetIndex())[iDim];
             }
-            if (i==1) {
+            // if (nIter-1==1) {
               update_ctrl << geometry->nodes->GetCoord(geometry->vertex[markerLocal][ivertex]->GetNode())[0] << "\t" << geometry->nodes->GetCoord(geometry->vertex[markerLocal][ivertex]->GetNode())[1] << endl;
-            }
+            // }
           }
         }
 
@@ -306,9 +308,9 @@ void CRadialBasisFunctionInterpolation::SetVolume_Deformation(CGeometry* geometr
               var_coord[iDim] = (nodes[iNode]->GetNewCoord()[iDim] - geometry->nodes->GetCoord(nodes[iNode]->GetIndex())[iDim])*nIter;
               // geometry->nodes->AddCoord(nodes[iNode]->GetIndex(), iDim, var_coord[iDim]/inflationLayerIter);
             }
-            if (i == 1) {
+            // if (nIter-1 == 1) {
               il_out << nodes[iNode]->GetNewCoord()[0] << "\t" << nodes[iNode]->GetNewCoord()[1] << endl;
-            }
+            // }
             nodes[iNode]->SetVarCoord(var_coord, nDim);
             
             // nodes[iNode]->SetNewCoord(var_coord, nDim);
@@ -378,7 +380,7 @@ void CRadialBasisFunctionInterpolation::SetVolume_Deformation(CGeometry* geometr
                 var_coord[iDim] = 0;  
               } 
               auto nc = geometry->nodes->GetCoord(layerNodes[localMarker][iNode]);
-              if (i == 1 && iStep == 4) layercoord << nc[0] << "\t" << nc[1] << endl;
+              if ( iStep == 4) layercoord << nc[0] << "\t" << nc[1] << endl;
             } 
           }
 
@@ -412,6 +414,11 @@ void CRadialBasisFunctionInterpolation::SetVolume_Deformation(CGeometry* geometr
         //   }
         // }
         // CtrlTypeVec.resize(1);
+      update_ctrl.close();
+      il_out.close();
+      free_disp.close();
+      layercoord.close();
+      initial.close();
     }
 
 
@@ -438,11 +445,7 @@ void CRadialBasisFunctionInterpolation::SetVolume_Deformation(CGeometry* geometr
     sharpEdge = false;
     sharpEdgeLoc.clear();
 
-    update_ctrl.close();
-    il_out.close();
-    free_disp.close();
-    layercoord.close();
-    initial.close();
+
     
   }
 
@@ -1017,11 +1020,11 @@ void CRadialBasisFunctionInterpolation::GetInverseInterpolationMatrix(CGeometry*
 
 
   /*---  Build the interpolation matrix in parallel or sequentially ---*/
-  #ifdef HAVE_MPI
-    GetInterpolationMatrixParallel(geometry, type, radius, interpMat);    
-  #else
+  // #ifdef HAVE_MPI
+  //   GetInterpolationMatrixParallel(geometry, type, radius, interpMat);    
+  // #else
     GetInterpolationMatrixSequential(geometry, type, radius, interpMat, varySupport);    
-  #endif
+  // #endif
   
   /*--- Check if the kernel is symmetric positive definite ---*/
   const bool kernelIsSPD = (type == RADIAL_BASIS::WENDLAND_C2) || (type == RADIAL_BASIS::GAUSSIAN) ||
