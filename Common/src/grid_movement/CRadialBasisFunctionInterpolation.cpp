@@ -221,9 +221,9 @@ void CRadialBasisFunctionInterpolation::SetVolume_Deformation(CGeometry* geometr
             // cout  << nodes[iNode]->GetNewCoord()[0] << " " << nodes[iNode]->GetNewCoord()[1] << endl;
             ApplyRBF(geometry, kindRBF, radius_IL, nodes[iNode]);
             // cout << nodes[iNode]->GetNewCoord()[0] << " " << nodes[iNode]->GetNewCoord()[1] << endl;
-            if (i == nIter-1) {
+            // if (i == nIter-1) {
               free_disp << nodes[iNode]->GetNewCoord()[0] << " " << nodes[iNode]->GetNewCoord()[1] << endl;
-            }
+            // }
           }
         }       
 
@@ -1326,7 +1326,7 @@ void CRadialBasisFunctionInterpolation::SetInternalNodes(CGeometry* geometry, CC
       unsigned long pointID;
       int rankID;
       adt.DetermineNearestNode(geometry->nodes->GetCoord(iNode), dist, pointID, rankID); 
-
+      // cout << iNode << "\t" << dist << endl;
       // if (dist < 0.5 * height ) {
       //   layerNodes[pointID].push_back(iNode);
       // }
@@ -1347,7 +1347,7 @@ void CRadialBasisFunctionInterpolation::SetInternalNodes(CGeometry* geometry, CC
         }
 
         const size_t nDistinctTypes = vtk_counts.size();
-
+        // cout << iNode << " " << nDistinctTypes << endl;
         if (nDistinctTypes >= 2) {
           const int nIL = (vtk_counts.count(il_type) ? vtk_counts[il_type] : 0);
 
@@ -2481,6 +2481,7 @@ void CRadialBasisFunctionInterpolation::ApplyRBF(CGeometry* geometry, const RADI
   bool varySupport = (sharpEdge && CtrlTypeVec.size() ==  1 && CtrlTypeVec[0] == NODETYPE::IL_WALL) ? true : false;
   node->SetNewCoord(coord, nDim);  
   su2double dist_te_i = sharpEdge ? GetDistance(coord, sharpEdgeLoc[0]) : 0.0;
+  // ofstream contr("contr.txt");
   // find contribution of each control node 
   for(auto jNode = 0ul; jNode < nCtrlNodesGlobal; jNode++){
 
@@ -2517,18 +2518,22 @@ void CRadialBasisFunctionInterpolation::ApplyRBF(CGeometry* geometry, const RADI
     //       r -= reduction_term;
     //     }
     //   }
+    
     /*--- Evaluate RBF based on distance ---*/
+
     const auto rbf = use_contr ? SU2_TYPE::GetValue(CRadialBasisFunction::Get_RadialBasisValue(type, radius, dist)) : 0.0;
 
     /*--- Add contribution to new coordinates -- -*/
     const su2double* coeff = &InterpCoeff[offset];
+    // contr << rbf*coeff[0] << "\t" << rbf*coeff[1] << endl; 
     // cout << dist << "\t" << rbf << "\t" << coeff[0] << endl;
     for(auto iDim = 0u; iDim < nDim; iDim++){
       node->AddNewCoord(rbf * coeff[iDim], iDim);
-      
     } 
     // cout << dist << "\t" << rbf << "\t" << coeff[0] << "\t" << coeff[1] << "\t" << rbf*coeff[0] << "\t" << rbf*coeff[1]  << endl;
   }  
+  // contr.close();
+  // if (dist_te_i < 0.2*radius && abs(coord[1]) > 1e-8) {cout << coord[0] << "\t" << coord[1] << endl; exit(0);}
   // auto nc = node->GetNewCoord();
   // cout << nc[0] - coord[0] << "\t" << nc[1] - coord[1] << "\t" << coord[0] << "\t" << coord[1] << endl;
 }
