@@ -90,6 +90,8 @@ protected:
   vector<unsigned long> primaryMarker = {9, 10, 11};
   vector<unsigned long> secondaryMarker = {12, 13, 5};
 
+  unordered_map<unsigned short, unsigned short> sec2prim;
+  
   vector<su2double*> sharpEdgeLoc;
   bool sharpEdge = false;
 
@@ -158,6 +160,8 @@ public:
   */
   void SolveRBF_System(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type, const su2double radius, const bool Derivative, const vector<unsigned long>& internalNodes, const bool ForwardProjectionDerivative, const bool Screen_Output); // DONE
 
+  void SolveRBF_System_IL(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type, const bool Derivative, const bool ForwardProjectionDerivative, const bool Screen_Output);
+
   /*!
   * \brief Obtaining the interpolation coefficients of the control nodes.
   * \param[in] geometry - Geometrical definition of the problem.
@@ -190,7 +194,7 @@ public:
   * \param[in] rhs - Determines whether right hand side vector of RBF system contains displacement or sensitivity. 
   * \param[in] invInterpMatrix - Inverse of the interpolation matrix.
   */
-  void GetInterpolationCoefficients(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type, const su2double radius, const vector<unsigned long>& internalNodes, bool ForwardProjectionDerivative, RHS_Data rhs, su2passivematrix& invInterpMatrix);
+  void GetInterpolationCoefficients(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type, const su2double radius,  bool ForwardProjectionDerivative, RHS_Data rhs, su2passivematrix& invInterpMatrix);
    
   /*!
   * \brief Gathering of the control node coordinates.
