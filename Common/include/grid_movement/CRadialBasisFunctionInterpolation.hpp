@@ -41,7 +41,7 @@
  */
 class CRadialBasisFunctionInterpolation : public CVolumetricMovement {
 protected:
-  
+  bool DataReduction;
   vector<su2double> CtrlNodeDeformation;  /*!< \brief Control Node Deformation.*/  // TODO -  change name such that it can also contain sensitivity
 
   vector<su2double> InterpCoeff;          /*!< \brief Control node interpolation coefficients.*/
@@ -57,9 +57,8 @@ protected:
 
   vector<CRadialBasisFunctionNode::NODETYPE> CtrlTypeVec;                                     /*!< \brief This vector contains the control nodes at that moment */  
   vector<CRadialBasisFunctionNode*> nodes;                        // vector containing all boundary nodes
-  // unordered_map<string, unordered_map<unsigned short, vector<unsigned long>>> node_indices; // map containing the indices for the different type of nodes
-  unordered_map<unsigned short, vector<unsigned long>> InflationLayerSurfNodes;
-  unordered_map<unsigned short, vector<unsigned long>> InflationLayerEdgeNodes;
+
+  // unordered_map<unsigned short, vector<unsigned long>> InflationLayerEdgeNodes;
 
   unordered_map<unsigned short, vector<unsigned long>> layerNodes;
   int nIter;
@@ -584,6 +583,7 @@ public:
 
   void CheckSharpEdge(CGeometry* geometry, unsigned long iNode);
   unsigned long retrieveIndex(unsigned long index_in);
+  void SetCorrection_IL(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type, const vector<unsigned long>& internalNodes, unsigned short marker);
 };
 
 
