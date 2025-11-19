@@ -95,6 +95,9 @@ protected:
   bool sharpEdge = false;
 
 
+  bool PreserveIL = false;
+
+
   
 public:
   

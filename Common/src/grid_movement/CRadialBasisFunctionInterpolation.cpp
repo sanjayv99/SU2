@@ -58,6 +58,7 @@ void CRadialBasisFunctionInterpolation::SetVolume_Deformation(CGeometry* geometr
   nIter = Derivative ? 1 : config->GetGridDef_Nonlinear_Iter();
   su2double MinVolume, MaxVolume;
   DataReduction = config->GetRBF_DataReduction(); // TODO - replace all other instances where config->GetRBF_DataReduction is called.
+  PreserveIL = config->GetnMarker_Deform_Mesh_IL() == 0 ? false : true;
 
   /*--- Retrieving number of deformation steps and screen output from config ---*/
 
@@ -97,9 +98,9 @@ void CRadialBasisFunctionInterpolation::SetVolume_Deformation(CGeometry* geometr
     if (rank == MASTER_NODE && Screen_Output)
       cout << "Min. volume: " << MinVolume << ", max. volume: " << MaxVolume << "." << endl;
     
-    // if(!Derivative) {
-    //   SolveRBF_System_IL(geometry, config, kindRBF, Derivative, ForwardProjectionDerivative, Screen_Output);
-    // }
+    if(!Derivative && PreserveIL) { // TODO -  likely only need PreserveIL condition
+      SolveRBF_System_IL(geometry, config, kindRBF, Derivative, ForwardProjectionDerivative, Screen_Output);
+    }
     nCtrlNodesGlobal = 0;
     /*--- Solving the RBF system, resulting in the interpolation coefficients ---*/
     SolveRBF_System(geometry, config, kindRBF, radius, Derivative, internalNodes, ForwardProjectionDerivative, Screen_Output);
@@ -1439,14 +1440,6 @@ void CRadialBasisFunctionInterpolation::SetInternalNodes(CGeometry* geometry, CC
   ofstream edge_il("edge_il.txt");
   ofstream il("il_nodes.txt");
 
-  for (unsigned long iElem = 0; iElem < geometry->GetnElem(); ++iElem) {    
-    CPrimalGrid* element = geometry->elem[iElem];
-    auto nFace = element->GetnFaces();
-    for (auto iFace =0; iFace < nFace; iFace++) {
-     auto check  = element->GetNeighbor_Elements(iFace);
-    }
-  }
-
   /*------------------------- Creating the KD tree ------------------------*/
   unsigned long nWallPoints = 0; 
   for (auto iMarker : node_indices[NODETYPE::IL_WALL]){
@@ -1486,29 +1479,22 @@ void CRadialBasisFunctionInterpolation::SetInternalNodes(CGeometry* geometry, CC
       su2double dist;
       unsigned long pointID;
       int rankID;
-      adt.DetermineNearestNode(geometry->nodes->GetCoord(iNode), dist, pointID, rankID); 
-      // cout << iNode << "\t" << dist << endl;
-      // if (dist < 0.5 * height ) {
-      //   layerNodes[pointID].push_back(iNode);
-      // }
+      if (!adt.IsEmpty()) 
+        adt.DetermineNearestNode(geometry->nodes->GetCoord(iNode), dist, pointID, rankID); 
 
-      // if distance is 
-      if ( dist < 1.5 * height ) {
-          
-        // std::set<int> vtk_types;
+      // if distance is within a specified inflation layer height.. 
+      
+      if ( PreserveIL &&  dist < 1.5 * height ) {
 
-        // for (auto iElem : geometry->nodes->GetElems(iNode)) {
-        //   vtk_types.insert(geometry->elem[iElem]->GetVTK_Type());
-        // }
-
+        // making for that node a map with vtk_counts... 
         std::unordered_map<int,int> vtk_counts;
         for (auto iElem : geometry->nodes->GetElems(iNode)) {
             int vtk = geometry->elem[iElem]->GetVTK_Type();           
             ++vtk_counts[vtk];
         }
 
+
         const size_t nDistinctTypes = vtk_counts.size();
-        // cout << iNode << " " << nDistinctTypes << endl;
         if (nDistinctTypes >= 2) {
           const int nIL = (vtk_counts.count(il_type) ? vtk_counts[il_type] : 0);
 
@@ -1526,7 +1512,6 @@ void CRadialBasisFunctionInterpolation::SetInternalNodes(CGeometry* geometry, CC
           if (nIL > 0 && ratio < ratioThreshold) {
               // Mostly IL elements — treat as IL interior (not an IL edge)
 
-              // HERE IT SHOULD TRANSFORM TO THE PRIMARY PERIODIC MARKER IF REQUIRED!!!
               if (find(secondaryMarker.begin(), secondaryMarker.end(), nodes[pointID]->GetMarker()) != secondaryMarker.end()){
                 auto marker = sec2prim[nodes[pointID]->GetMarker()];
                 auto tag = config->GetMarker_All_TagBound(marker);
@@ -1541,9 +1526,7 @@ void CRadialBasisFunctionInterpolation::SetInternalNodes(CGeometry* geometry, CC
               }
               
           } else {
-              // Mixed or mostly non-IL — treat as IL edge
-
-              
+              // Mixed or mostly non-IL — treat as IL edge              
               if (find(secondaryMarker.begin(), secondaryMarker.end(), nodes[pointID]->GetMarker()) != secondaryMarker.end()){
                 auto marker = sec2prim[nodes[pointID]->GetMarker()];
                 auto tag = config->GetMarker_All_TagBound(marker);
@@ -1568,6 +1551,7 @@ void CRadialBasisFunctionInterpolation::SetInternalNodes(CGeometry* geometry, CC
           // nodes.back()->SetNodeType(NODETYPE::IL_EDGE);
           // nodes.back()->SetILHeight(dist);
         }
+        // can this be combined with previous condition? as the ratio is high...
         else if ( nDistinctTypes == 1 && vtk_counts.begin()->first == il_type ) {
           if (find(secondaryMarker.begin(), secondaryMarker.end(), nodes[pointID]->GetMarker()) != secondaryMarker.end()) {
             auto marker = sec2prim[nodes[pointID]->GetMarker()];
@@ -1593,8 +1577,10 @@ void CRadialBasisFunctionInterpolation::SetInternalNodes(CGeometry* geometry, CC
         su2double dist;
         unsigned long pointID;
         int rankID;
-        adt.DetermineNearestNode(geometry->nodes->GetCoord(iNode), dist, pointID, rankID); 
-        if ( dist < 1.5 * height ) {
+        if (!adt.IsEmpty())
+          adt.DetermineNearestNode(geometry->nodes->GetCoord(iNode), dist, pointID, rankID); 
+
+        if ( PreserveIL && dist < 1.5 * height ) {
 
           std::unordered_map<int,int> vtk_counts;
           for (auto iElem : geometry->nodes->GetElems(iNode)) {
