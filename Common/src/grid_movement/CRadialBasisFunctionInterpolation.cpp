@@ -697,12 +697,12 @@ void CRadialBasisFunctionInterpolation::SolveRBF_System(CGeometry* geometry, CCo
   /*--- While the maximum error is above the tolerance, data reduction algorithm is continued. ---*/
   while(((MaxErrorGlobal > dataReductionTolerance)  || greedyIterations == 0)){ 
     // if(!Derivative){
-      CtrlTypeVec.resize(2);
-      CtrlTypeVec[0] = NODETYPE::DISPLACED;
-      CtrlTypeVec[1] = NODETYPE::IL_EDGE;
-    // } else{
-      // CtrlTypeVec.resize(1);
+      // CtrlTypeVec.resize(2);
       // CtrlTypeVec[0] = NODETYPE::DISPLACED;
+      // CtrlTypeVec[1] = NODETYPE::IL_EDGE;
+    // } else{
+      CtrlTypeVec.resize(1);
+      CtrlTypeVec[0] = NODETYPE::DISPLACED;
     // }
       
     /*--- In case of a nonzero local error, control nodes are added ---*/
@@ -1093,54 +1093,54 @@ const bool CRadialBasisFunctionInterpolation::SetBoundNodes(CGeometry* geometry,
   }
   // TODO -  debug output 
   
-  // ofstream out("edge"+to_string(rank)+".txt");
-  // auto idx = node_indices[NODETYPE::EDGE];
-  // for (auto& pair : idx) {
-  //     const unsigned short& marker = pair.first;      // marker (key)
-  //     const auto& indices = pair.second;  // indices (value)
+  ofstream out("edge"+to_string(rank)+".txt");
+  auto idx = node_indices[NODETYPE::EDGE];
+  for (auto& pair : idx) {
+      const unsigned short& marker = pair.first;      // marker (key)
+      const auto& indices = pair.second;  // indices (value)
 
-  //     for (auto i : indices) {
-  //         out << geometry->nodes->GetGlobalIndex(nodes[i]->GetIndex())  /*<< "\t" << nodes[i]->GetMarker() << "\t" << marker*/ << endl;
-  //     }
-  // }
-  // out.close();
+      for (auto i : indices) {
+          out << geometry->nodes->GetGlobalIndex(nodes[i]->GetIndex())  /*<< "\t" << nodes[i]->GetMarker() << "\t" << marker*/ << endl;
+      }
+  }
+  out.close();
 
-  // ofstream out2("surface"+to_string(rank)+".txt");
-  // auto idx2 = node_indices[NODETYPE::SURFACE];
-  // for (auto& pair : idx2) {
-  //     const unsigned short& marker = pair.first;      // marker (key)
-  //     const std::vector<unsigned long>& indices = pair.second;  // indices (value)
+  ofstream out2("surface"+to_string(rank)+".txt");
+  auto idx2 = node_indices[NODETYPE::SURFACE];
+  for (auto& pair : idx2) {
+      const unsigned short& marker = pair.first;      // marker (key)
+      const auto& indices = pair.second;  // indices (value)
 
-  //     for (auto i : indices) {
-  //         out2 << geometry->nodes->GetGlobalIndex(nodes[i]->GetIndex()) << endl;
-  //     }
-  // }
-  // out2.close();
+      for (auto i : indices) {
+          out2 << geometry->nodes->GetGlobalIndex(nodes[i]->GetIndex()) << endl;
+      }
+  }
+  out2.close();
 
 
-  // ofstream out3("disp"+to_string(rank)+".txt");
-  // auto idx3 = node_indices[NODETYPE::DISPLACED];
-  // for (auto& pair : idx3) {
-  //     const unsigned short& marker = pair.first;      // marker (key)
-  //     const auto& indices = pair.second;  // indices (value)
+  ofstream out3("disp"+to_string(rank)+".txt");
+  auto idx3 = node_indices[NODETYPE::DISPLACED];
+  for (auto& pair : idx3) {
+      const unsigned short& marker = pair.first;      // marker (key)
+      const auto& indices = pair.second;  // indices (value)
 
-  //     for (auto i : indices) {
-  //         out3 << geometry->nodes->GetGlobalIndex(nodes[i]->GetIndex()) << endl;
-  //     }
-  // }
-  // out3.close();
+      for (auto i : indices) {
+          out3 << geometry->nodes->GetGlobalIndex(nodes[i]->GetIndex()) << endl;
+      }
+  }
+  out3.close();
 
-  // ofstream out4("nodes"+to_string(rank)+".txt");
-  // for (auto i : nodes){
-  //   out4 << geometry->nodes->GetGlobalIndex(i->GetIndex()) << /*"\t" <<  i->getNodetype()  <<*/  endl;
-  // }
-  // out4.close();
+  ofstream out4("nodes"+to_string(rank)+".txt");
+  for (auto i : nodes){
+    out4 << geometry->nodes->GetGlobalIndex(i->GetIndex()) << /*"\t" <<  i->getNodetype()  <<*/  endl;
+  }
+  out4.close();
 
-  // ofstream out5("per_nodes"+to_string(rank)+".txt");
-  // for (auto i : per_nodes){
-  //   out5 << geometry->nodes->GetGlobalIndex(i->GetIndex()) << /*"\t" <<  i->getNodetype()  <<*/  endl;
-  // }
-  // out5.close();
+  ofstream out5("per_nodes"+to_string(rank)+".txt");
+  for (auto i : per_nodes){
+    out5 << geometry->nodes->GetGlobalIndex(i->GetIndex()) << /*"\t" <<  i->getNodetype()  <<*/  endl;
+  }
+  out5.close();
 
   // ofstream out6("IL"+to_string(rank)+".txt");
   // for (auto iMarker : InflationLayerSurfNodes){
@@ -1193,7 +1193,7 @@ void CRadialBasisFunctionInterpolation::GetInverseInterpolationMatrix(CGeometry*
                           (type == RADIAL_BASIS::INV_MULTI_QUADRIC);
 
   /*--- Inverting matrix and transferring data to output variable ---*/
-  interpMat.Invert(false); 
+  interpMat.Invert(true); 
   invInterpMat = interpMat.StealData();
 }
 
@@ -1274,13 +1274,13 @@ void CRadialBasisFunctionInterpolation::GetInterpolationMatrixSequential(CGeomet
 
       bool use_contr = true;
 
-      if (sharpEdge && dist_te_i < radius && dist_te_j < radius) {
+      // if (sharpEdge && dist_te_i < radius && dist_te_j < radius) {
 
-        su2double cos_ang = GeometryToolbox::DotProduct(nDim, &CtrlNormals[iOffset], &CtrlNormals[jOffset]);
-        if (cos_ang < -0.0) {
-          use_contr = false;
-        } 
-      }
+      //   su2double cos_ang = GeometryToolbox::DotProduct(nDim, &CtrlNormals[iOffset], &CtrlNormals[jOffset]);
+      //   if (cos_ang < -0.0) {
+      //     use_contr = false;
+      //   } 
+      // }
 
       interpMat(iNode, jNode) = use_contr ? SU2_TYPE::GetValue(CRadialBasisFunction::Get_RadialBasisValue(type, radius, dist)) : 0.0;
       auto out = use_contr ? SU2_TYPE::GetValue(CRadialBasisFunction::Get_RadialBasisValue(type, radius, dist)) : 0.0;
@@ -1349,6 +1349,7 @@ void CRadialBasisFunctionInterpolation::SetBoundaryDisplacements(CGeometry* geom
             for (auto iDim = 0u; iDim < nDim; iDim++) {
               CtrlNodeDeformation[baseIndex + iDim] = 0.0;
             }
+          disp << 0.0 << "\t" << 0.0 << endl;
         }
         ctrlNodeIndex++;
       }      
@@ -2049,7 +2050,7 @@ void CRadialBasisFunctionInterpolation::UpdateBoundCoords(CGeometry* geometry, C
   for (auto type : CtrlTypeVec) {
     auto markers = DataReduction
     ? ctrl_node_indices[type]
-    : node_indices[type];
+    : node_indices[type]; 
 
     bool isInfLayEdge = type == NODETYPE::IL_EDGE;
 
