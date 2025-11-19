@@ -7894,6 +7894,11 @@ void CPhysicalGeometry::ComputeMeshQualityStatistics(const CConfig* config) {
       dotProduct += (Normal[iDim] / area) * (edgeVector[iDim] / distance);
     }
 
+    /*--- Numerical noise can cause the dotproduct to fall slightly outside
+     of the -1 to 1 range. ---*/ // TODO - pull request.
+    if (dotProduct > 1.0) dotProduct = 1.0;
+    if (dotProduct < -1.0) dotProduct = -1.0;
+
     /*--- The definition of orthogonality is an area-weighted average of
      90 degrees minus the angle between the face area unit normal and
      the vector between i & j. If the two are perfectly aligned, then
