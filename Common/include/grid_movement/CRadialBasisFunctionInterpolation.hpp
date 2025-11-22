@@ -86,8 +86,8 @@ protected:
   static constexpr passivedouble NORMAL_THRESHOLD = M_PI/180.0; // // TODO -  add explanation 
 
   enum class RHS_Data {DISPLACEMENT, SENSITIVITY};
-  vector<unsigned long> primaryMarker = {9, 10, 11};
-  vector<unsigned long> secondaryMarker = {12, 13, 5};
+  vector<unsigned long> primaryMarker = {8, 9, 10};
+  vector<unsigned long> secondaryMarker = {11, 12, 13};
 
   unordered_map<unsigned short, unsigned short> sec2prim;
   
