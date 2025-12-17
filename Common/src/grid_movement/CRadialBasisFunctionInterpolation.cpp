@@ -1317,7 +1317,7 @@ void CRadialBasisFunctionInterpolation::GetInterpolationMatrixSequential(CGeomet
       }
 
       // interpMat(iNode, jNode) = use_contr ? SU2_TYPE::GetValue(CRadialBasisFunction::Get_RadialBasisValue(type, radius, dist)) : 0.0;
-      interpMat(iNode, jNode) = contribution * SU2_TYPE::GetValue(CRadialBasisFunction::Get_RadialBasisValue(type, radius, dist));
+      interpMat(iNode, jNode) = SU2_TYPE::GetValue(contribution) * SU2_TYPE::GetValue(CRadialBasisFunction::Get_RadialBasisValue(type, radius, dist)); //FIXME GETVALUE thing here....
       auto out = use_contr ? SU2_TYPE::GetValue(CRadialBasisFunction::Get_RadialBasisValue(type, radius, dist)) : 0.0;
       phi << out << "\t";
     }
