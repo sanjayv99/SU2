@@ -128,6 +128,7 @@ class CRadialBasisFunctionNode{
   inline void setControl(){control = true;}
 
   inline bool GetControl(){return control;}
+  inline void resetControl(){control = false;}
   
   inline bool GetPeriodic(){return periodic;}
   

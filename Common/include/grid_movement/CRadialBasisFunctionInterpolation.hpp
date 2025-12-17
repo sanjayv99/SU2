@@ -324,6 +324,7 @@ public:
   * \param[in] radius - Support radius of the radial basis function.
   */
   void UpdateBoundCoords(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type, const su2double radius);
+  void UpdateBoundCoords_IL(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type, const su2double radius);
 
   /*! 
   * \brief Apply correction to the nonzero error boundary nodes.
@@ -464,7 +465,7 @@ public:
   * \param[in] isPeriodic - Determines whether ADT will include periodic images.
   * \return Pointer to ADT object. 
   */
-  unique_ptr<CADTPointsOnlyClass> CreateADT(CGeometry* geometry, const unordered_set<unsigned long>& targetNodes, const short markerLocal, bool isPeriodic) const; //DONE
+  unique_ptr<CADTPointsOnlyClass> CreateADT(CGeometry* geometry, const unordered_set<unsigned long>& targetNodes, const short markerLocal, bool isPeriodic, bool sequentialIDs) const; //DONE
 
   /*!
   * \brief Applies Radial Basis Function interpolation to update node coordinates.
@@ -481,6 +482,10 @@ public:
   * \param[in] node - Node for nearest neighbor query.
   */
   void GetNearestNode(CADTPointsOnlyClass* const BoundADT, CRadialBasisFunctionNode* const node);
+
+  inline void GetNearestNode(CADTPointsOnlyClass* const BoundADT, const su2double* coord, unsigned long& near_point_id, int& near_rank_id, su2double& dist) const {
+    BoundADT->DetermineNearestNode(coord, dist, near_point_id, near_rank_id);
+  }
 
   /*! 
   * \brief Sets nearest local normals for a RBF node
