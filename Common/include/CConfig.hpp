@@ -658,6 +658,7 @@ private:
   su2double Deform_Coeff;            /*!< \brief Deform coeffienct */
   su2double Deform_Limit;            /*!< \brief Deform limit */
   DEFORM_KIND Deform_Kind;           /*!< \brief Type of mesh deformation */
+  INFLATION_LAYER_MODE Inflation_Layer_Mode; /*!< \brief Mode of inflation layer during RBF mesh deformation */
   bool RBF_DataReduction;            /*!< \brief Determines use of data reduction methods for RBF mesh deformation. */
   su2double RBF_GreedyTolerance;      /*!< \brief Tolerance used in the greedy data reduction for RBF mesh deformation. */
   su2double RBF_GreedyCorrectionFactor;   /*!< \brief Correction factor used in the greedy algorithm for RBF mesh deformation. */
@@ -4438,6 +4439,12 @@ public:
    * \return type of mesh deformation.
    */
   DEFORM_KIND GetDeform_Kind() const { return Deform_Kind; }
+
+  /*!
+   * \brief Get the inflation layer mode of the RBF mesh deformation.
+   * \return Inflation layer mode.
+   */
+  INFLATION_LAYER_MODE GetInflation_Layer_Mode() const { return Inflation_Layer_Mode; }
 
   /*!
    * \brief Determines use of data reduction methods for RBF mesh deformation.

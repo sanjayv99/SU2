@@ -2654,6 +2654,18 @@ static const MapType<std::string, DEFORM_KIND> Deform_Kind_Map = {
   MakePair("RBF",       DEFORM_KIND::RBF)
 };
 
+/*! 
+ * \brief Mode for RBF inflation layer preservation
+ */
+enum class INFLATION_LAYER_MODE {
+  PROJECT_HEIGHT,     /*!< \brief Project to initial inlation layer edge height */
+  RBF_ANCHOR          /*!< \brief Use inflation layer edge nodes as RBF anchor points*/
+};
+static const MapType<std::string, INFLATION_LAYER_MODE> Inflation_Layer_Mode_Map = {
+  MakePair("PROJECT_HEIGHT",  INFLATION_LAYER_MODE::PROJECT_HEIGHT)
+  MakePair("RBF_ANCHOR",      INFLATION_LAYER_MODE::RBF_ANCHOR)
+};
+
 
 #undef MakePair
 /* END_CONFIG_ENUMS */

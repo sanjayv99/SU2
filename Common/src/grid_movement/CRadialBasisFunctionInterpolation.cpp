@@ -160,102 +160,49 @@ void CRadialBasisFunctionInterpolation::SolveRBF_System_IL(CGeometry* geometry, 
     const RHS_Data rhs = (Derivative && DataReduction) ?  RHS_Data::SENSITIVITY : RHS_Data::DISPLACEMENT; // TODO - is this correct? 
     const su2double radius_IL = config->GetRadialBasisFunctionParameter_IL();
     su2double tol;
+
     ofstream nn_out("nn_out.txt");
+
+    DataReduction = true;
     
 
     for (auto iMarker : node_indices[NODETYPE::IL_WALL]){   
       
-      auto tag = config->GetMarker_CfgFile_TagBound(iMarker.first);
-      cout << "considered tag: " << tag << endl;
-
+      // check if tag potentially has a sharp edge
+      sharpEdge = Opps(geometry, iMarker.second); // TODO - rename function
+      // sharpEdge =false;
       if (dataReductionCfg) {
         su2double maxDef = 0;
         unsigned long maxNode;
-        for (auto iNode : iMarker.second) {
-          su2double* varCoord = geometry->vertex[nodes[iNode]->GetMarker()][nodes[iNode]->GetVertex()]->GetVarCoord();
-          su2double def = GeometryToolbox::SquaredNorm(nDim, varCoord);
-          if (def > maxDef) {
-            maxDef = def;
-            maxNode = iNode;
-          }
-          if (!sharpEdge) sharpEdge=true; //CheckSharpEdge(geometry, iNode);
-        }
+        InitializeDataReduction(geometry, Derivative, iMarker.second, maxNode, maxDef);
 
         tol = dr_tol * sqrt(maxDef);
 
-        nodes[maxNode]->setControl();
-
-        vector<su2double> zero(nDim, 0.0);
-        nodes[maxNode]->SetError(zero.data(), nDim);
-
-        auto marker = nodes[maxNode]->GetMarker();
-        if (find(secondaryMarker.begin(), secondaryMarker.end(), marker) != secondaryMarker.end()) {
-          marker=sec2prim[marker];
-        }
-        auto tag = config->GetMarker_All_TagBound(marker);
-        auto global_marker = config->GetMarker_CfgFile_TagBound(tag);
-        ctrl_node_indices[NODETYPE::IL_WALL][global_marker].insert(maxNode);
+        AddControlNode(config, maxNode);
         
         while(sqrt(maxDef) > tol) {
           GetInterpolationCoefficients(geometry, config, type, radius_IL, ForwardProjectionDerivative, rhs, invInterpMat);
 
-          ofstream err("error.txt");
-          ofstream def("def.txt");
+
           su2double localError[nDim];
           maxDef = 0;
           for (auto iNode : iMarker.second) {          
-            ApplyRBF(geometry, type, radius_IL, nodes[iNode]);
-            def << nodes[iNode]->GetNewCoord()[0] << "\t" << nodes[iNode]->GetNewCoord()[1] << endl;
-            // GetNodalError(geometry, config, type, radius_IL, nodes[iNode], Derivative, localError);
-            
-            const su2double* nc = nodes[iNode]->GetNewCoord();
-            su2double* c = geometry->nodes->GetCoord(nodes[iNode]->GetIndex());
-
-            su2double* vc = geometry->vertex[nodes[iNode]->GetMarker()][nodes[iNode]->GetVertex()]->GetVarCoord();
-            su2double delta[3]; 
-            for (auto iDim = 0u; iDim<nDim;iDim++) {
-              delta[iDim] = nc[iDim] - c[iDim];
-              localError[iDim] = -vc[iDim] + delta[iDim];
-            }
-
+            GetNodalError(geometry, config, type, radius_IL, nodes[iNode], Derivative, localError);
             nodes[iNode]->SetError(localError, nDim);
-            err << localError[0] << "\t" << localError[1] << endl;
+
             su2double errMag = GeometryToolbox::SquaredNorm(nDim, localError);
             if (errMag > maxDef){
               maxDef = errMag;
               maxNode = iNode;
             }
           }
-          cout << "max error squared: " << sqrt(maxDef) << "\t" << tol << endl;
-
-          err.close();
-          def.close();
-
-          nodes[maxNode]->setControl();
-
-          vector<su2double> zero(nDim, 0.0);
-          nodes[maxNode]->SetError(zero.data(), nDim);
-
-          auto marker = nodes[maxNode]->GetMarker();
-          if (find(secondaryMarker.begin(), secondaryMarker.end(), marker) != secondaryMarker.end()) {
-            marker=sec2prim[marker];
-          }
-          auto tag = config->GetMarker_All_TagBound(marker);
-          auto global_marker = config->GetMarker_CfgFile_TagBound(tag);
-          ctrl_node_indices[NODETYPE::IL_WALL][global_marker].insert(maxNode);
+          AddControlNode(config, maxNode);
         }
       }
-      else {
-        
-        // notes for starting
-        // make datareduction a class variable. Then I can toggle it here to be used as a variable contianing the control nodes for a single specific marker of the inflation layers. 
-        
-        DataReduction = true;
+      else {        
         // adding the surface nodes as control nodes
         for(auto iNode : iMarker.second) {
           ctrl_node_indices[NODETYPE::IL_WALL][iMarker.first].insert(iNode);
-          // if (!sharpEdge) CheckSharpEdge(geometry, iNode);
-
         }
       }
       
@@ -273,8 +220,7 @@ void CRadialBasisFunctionInterpolation::SolveRBF_System_IL(CGeometry* geometry, 
           const su2double* coord = geometry->nodes->GetCoord(nodes[iNode]->GetIndex());
           initial << coord[0] << "\t" << coord[1] << endl;
         }
-        sharpEdge = true;
-        // uses 1/n_overall as displacement, basis for free displacement.
+    
         GetInterpolationCoefficients(geometry, config, type, radius_IL, ForwardProjectionDerivative, rhs, invInterpMat);
 
         // free displacement: 
@@ -334,8 +280,8 @@ void CRadialBasisFunctionInterpolation::SolveRBF_System_IL(CGeometry* geometry, 
 
             /*--- Dot product to obtain current inflation layer height ---*/
             auto dp = GeometryToolbox::DotProduct(nDim, normal, dist_vec);
-            added_thickness =  nodes[iNode]->GetILHeight() - dp;
-            added_thickness = 0;
+            added_thickness =  (config->GetInflation_Layer_Mode() == INFLATION_LAYER_MODE::PROJECT_HEIGHT)  ? nodes[iNode]->GetILHeight() - dp : 0; // TODO -  for RBF anchoring then maybe we don't need to do the NN search
+            
             
             /*--- Apply required change in coordinates and store variation w.r.t. initial coordinates. ---*/
             su2double var_coord[nDim];
@@ -372,61 +318,35 @@ void CRadialBasisFunctionInterpolation::SolveRBF_System_IL(CGeometry* geometry, 
         geometry->SetBoundControlVolume(config, UPDATE);
 
 
-
         CtrlTypeVec.resize(2);
         CtrlTypeVec[0] = NODETYPE::IL_WALL;
         CtrlTypeVec[1] = NODETYPE::IL_EDGE;
 
-        // insert here the iteration to decide on edge control nodes. 
 
         if(dataReductionCfg) {
           su2double maxDef = 2*tol;
           while(sqrt(maxDef) > tol) {
             GetInterpolationCoefficients(geometry, config, type, radius_IL, ForwardProjectionDerivative, rhs, invInterpMat);
             
-            ofstream err("error.txt");
-            ofstream def("def.txt");
             su2double localError[nDim];
             unsigned long maxNode;
             maxDef = 0;
             for (auto iNode : edge_nodes) {          
-              ApplyRBF(geometry, type, radius_IL, nodes[iNode]);
-              def << nodes[iNode]->GetNewCoord()[0] << "\t" << nodes[iNode]->GetNewCoord()[1] << endl;
-              // GetNodalError(geometry, config, type, radius_IL, nodes[iNode], Derivative, localError);
+              GetNodalError(geometry, config, type, radius_IL, nodes[iNode], Derivative, localError);
               
-              const su2double* nc = nodes[iNode]->GetNewCoord();
-              su2double* c = geometry->nodes->GetCoord(nodes[iNode]->GetIndex());
-              const su2double* vc = nodes[iNode]->GetVarCoord();
-              su2double delta[3]; 
-              for (auto iDim = 0u; iDim<nDim;iDim++) {
-                delta[iDim] = nc[iDim] - c[iDim];
-                localError[iDim] = -vc[iDim] + delta[iDim];
-              }
-
               nodes[iNode]->SetError(localError, nDim);
-              err << localError[0] << "\t" << localError[1] << endl;
+
               su2double errMag = GeometryToolbox::SquaredNorm(nDim, localError);
               if (errMag > maxDef){
                 maxDef = errMag;
                 maxNode = iNode;
-                MaxErrorGlobal = sqrt(maxDef); // TODO -  
+                // MaxErrorGlobal = sqrt(maxDef); // TODO -  
               }
             }
             cout << "max error squared: " << sqrt(maxDef) << "\t" << tol << "\t" <<  nodes[maxNode]->GetIndex() << "\t" << nodes[maxNode]->GetNewCoord()[0] << "\t" << nodes[maxNode]->GetNewCoord()[1] <<
                   "\t" << geometry->nodes->GetCoord(nodes[maxNode]->GetIndex())[0] << "\t" << geometry->nodes->GetCoord(nodes[maxNode]->GetIndex())[1] <<  endl;
 
-            err.close();
-            def.close();
-
-            nodes[maxNode]->setControl();
-
-            vector<su2double> zero(nDim, 0.0);
-            nodes[maxNode]->SetError(zero.data(), nDim);
-
-            auto marker = nodes[maxNode]->GetMarker();
-            auto tag = config->GetMarker_All_TagBound(marker);
-            auto global_marker = config->GetMarker_CfgFile_TagBound(tag);
-            ctrl_node_indices[NODETYPE::IL_EDGE][global_marker].insert(maxNode);
+            AddControlNode(config, maxNode);
           }          
         } else {
           for (auto iNode : edge_nodes) {
@@ -434,27 +354,11 @@ void CRadialBasisFunctionInterpolation::SolveRBF_System_IL(CGeometry* geometry, 
           }
         }
 
-        
-
-
-        
-        // sharpEdge = false;
-        // ofstream layerCoords("layercoords.txt");
-        unsigned long nIter_IL = sharpEdge ? 5 : 1;
-        nIter_IL = 1;
-
-        cout << "SHARP EDGE: " << sharpEdge << endl; 
-        sharpEdge = true; // TODO -  
-        nIter = 1;
-
         auto ad = CreateADT(geometry, iMarker.second,  nodes[*iMarker.second.begin()]->GetMarker(), true, true);
         
-
         ofstream layerinit ("layerinit.txt");
         for (auto iStep = 0ul; iStep < nIter; iStep++) {
 
-
-          cout << "inflation layer step: " << iStep << endl;
           GetInterpolationCoefficients(geometry, config, type, radius_IL, ForwardProjectionDerivative, rhs, invInterpMat);
 
           su2double var_coord[nDim]{0.0};          
@@ -484,29 +388,9 @@ void CRadialBasisFunctionInterpolation::SolveRBF_System_IL(CGeometry* geometry, 
               /*--- Determine distance between considered internal and control node ---*/
               su2double dist = ComputeDistance(CtrlCoords[jNode*nDim], targetCoords);
               su2double r = radius_IL;
-
-              bool use_contr = true;
-              su2double contribution = 1;
-              if (sharpEdge) {
-                su2double cos_ang = GeometryToolbox::DotProduct(nDim, normal, &CtrlNormals[jNode*nDim]);
-                const su2double cos_min = -0.866; // 150°
-                const su2double cos_max = 0.0;    // 90°
-
-                su2double weight = 1.0;
-                if (cos_ang < cos_max) {
-                    if (cos_ang <= cos_min) {
-                        weight = 0.0;
-                    } else {
-                        // Linear fade from 1 to 0
-                        weight = (cos_ang - cos_min) / (cos_max - cos_min);
-                    }
-                }
-
-                // Now use_contr can be replaced by a weighted contribution:
-                contribution *= weight;
-              }
-
-              // const su2double rbf = use_contr ? SU2_TYPE::GetValue(CRadialBasisFunction::Get_RadialBasisValue(type, r, dist)) : 0.0;
+              
+              su2double contribution = sharpEdge ? GetRbfWeight(normal, &CtrlNormals[jNode*nDim]) : 1;
+            
               const su2double rbf = contribution *  SU2_TYPE::GetValue(CRadialBasisFunction::Get_RadialBasisValue(type, r, dist)) ;
               
               /*--- Evaluate RBF based on distance ---*/
@@ -529,6 +413,9 @@ void CRadialBasisFunctionInterpolation::SolveRBF_System_IL(CGeometry* geometry, 
             if ( iStep == nIter-1) layercoord << nc[0] << "\t" << nc[1] << endl;
           } 
           layerinit.close();
+
+
+
           /*--- Get error of boundary nodes ---*/
           if (dataReductionCfg) { // TODO -  decide on which one.. 
             su2double error[3];
@@ -615,6 +502,7 @@ void CRadialBasisFunctionInterpolation::SolveRBF_System_IL(CGeometry* geometry, 
       free_disp.close();
       layercoord.close();
       initial.close();
+
     // }
 
   
@@ -648,7 +536,6 @@ void CRadialBasisFunctionInterpolation::SolveRBF_System_IL(CGeometry* geometry, 
     ctrl_node_indices[NODETYPE::IL_EDGE].clear();
     
     sharpEdge = false;
-    sharpEdgeLoc.clear();    
   }
   nn_out.close();
 
@@ -818,30 +705,9 @@ void CRadialBasisFunctionInterpolation::InitializeDataReduction(CGeometry* geome
   su2double normSquaredDeformation = 0;
   passivedouble sens_i = 0.0;
 
-  const auto& markers = node_indices[NODETYPE::DISPLACED];  // FIXME - initially this was displaced 
+  const auto& markers = node_indices[NODETYPE::IL_EDGE];  // FIXME - initially this was displaced 
   for (const auto& iMarker : markers) {
-    for (const auto& iNode : iMarker.second) {
-      normSquaredDeformation = 0.0;
-
-      /*--- Compute to squared norm of the deformation ---*/
-      if (Derivative) {
-        const auto iPoint = nodes[iNode]->GetIndex();
-        for (auto iDim = 0u; iDim < nDim; iDim++) {
-          sens_i = SU2_TYPE::GetValue(geometry->GetSensitivity(iPoint, iDim));
-          normSquaredDeformation += sens_i * sens_i;
-        }
-      } else {
-        // normSquaredDeformation = GeometryToolbox::SquaredNorm(nDim, geometry->vertex[nodes[iNode]->GetMarker()][nodes[iNode]->GetVertex()]->GetVarCoord());    
-        const su2double* varCoordCartOrig = nodes[iNode]->GetNodeType() == NODETYPE::IL_EDGE ? nodes[iNode]->GetVarCoord() : geometry->vertex[nodes[iNode]->GetMarker()][nodes[iNode]->GetVertex()]->GetVarCoord();
-        normSquaredDeformation = GeometryToolbox::SquaredNorm(nDim, varCoordCartOrig);
-      }
-      
-      /*--- In case squared norm deformation is larger than the error, update the error ---*/
-      if(normSquaredDeformation > maxErrorLocal) {
-        maxErrorLocal = normSquaredDeformation;
-        maxErrorNodeLocal = iNode;
-      }
-    }
+    InitializeDataReduction(geometry, Derivative, iMarker.second, maxErrorNodeLocal, maxErrorLocal);
   }
 
   /*--- Account for the possibility of applying the deformation in multiple steps ---*/
@@ -852,6 +718,34 @@ void CRadialBasisFunctionInterpolation::InitializeDataReduction(CGeometry* geome
   /*--- Error tolerance for the data reduction tolerance ---*/
   dataReductionTolerance = config->GetRBF_DataRedTolerance() * MaxErrorGlobal; 
   if (rank == MASTER_NODE) cout << "DATA REDUCTION TOLERANCE: " << dataReductionTolerance << "\n" << endl; // TODO -  placed elsewhere in the SU2 output
+}
+
+void CRadialBasisFunctionInterpolation::InitializeDataReduction(CGeometry* geometry, const bool Derivative, const unordered_set<unsigned long>& nodeSet, unsigned long& maxErrorNodeLocal, su2double& maxErrorLocal) {
+  su2double normSquaredDeformation;
+  su2double sens_i; // TODO -  this was a passivedouble. Not sure about the reason?!
+
+  for (const auto& iNode : nodeSet) {
+    normSquaredDeformation = 0.0;
+
+    /*--- Compute to squared norm of the deformation ---*/
+    if (Derivative) {
+      const auto iPoint = nodes[iNode]->GetIndex();
+      for (auto iDim = 0u; iDim < nDim; iDim++) {
+        sens_i = SU2_TYPE::GetValue(geometry->GetSensitivity(iPoint, iDim));
+        normSquaredDeformation += sens_i * sens_i;
+      }
+    } else {
+      // normSquaredDeformation = GeometryToolbox::SquaredNorm(nDim, geometry->vertex[nodes[iNode]->GetMarker()][nodes[iNode]->GetVertex()]->GetVarCoord());    
+      const su2double* varCoordCartOrig = nodes[iNode]->GetNodeType() == NODETYPE::IL_EDGE ? nodes[iNode]->GetVarCoord() : geometry->vertex[nodes[iNode]->GetMarker()][nodes[iNode]->GetVertex()]->GetVarCoord();
+      normSquaredDeformation = GeometryToolbox::SquaredNorm(nDim, varCoordCartOrig);
+    }
+    
+    /*--- In case squared norm deformation is larger than the error, update the error ---*/
+    if(normSquaredDeformation > maxErrorLocal) {
+      maxErrorLocal = normSquaredDeformation;
+      maxErrorNodeLocal = iNode;
+    }
+  }
 }
 
 void CRadialBasisFunctionInterpolation::GetInterpolationCoefficients(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type, const su2double radius, bool ForwardProjectionDerivative, RHS_Data rhs, su2passivematrix& invInterpMat){
@@ -1197,15 +1091,26 @@ void CRadialBasisFunctionInterpolation::GetInverseInterpolationMatrix(CGeometry*
 
   
 
-  bool varySupport = (sharpEdge && CtrlTypeVec.size() ==  1 && CtrlTypeVec[0] == NODETYPE::IL_WALL ) ? true : false;
-
-
   /*---  Build the interpolation matrix in parallel or sequentially ---*/
   // #ifdef HAVE_MPI
   //   GetInterpolationMatrixParallel(geometry, type, radius, interpMat);    
   // #else
-    GetInterpolationMatrixSequential(geometry, type, radius, interpMat, varySupport);    
+  GetInterpolationMatrixSequential(geometry, type, radius, interpMat);    
   // #endif
+
+  ofstream edge_nodes("wall.txt");
+  // changing the weights:
+  for (const auto& iType : CtrlTypeVec) {
+    const auto& markerToNodeSet = DataReduction ? ctrl_node_indices.at(iType) : node_indices.at(iType);
+    for (const auto& iMarker  : markerToNodeSet) {
+      for (const auto iNode : iMarker.second) { 
+        if (nodes[iNode]->GetNodeType() == NODETYPE::IL_EDGE) {
+          edge_nodes << nodes[iNode]->GetIndex() << endl;
+        }
+      }
+    }
+  }
+  edge_nodes.close();
   
   /*--- Check if the kernel is symmetric positive definite ---*/
   const bool kernelIsSPD = (type == RADIAL_BASIS::WENDLAND_C2) || (type == RADIAL_BASIS::GAUSSIAN) ||
@@ -1277,77 +1182,23 @@ void CRadialBasisFunctionInterpolation::GetInterpolationMatrixParallel(CGeometry
   }
 }
 
-void CRadialBasisFunctionInterpolation::GetInterpolationMatrixSequential(CGeometry* geometry, const RADIAL_BASIS& type, const su2double radius, CSymmetricMatrix& interpMat, bool varySupport) const {
+void CRadialBasisFunctionInterpolation::GetInterpolationMatrixSequential(CGeometry* geometry, const RADIAL_BASIS& type, const su2double radius, CSymmetricMatrix& interpMat) const {
   interpMat.Initialize(nCtrlNodesGlobal);
 
-  ofstream phi("phi.txt");
   /*--- Construction of the interpolation matrix. 
       Since this matrix is symmetric only upper halve has to be considered.
       Evaluates the distance between control nodes and fills matrix with RBF evaluations ---*/  
   
   for (auto iNode = 0ul; iNode < nCtrlNodesGlobal; iNode++) {
     const auto iOffset = iNode * nDim;    
-    // su2double dist_te_i = sharpEdge ? GetDistance(CtrlCoords[iOffset], sharpEdgeLoc[0]) : 0.0;
 
     for (auto jNode = iNode; jNode < nCtrlNodesGlobal; jNode++) {
       const auto jOffset = jNode * nDim;
-      // su2double dist_te_j = sharpEdge ? GetDistance(CtrlCoords[jOffset], sharpEdgeLoc[0]) : 0.0;
       const su2double dist = GetDistance(CtrlCoords[iOffset], CtrlCoords[jOffset]);
-
-      bool use_contr = true;
-      su2double contribution = 1;
-      // if (sharpEdge && dist_te_i < radius && dist_te_j < radius) {
-      if (sharpEdge) {
-        su2double cos_ang = GeometryToolbox::DotProduct(nDim, &CtrlNormals[iOffset], &CtrlNormals[jOffset]);
-        const su2double cos_min = -0.866; // 150°
-        const su2double cos_max = 0.0;    // 90°
-
-        su2double weight = 1.0;
-        if (cos_ang < cos_max) {
-            if (cos_ang <= cos_min) {
-                weight = 0.0;
-            } else {
-                // Linear fade from 1 to 0
-                weight = (cos_ang - cos_min) / (cos_max - cos_min);
-            }
-        }
-
-        // Now use_contr can be replaced by a weighted contribution:
-        contribution *= weight;
-      }
-
-      // interpMat(iNode, jNode) = use_contr ? SU2_TYPE::GetValue(CRadialBasisFunction::Get_RadialBasisValue(type, radius, dist)) : 0.0;
+      su2double contribution = sharpEdge ? GetRbfWeight(&CtrlNormals[iOffset], &CtrlNormals[jOffset]) : 1;
       interpMat(iNode, jNode) = SU2_TYPE::GetValue(contribution) * SU2_TYPE::GetValue(CRadialBasisFunction::Get_RadialBasisValue(type, radius, dist)); //FIXME GETVALUE thing here....
-      auto out = use_contr ? SU2_TYPE::GetValue(CRadialBasisFunction::Get_RadialBasisValue(type, radius, dist)) : 0.0;
-      phi << out << "\t";
     }
-    phi << endl;
   } 
-  phi.close();
-
-  // for (auto iNode = 0ul; iNode < nCtrlNodesGlobal; iNode++) {
-  //   const auto iOffset = iNode * nDim;    
-    
-  //   for (auto jNode = iNode; jNode < nCtrlNodesGlobal; jNode++) {
-  //     const auto jOffset = jNode * nDim;
-  //     const su2double dist = GetDistance(CtrlCoords[iOffset], CtrlCoords[jOffset]);
-  //     su2double r = radius;
-
-  //     if (varySupport) {
-  //       su2double dist_te1 = GetDistance(CtrlCoords[iOffset], sharpEdgeLoc[0]);
-  //       su2double dist_te2 = GetDistance(CtrlCoords[jOffset], sharpEdgeLoc[0]);
-  //       su2double dist_te = min(dist_te1, dist_te2);
-        
-  //       if (dist_te < 1*radius) {
-            
-  //         su2double reduction_term = (1- dist_te/(1*radius)) * 0.5 * radius;
-  //         r -= reduction_term;
-  //       }
-  //     }
-
-  //     interpMat(iNode, jNode) = SU2_TYPE::GetValue(CRadialBasisFunction::Get_RadialBasisValue(type, r, dist));
-  //   }
-  // } 
 }
 
 
@@ -1355,7 +1206,7 @@ void CRadialBasisFunctionInterpolation::SetBoundaryDisplacements(CGeometry* geom
   const SU2_COMPONENT Kind_SU2 = config->GetKind_SU2();
   const bool dataRed = config->GetRBF_DataReduction();
   unsigned long ctrlNodeIndex = 0;
-  ofstream disp("disp.txt");
+
   CtrlNodeDeformation.resize(nCtrlNodesLocal*nDim, 0.0);   
   for (const auto& iType : CtrlTypeVec) {
     const auto& markerToNodeSet = DataReduction ? ctrl_node_indices[iType] : node_indices[iType];
@@ -1373,25 +1224,17 @@ void CRadialBasisFunctionInterpolation::SetBoundaryDisplacements(CGeometry* geom
       
       for (const auto iNode : iMarker.second) {
         auto baseIndex = ctrlNodeIndex * nDim;
-        if (isMoving) {
-          su2double varCoord[3] = {0.0, 0.0, 0.0};
-          GetNodalDeformation(geometry, config, nodes[iNode], varCoord);
-          for (auto iDim = 0u; iDim < nDim; iDim++){
-            CtrlNodeDeformation[baseIndex + iDim] = SU2_TYPE::GetValue(varCoord[iDim]);
-          }
-          disp << varCoord[0] << "\t" << varCoord[1] << endl;
-        } else  {
-            for (auto iDim = 0u; iDim < nDim; iDim++) {
-              CtrlNodeDeformation[baseIndex + iDim] = 0.0;
-            }
-          disp << 0.0 << "\t" << 0.0 << endl;
+        
+        su2double varCoord[3] = {0.0, 0.0, 0.0};
+        if (isMoving) GetNodalDeformation(geometry, config, nodes[iNode], varCoord);
+        for (auto iDim = 0u; iDim < nDim; iDim++){
+          CtrlNodeDeformation[baseIndex + iDim] = SU2_TYPE::GetValue(varCoord[iDim]);
         }
+
         ctrlNodeIndex++;
       }      
     }
   }
-
-  disp.close();
 }
 
 void CRadialBasisFunctionInterpolation::GetNodalDeformation(CGeometry* geometry, CConfig* config, const CRadialBasisFunctionNode* const iNode, su2double* varCoord) const {
@@ -1399,10 +1242,7 @@ void CRadialBasisFunctionInterpolation::GetNodalDeformation(CGeometry* geometry,
     increments and solve the grid deformation with
     successive small deformations. ---*/
 
-  auto nStepsMultiplier = sharpEdge && CtrlTypeVec.size() > 2 ? 5 : 1; // TODO -  
-  // nStepsMultiplier = 1;
-  
-  const su2double VarIncrement = 1.0 / ( (su2double)nIter*nStepsMultiplier);
+  const su2double VarIncrement = 1.0 / ( (su2double)nIter);
 
   const su2double* varCoordCartOrig = iNode->GetNodeType() == NODETYPE::IL_EDGE ? iNode->GetVarCoord() : geometry->vertex[iNode->GetMarker()][iNode->GetVertex()]->GetVarCoord();
   su2double varCoordCart[3] = {0.0, 0.0, 0.0};
@@ -2045,7 +1885,7 @@ void CRadialBasisFunctionInterpolation::UpdateBoundCoords(CGeometry* geometry, C
         for (auto iNode : mark.second) {
 
           if (!nodes[iNode]->GetControl()){
-            if (nodetype == NODETYPE::IL_EDGE) cout << nodes[iNode]->GetIndex() << endl;
+            // if (nodetype == NODETYPE::IL_EDGE) cout << nodes[iNode]->GetIndex() << endl;
             auto targetCoords = geometry->nodes->GetCoord(nodes[iNode]->GetIndex());
 
             /*--- Finding contribution of each control node ---*/
@@ -2115,9 +1955,6 @@ void CRadialBasisFunctionInterpolation::UpdateBoundCoords_IL(CGeometry* geometry
   bool isInflationLayer = std::find(CtrlTypeVec.begin(), CtrlTypeVec.end(), NODETYPE::IL_WALL) != CtrlTypeVec.end() &&
                                   std::find(CtrlTypeVec.begin(), CtrlTypeVec.end(), NODETYPE::IL_EDGE) != CtrlTypeVec.end();
   if (isInflationLayer) il_marker = ctrl_node_indices[NODETYPE::IL_WALL].begin()->first;
-  // for (auto key : x) {
-  //   auto il_marker = key.first;
-  // }
 
   unsigned long pointID;
   int rankID;
@@ -2174,19 +2011,6 @@ void CRadialBasisFunctionInterpolation::UpdateBoundCoords_IL(CGeometry* geometry
           
             auto targetCoords = geometry->nodes->GetCoord(nodes[iNode]->GetIndex());
 
-            //  // obtain nearest wall normal here
-            // WallADT2.DetermineNearestNode(targetCoords, dist, pointID, rankID);
-            
-            // auto markerNear = nodes[pointID]->GetMarker();
-            // auto vertexNear = nodes[pointID]->GetVertex();
-
-            // /*--- Get normal and make it a unit vector ---*/
-            // auto normal = geometry->vertex[markerNear][vertexNear]->GetNormal();
-            // auto mag = GeometryToolbox::Norm(nDim, normal);
-            // for (auto iDim = 0u; iDim < nDim; iDim++){
-            //   normal[iDim] = normal[iDim]/mag;
-            // }
-
             auto nearestNode = nodes[iNode]->GetNodeType() == NODETYPE::IL_WALL ? nodes[iNode] : nodes[nodes[iNode]->GetNearestNode()]; //FIXME 
             auto normal = geometry->vertex[nearestNode->GetMarker()][nearestNode->GetVertex()]->GetNormal();
             auto mag = GeometryToolbox::Norm(nDim, normal);
@@ -2201,31 +2025,11 @@ void CRadialBasisFunctionInterpolation::UpdateBoundCoords_IL(CGeometry* geometry
               su2double dist = ComputeDistance(CtrlCoords[jNode*nDim], targetCoords);
 
               bool use_contr = true;
-              su2double contribution = 1;
-              if (sharpEdge) {
-                su2double cos_ang = GeometryToolbox::DotProduct(nDim, normal, &CtrlNormals[jNode*nDim]);
-                const su2double cos_min = -0.866; // 150°
-                const su2double cos_max = 0.0;    // 90°
-
-                su2double weight = 1.0;
-                if (cos_ang < cos_max) {
-                    if (cos_ang <= cos_min) {
-                        weight = 0.0;
-                    } else {
-                        // Linear fade from 1 to 0
-                        weight = (cos_ang - cos_min) / (cos_max - cos_min);
-                    }
-                }
-
-                // Now use_contr can be replaced by a weighted contribution:
-                contribution *= weight;
-              }
-
-              // const su2double rbf = use_contr ? SU2_TYPE::GetValue(CRadialBasisFunction::Get_RadialBasisValue(type, radius, dist)) : 0.0;
+              su2double contribution =  sharpEdge ? GetRbfWeight(normal, &CtrlNormals[jNode*nDim]) : 1;
+              
               su2double rbf = contribution * SU2_TYPE::GetValue(CRadialBasisFunction::Get_RadialBasisValue(type, radius, dist));
 
               /*--- Evaluation of the radial basis function based on the distance ---*/
-              // su2double rbf = SU2_TYPE::GetValue(CRadialBasisFunction::Get_RadialBasisValue(type, radius, dist));
 
               /*--- Computing and add the resulting coordinate variation ---*/
               for(auto iDim = 0u; iDim < nDim; iDim++){
@@ -2277,6 +2081,21 @@ void CRadialBasisFunctionInterpolation::UpdateBoundCoords_IL(CGeometry* geometry
     }
   }
   ctrl_new.close();
+
+
+  // if (config->GetInflation_Layer_Mode() == INFLATION_LAYER_MODE::RBF_ANCHOR) {
+  //   auto markers = DataReduction ? ctrl_node_indices[NODETYPE::IL_EDGE] : node_indices[NODETYPE::IL_EDGE];
+  //   for (const auto& iMarker : markers) {
+  //     auto ctrl_idx = iMarker.second;
+  //     for (auto idx_i : ctrl_idx) {
+  //       auto varCoord = nodes[idx_i]->GetVarCoord();
+  //       for (auto iDim = 0u; iDim < nDim; iDim++) {
+  //         geometry->nodes->AddCoord(nodes[idx_i]->GetIndex(), iDim, varCoord[iDim] * VarIncrement);   
+  //       }
+  //     }
+  //   }
+  // }
+
 }
 
 
@@ -2392,6 +2211,29 @@ void CRadialBasisFunctionInterpolation::GetInterpError(CGeometry* geometry, CCon
     }
   }
 
+  auto nodes_il_wall = node_indices[NODETYPE::IL_WALL];
+  for (auto mark : nodes_il_wall) {
+    // if (rank == MASTER_NODE) cout << rank << " " << mark.first << " " << mark.second.size() << endl;
+    for (auto idx : mark.second) {
+      if(!nodes[idx]->GetControl()){
+
+        /*--- Compute nodal error ---*/
+        GetNodalError(geometry, config, type, radius, nodes[idx], Derivative, localError);
+        // cout << localError[0] << " " << localError[1] << endl;
+        /*--- Setting error ---*/
+        nodes[idx]->SetError(localError, nDim);
+        
+        /*--- Compute error magnitude and update local maximum error if necessary ---*/
+        su2double errorMagnitude = GeometryToolbox::Norm(nDim, localError);
+        if(errorMagnitude > maxErrorLocal){
+          maxErrorLocal = errorMagnitude;
+          maxErrorNodeLocal = idx;
+          errortype = NODETYPE::IL_WALL;
+        }
+      }
+    }
+  }
+
   
   for (auto i_type : slideCtrlTypes) {
     
@@ -2466,12 +2308,10 @@ void CRadialBasisFunctionInterpolation::GetNodalError(CGeometry* geometry, CConf
   /*--- If node is part of a moving boundary then the error is defined as the difference
            between the found and prescribed displacements. Thus, here the displacement is substracted from the error ---*/
 
-  // cout << "node: " << iNode->GetIndex() << endl;
   if (Derivative) {
     for (auto iDim =0u; iDim < nDim; iDim++) {
       localError[iDim] = -geometry->GetSensitivity(iNode->GetIndex(), iDim) * VarIncrement;
     }
-    // cout << localError[0] << " " << localError[1] << endl;
   }else{  
     auto disp_true = iNode->GetNodeType() == NODETYPE::IL_EDGE ?  iNode->GetVarCoord() : geometry->vertex[iNode->GetMarker()][iNode->GetVertex()]->GetVarCoord();
     for(auto iDim = 0u; iDim < nDim; iDim++){
@@ -2484,23 +2324,35 @@ void CRadialBasisFunctionInterpolation::GetNodalError(CGeometry* geometry, CConf
   /*--- Resulting displacement from the RBF interpolation is added to the error ---*/ 
 
   auto targetCoord = geometry->nodes->GetCoord(iNode->GetIndex());
-  // cout << "target coord: " << targetCoord[0] << " " << targetCoord[1] << endl;
+
   /*--- Finding contribution of each control node ---*/
   for(auto jNode = 0ul; jNode < nCtrlNodesGlobal; jNode++){
 
-    /*--- Distance between non-selected boundary node and control node ---*/
-    su2double dist = ComputeDistance(CtrlCoords[jNode*nDim], targetCoord);
+    const unsigned long offset = jNode*nDim;
 
-    /*--- Evaluation of Radial Basis Function ---*/
-    su2double rbf = SU2_TYPE::GetValue(CRadialBasisFunction::Get_RadialBasisValue(type, radius, dist));
+    // /*--- Distance between non-selected boundary node and control node ---*/
+    su2double dist = ComputeDistance(CtrlCoords[offset], targetCoord);
 
-    /*--- Add contribution to error ---*/
-    for(auto iDim = 0u; iDim < nDim; iDim++){
-      // localError[iDim] += rbf*InterpCoeff[jNode*nDim + iDim];
-      disp_interp[iDim] += rbf*InterpCoeff[jNode*nDim + iDim];
+    // TODO -  ideally this is only done when required.
+    auto nearestNode = (iNode->GetNodeType() == NODETYPE::IL_WALL || iNode->GetNodeType() == NODETYPE::DISPLACED) ? iNode : nodes[iNode->GetNearestNode()];
+    auto normal = geometry->vertex[nearestNode->GetMarker()][nearestNode->GetVertex()]->GetNormal();
+    auto mag = GeometryToolbox::Norm(nDim, normal);
+    for (auto iDim = 0u; iDim < nDim; iDim++){
+      normal[iDim] = normal[iDim]/mag;
     }
+    
+    su2double contribution = sharpEdge ? GetRbfWeight(normal, &CtrlNormals[offset]) : 1;
+    /*--- Evaluate RBF based on distance ---*/
+
+    const auto rbf = contribution * SU2_TYPE::GetValue(CRadialBasisFunction::Get_RadialBasisValue(type, radius, dist));
+
+    /*--- Add contribution to new coordinates -- -*/
+    const su2double* coeff = &InterpCoeff[offset];
+
+    for(auto iDim = 0u; iDim < nDim; iDim++){
+      disp_interp[iDim] += rbf*InterpCoeff[jNode*nDim + iDim];
+    } 
   }
-  // cout << "disp_interp: " << disp_interp[0] << " " << disp_interp[1] << endl;
 
   if (IsCylindrical) {
     CylDispToCart(geometry->nodes->GetCoord(iNode->GetIndex()),  disp_interp);
@@ -2509,7 +2361,6 @@ void CRadialBasisFunctionInterpolation::GetNodalError(CGeometry* geometry, CConf
   for (auto iDim = 0u; iDim < nDim; iDim++) {
     localError[iDim] += disp_interp[iDim];
   }
-  // cout << "final error: " << localError[0] << " " << localError[1] << endl;
 }
 
 void CRadialBasisFunctionInterpolation::SetCorrection(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type, const vector<unsigned long>& internalNodes){
@@ -2824,9 +2675,14 @@ void CRadialBasisFunctionInterpolation::AddControlNode(CConfig* config, unsigned
   node->SetError(zero.data(), nDim);
 
   auto marker = node->GetMarker(); // this is the local marker index
+  const auto type = node->GetNodeType();
+  if ( (type == NODETYPE::IL_WALL || type == NODETYPE::IL_EDGE) && find(secondaryMarker.begin(), secondaryMarker.end(), marker) != secondaryMarker.end()) {
+    marker=sec2prim[marker];
+  }
+  
   const auto& tag = config->GetMarker_All_TagBound(marker);
   auto global_marker = config->GetMarker_CfgFile_TagBound(tag);
-  ctrl_node_indices[node->GetNodeType()][global_marker].insert(maxErrorNode);
+  ctrl_node_indices[type][global_marker].insert(maxErrorNode);
 }
 
 
@@ -3074,10 +2930,9 @@ void CRadialBasisFunctionInterpolation::ApplyRBF(CGeometry* geometry, const RADI
   const su2double* coord = IsCylindrical ? node->GetCylCoord() : geometry->nodes->GetCoord(node->GetIndex()); // TODO -  this was temporarily altered for the inflation layer preservation algorithm
   // const su2double* coord = node->GetNodeType() == NODETYPE::IL_EDGE ? node->GetNewCoord() : geometry->nodes->GetCoord(node->GetIndex());
 
-  // bool varySupport = (sharpEdge && CtrlTypeVec.size() ==  1 && CtrlTypeVec[0] == NODETYPE::IL_WALL) ? true : false;
+
   node->SetNewCoord(coord, nDim);  
-  // su2double dist_te_i = sharpEdge ? GetDistance(coord, sharpEdgeLoc[0]) : 0.0;
-  // ofstream contr("contr.txt");
+
   // find contribution of each control node 
   for(auto jNode = 0ul; jNode < nCtrlNodesGlobal; jNode++){
 
@@ -3085,85 +2940,29 @@ void CRadialBasisFunctionInterpolation::ApplyRBF(CGeometry* geometry, const RADI
 
     /*--- Determine distance between considered internal and control node ---*/
     const su2double dist = GetDistance(CtrlCoords[offset], coord);
-    // su2double dist_te_j = sharpEdge ? GetDistance(CtrlCoords[offset], sharpEdgeLoc[0]) : 0.0;
-    bool use_contr = true;
-    su2double contribution = 1;
-      // if (sharpEdge && dist_te_i < radius && dist_te_j < radius) {
-      if (sharpEdge) {
-        auto nearestNode = node->GetNodeType() == NODETYPE::IL_WALL ? node : nodes[node->GetNearestNode()];
-        auto normal = geometry->vertex[nearestNode->GetMarker()][nearestNode->GetVertex()]->GetNormal();
-        auto mag = GeometryToolbox::Norm(nDim, normal);
-        for (auto iDim = 0u; iDim < nDim; iDim++){
-          normal[iDim] = normal[iDim]/mag;
-        }
 
-        su2double cos_ang = GeometryToolbox::DotProduct(nDim, normal, &CtrlNormals[offset]);
-        const su2double cos_min = -0.866; // 150°
-        const su2double cos_max = 0.0;    // 90°
-
-        su2double weight = 1.0;
-        if (cos_ang < cos_max) {
-            if (cos_ang <= cos_min) {
-                weight = 0.0;
-            } else {
-                // Linear fade from 1 to 0
-                weight = (cos_ang - cos_min) / (cos_max - cos_min);
-            }
-        }
-
-        // Now use_contr can be replaced by a weighted contribution:
-        contribution *= weight;
-      }
-
-
-    // su2double r = radius;
-
-    // if (varySupport) {
-    //   su2double dist_te1 = GetDistance(coord, sharpEdgeLoc[0]);
-    //   su2double dist_te2 = GetDistance(CtrlCoords[offset], sharpEdgeLoc[0]);
-    //   su2double dist_te = min(dist_te1, dist_te2);
-      
-    //   if (dist_te < 1*radius) {          
-    //       su2double reduction_term = (1- dist_te/(1*radius)) * 0.5 * radius;
-    //       r -= reduction_term;
-    //     }
-    //   }
+    // // TODO -  ideally next part is only done in case of sharpEdge == true !!
+    auto nearestNode = node->GetNodeType() == NODETYPE::IL_WALL ? node : nodes[node->GetNearestNode()];
+    auto normal = geometry->vertex[nearestNode->GetMarker()][nearestNode->GetVertex()]->GetNormal();
+    auto mag = GeometryToolbox::Norm(nDim, normal);
+    for (auto iDim = 0u; iDim < nDim; iDim++){
+      normal[iDim] = normal[iDim]/mag;
+    }
     
+    su2double contribution = sharpEdge ? GetRbfWeight(normal, &CtrlNormals[offset]) : 1;
     /*--- Evaluate RBF based on distance ---*/
 
-    // const auto rbf = use_contr ? SU2_TYPE::GetValue(CRadialBasisFunction::Get_RadialBasisValue(type, radius, dist)) : 0.0;
     const auto rbf = contribution * SU2_TYPE::GetValue(CRadialBasisFunction::Get_RadialBasisValue(type, radius, dist));
 
     /*--- Add contribution to new coordinates -- -*/
     const su2double* coeff = &InterpCoeff[offset];
-    // contr << rbf*coeff[0] << "\t" << rbf*coeff[1] << endl; 
-    // cout << dist << "\t" << rbf << "\t" << coeff[0] << endl;
+
     for(auto iDim = 0u; iDim < nDim; iDim++){
       node->AddNewCoord(rbf * coeff[iDim], iDim);
     } 
-    // cout << dist << "\t" << rbf << "\t" << coeff[0] << "\t" << coeff[1] << "\t" << rbf*coeff[0] << "\t" << rbf*coeff[1]  << endl;
   }  
-  // contr.close();
-  // if (dist_te_i < 0.2*radius && abs(coord[1]) > 1e-8) {cout << coord[0] << "\t" << coord[1] << endl; exit(0);}
-  // auto nc = node->GetNewCoord();
-  // cout << nc[0] - coord[0] << "\t" << nc[1] - coord[1] << "\t" << coord[0] << "\t" << coord[1] << endl;
 }
 
-// unsigned long CRadialBasisFunctionInterpolation::retrieveIndex(unsigned long index_in) {
-//   unsigned long start_idx = 0, end_idx = 0;
-  
-//   for (const auto& iType : CtrlTypeVec) {
-//     const auto& markerToNodeSet = node_indices[iType];
-//     for (const auto& iMarker  : markerToNodeSet) {
-//       end_idx += iMarker.second.size();
-//       if (index_in < end_idx) {
-//         auto start = iMarker.second.begin();
-//         advance(start, start_idx+index_in);
-//         return *start;
-//       }
-//     }
-//   }
-// }
 
 void CRadialBasisFunctionInterpolation::GetNearestNode(CADTPointsOnlyClass* const BoundADT, CRadialBasisFunctionNode* const node) {
   // TODO -   add comments
@@ -3516,42 +3315,53 @@ void CRadialBasisFunctionInterpolation::UpdateVarCoord(CGeometry* geometry, CCon
   geometry->vertex[marker][node->GetVertex()]->SetVarCoord(coordVar);
 }
 
-void CRadialBasisFunctionInterpolation::CheckSharpEdge(CGeometry* geometry, unsigned long iNode) {
+bool CRadialBasisFunctionInterpolation::Opps(CGeometry* geometry, unordered_set<unsigned long> &nodeIndices ) {
+  vector<su2double> mean = {0.0, 0.0, 0.0};
 
-  auto marker = nodes[iNode]->GetMarker();
-
-  auto n1 = geometry->vertex[marker][nodes[iNode]->GetVertex()]->GetNormal();
-  auto normal_length = GeometryToolbox::Norm(nDim, n1);
-  for(auto iDim = 0u; iDim < nDim; iDim++){
-    n1[iDim] = n1[iDim]/normal_length;
-  }
-
-  /*--- iterate over edge ---*/
-  for (auto i : geometry->nodes->GetEdges(nodes[iNode]->GetIndex())) {
-    
-    /*--- iterate over nodes of edge ---*/
-    for (auto j = 0; j < geometry->edges->GetnNodes(); j++) {
-      auto in = geometry->edges->GetNode(i,j);
-      
-      /*--- If node on boundary and different from considered one ---*/
-      if ( geometry->nodes->GetBoundary(in) && in != nodes[iNode]->GetIndex() ){
-        
-        auto n = geometry->edges->GetNode(i, j);
-        auto v = geometry->nodes->GetVertex(n, marker);
-        auto n2 = geometry->vertex[marker][v]->GetNormal();
-        auto normal_length = GeometryToolbox::Norm(nDim, n2);
-        for(auto iDim = 0u; iDim < nDim; iDim++){
-          n2[iDim] = n2[iDim]/normal_length;
-        }
-
-        su2double dp = GeometryToolbox::DotProduct(nDim, n1, n2);
-        if (dp > 0.5) {
-          return;
-        }
-      }
+  for (auto iNode : nodeIndices) {
+    auto normal = geometry->vertex[nodes[iNode]->GetMarker()][nodes[iNode]->GetVertex()]->GetNormal();
+    auto normal_length = GeometryToolbox::Norm(nDim, normal);
+    for(auto iDim = 0u; iDim < nDim; iDim++){
+      mean[iDim] += normal[iDim]/normal_length;
     }
   }
-  
-  sharpEdgeLoc.push_back(geometry->nodes->GetCoord(nodes[iNode]->GetIndex()));
-  sharpEdge = true;
+
+  auto meanMag = GeometryToolbox::Norm(nDim, mean.data());
+
+  for (auto iDim = 0u; iDim < nDim; iDim++) {
+    mean[iDim] /= meanMag;
+  }
+
+  for (auto iNode : nodeIndices) {
+    auto normal = geometry->vertex[nodes[iNode]->GetMarker()][nodes[iNode]->GetVertex()]->GetNormal();
+    auto normal_length = GeometryToolbox::Norm(nDim, normal);
+
+    for(auto iDim = 0u; iDim < nDim; iDim++){
+      normal[iDim] /= normal_length;
+    }
+    if (GeometryToolbox::DotProduct(nDim, mean.data(), normal) < -0.5) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+su2double CRadialBasisFunctionInterpolation::GetRbfWeight(const su2double* normal1, const su2double* normal2) const {
+  su2double cos_ang = GeometryToolbox::DotProduct(nDim, normal1, normal2);
+  const su2double cos_min = -0.866; // 150°
+  const su2double cos_max = 0.0;    // 90°
+  // const su2double cos_min = -1.0;   // 180°
+  // const su2double cos_max = -0.5;   // 120°
+  su2double weight = 1.0;
+  if (cos_ang < cos_max) {
+      if (cos_ang <= cos_min) {
+          weight = 0.0;
+      } else {
+          // Linear fade from 1 to 0
+          weight = (cos_ang - cos_min) / (cos_max - cos_min);
+      }
+  }
+
+  return weight;
 }

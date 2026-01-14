@@ -91,7 +91,6 @@ protected:
 
   unordered_map<unsigned short, unsigned short> sec2prim;
   
-  vector<su2double*> sharpEdgeLoc;
   bool sharpEdge = false;
 
 
@@ -183,7 +182,7 @@ public:
   * \param[in] maxErrorLocal - Maximum local error. 
   */
   void InitializeDataReduction(CGeometry* geometry, CConfig* config, bool Derivative, unsigned long& maxErrorNodeLocal, su2double& maxErrorLocal); //DONE
-  
+  void InitializeDataReduction(CGeometry* geometry, const bool Derivative, const unordered_set<unsigned long>& nodeSet, unsigned long& maxErrorNodeLocal, su2double& maxErrorLocal); 
 
   /*!
   * \brief Computes the interpolation coefficents of RBF interpolation system. 
@@ -236,7 +235,7 @@ public:
   * \param[in] radius - Support radius of the radial basis function.
   * \param[in] interpMat - Interpolation matrix.
   */
-  void GetInterpolationMatrixSequential(CGeometry* geometry, const RADIAL_BASIS& type, const su2double radius, CSymmetricMatrix& interpMat, bool varySupport) const ; 
+  void GetInterpolationMatrixSequential(CGeometry* geometry, const RADIAL_BASIS& type, const su2double radius, CSymmetricMatrix& interpMat) const ; 
 
   /*!
   * \brief Computation of the interpolation matrix in parallel.
@@ -592,6 +591,8 @@ public:
   void CheckSharpEdge(CGeometry* geometry, unsigned long iNode);
   unsigned long retrieveIndex(unsigned long index_in);
   void SetCorrection_IL(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type, const vector<unsigned long>& internalNodes, unsigned short marker);
+  bool Opps(CGeometry* geometry, unordered_set<unsigned long> &nodeIndices);
+  su2double GetRbfWeight(const su2double* normal1, const su2double* normal2) const ;
 };
 
 

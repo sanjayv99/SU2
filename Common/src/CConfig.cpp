@@ -2393,6 +2393,8 @@ void CConfig::SetConfig_Options() {
   addDoubleOption("RBF_GREEDY_CORRECTION_FACTOR", RBF_GreedyCorrectionFactor, 1E-2);
   addBoolOption("WRT_MESH_QUAL_STATISTICS", Wrt_MeshQualStatistics, false);
   addStringOption("MESH_QUAL_FILENAME", Mesh_Qual_FileName, string("mesh_qualitity_statistics.dat"));
+  /* DESCRIPTION: Mode of inflation layer during RBF mesh deformation */
+  addEnumOption("RBF_INFLATION_LAYER_MODE", Inflation_Layer_Mode, Inflation_Layer_Mode_Map, INFLATION_LAYER_MODE::PROJECT_HEIGHT);
 
   /*!\par CONFIG_CATEGORY: FEM flow solver definition \ingroup Config*/
   /*--- Options related to the finite element flow solver---*/
