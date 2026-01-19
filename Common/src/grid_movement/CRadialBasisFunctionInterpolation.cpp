@@ -1119,7 +1119,7 @@ void CRadialBasisFunctionInterpolation::GetInverseInterpolationMatrix(CGeometry*
   bool useSym = true;
   if (sharpEdge) useSym = false;
   /*--- Inverting matrix and transferring data to output variable ---*/
-  interpMat.Invert(false); 
+  interpMat.Invert(useSym); 
   invInterpMat = interpMat.StealData();
 }
 
@@ -3349,8 +3349,8 @@ bool CRadialBasisFunctionInterpolation::Opps(CGeometry* geometry, unordered_set<
 
 su2double CRadialBasisFunctionInterpolation::GetRbfWeight(const su2double* normal1, const su2double* normal2) const {
   su2double cos_ang = GeometryToolbox::DotProduct(nDim, normal1, normal2);
-  const su2double cos_min = -0.866; // 150°
-  const su2double cos_max = 0.0;    // 90°
+  const su2double cos_min = -1.0; // 180°
+  const su2double cos_max = -0.0;    // 90°
   // const su2double cos_min = -1.0;   // 180°
   // const su2double cos_max = -0.5;   // 120°
   su2double weight = 1.0;
