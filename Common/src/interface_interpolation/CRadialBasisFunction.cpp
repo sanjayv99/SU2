@@ -77,6 +77,63 @@ su2double CRadialBasisFunction::Get_RadialBasisValue(RADIAL_BASIS type, const su
         rbf = 0.0;
       break;
 
+    case RADIAL_BASIS::WENDLAND_C4:
+      if (rbf < 1)
+        rbf = (pow((1-rbf),6) * (35 * pow(rbf,2) + 18 * rbf + 3 ))/3;
+      else
+        rbf = 0.0;
+      break;
+    
+    case RADIAL_BASIS::WENDLAND_C6:
+      if (rbf < 1)
+        rbf = pow((1-rbf), 8) * (32 * pow(rbf, 3) + 25 * pow(rbf, 2) + 8 * rbf + 1);
+      else
+        rbf = 0.0;
+      break;
+
+    case RADIAL_BASIS::WU_C2:
+      if (rbf < 1)
+        rbf = pow((1-rbf), 5) * (8 + 40*rbf + 48*pow(rbf, 2) + 25*pow(rbf, 3) + 5*pow(rbf,4));
+      else
+        rbf = 0.0;
+      break;
+    
+    case RADIAL_BASIS::WU_C4:
+      if (rbf < 1)
+        rbf = pow((1-rbf), 6) * (6 + 36*rbf + 82*pow(rbf,2) + 72*pow(rbf, 3) + 30*pow(rbf, 4) + 5*pow(rbf,5));
+      else
+        rbf = 0.0;
+      break;
+
+    // Note: the Wu C6 is only guaranteed to be positive definite in R^1
+    case RADIAL_BASIS::WU_C6:
+      if (rbf < 1)
+        rbf = pow((1-rbf), 7) * (5 + 35*rbf + 101*pow(rbf,2) + 147*pow(rbf,3) + 101*pow(rbf,4) + 35*pow(rbf,5) + 5*pow(rbf,6));
+      else
+        rbf = 0.0;
+      break;
+
+    case RADIAL_BASIS::CSTPS_C0:
+      if (rbf < 1)
+        rbf = pow((1-rbf), 5);
+      else
+        rbf = 0.0;
+      break;
+
+    case RADIAL_BASIS::CSTPS_C1:
+        if (rbf < 1) {
+          if (rbf > 0.0)
+            rbf = 1 + 80.0/3.0 * pow(rbf, 2) - 40.0 * pow(rbf,3) + 15.0 * pow(rbf, 4) - 8.0/3.0 * pow(rbf,5) + 20.0*pow(rbf,2)*log(rbf);
+          else
+            rbf = 1.0;
+        } else {
+          rbf = 0.0;
+        }
+        break;
+
+    
+    
+
     case RADIAL_BASIS::GAUSSIAN:
       rbf = exp(-rbf * rbf);
       break;
