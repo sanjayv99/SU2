@@ -121,18 +121,15 @@ su2double CRadialBasisFunction::Get_RadialBasisValue(RADIAL_BASIS type, const su
       break;
 
     case RADIAL_BASIS::CSTPS_C1:
-        if (rbf < 1) {
-          if (rbf > 0.0)
-            rbf = 1 + 80.0/3.0 * pow(rbf, 2) - 40.0 * pow(rbf,3) + 15.0 * pow(rbf, 4) - 8.0/3.0 * pow(rbf,5) + 20.0*pow(rbf,2)*log(rbf);
-          else
-            rbf = 1.0;
-        } else {
-          rbf = 0.0;
-        }
-        break;
-
-    
-    
+      if (rbf < 1) {
+        if (rbf > 0.0)
+          rbf = 1 + 80.0/3.0 * pow(rbf, 2) - 40.0 * pow(rbf,3) + 15.0 * pow(rbf, 4) - 8.0/3.0 * pow(rbf,5) + 20.0*pow(rbf,2)*log(rbf);
+        else
+          rbf = 1.0;
+      } else {
+        rbf = 0.0;
+      }
+      break;     
 
     case RADIAL_BASIS::GAUSSIAN:
       rbf = exp(-rbf * rbf);

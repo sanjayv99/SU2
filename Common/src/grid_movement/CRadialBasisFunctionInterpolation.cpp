@@ -280,7 +280,7 @@ void CRadialBasisFunctionInterpolation::SolveRBF_System_IL(CGeometry* geometry, 
 
             /*--- Dot product to obtain current inflation layer height ---*/
             auto dp = GeometryToolbox::DotProduct(nDim, normal, dist_vec);
-            added_thickness =  (config->GetInflation_Layer_Mode() == INFLATION_LAYER_MODE::PROJECT_HEIGHT)  ? nodes[iNode]->GetILHeight() - dp : 0; // TODO -  for RBF anchoring then maybe we don't need to do the NN search
+            added_thickness =  (config->GetInflation_Layer_Mode() == INFLATION_LAYER_MODE::PROJECT_HEIGHT)  ? SU2_TYPE::GetValue(nodes[iNode]->GetILHeight() - dp) : 0; // TODO -  for RBF anchoring then maybe we don't need to do the NN search
             
             
             /*--- Apply required change in coordinates and store variation w.r.t. initial coordinates. ---*/
