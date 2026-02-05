@@ -171,7 +171,7 @@ void CRadialBasisFunctionInterpolation::SolveRBF_System_IL(CGeometry* geometry, 
       
       // check if tag potentially has a sharp edge
       sharpEdge = Opps(geometry, iMarker.second); // TODO - rename function
-      sharpEdge = false;
+      // sharpEdge = false;
       cout << "Geometry is sharp: " << sharpEdge << endl;
       
       // sharpEdge =false;
