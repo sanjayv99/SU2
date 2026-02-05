@@ -103,6 +103,7 @@ void CRadialBasisFunctionInterpolation::SetVolume_Deformation(CGeometry* geometr
     if(!Derivative && PreserveIL) { // TODO -  likely only need PreserveIL condition
       SolveRBF_System_IL(geometry, config, kindRBF, Derivative, ForwardProjectionDerivative, Screen_Output);
     }
+   
     nCtrlNodesGlobal = 0;
     /*--- Solving the RBF system, resulting in the interpolation coefficients ---*/
     SolveRBF_System(geometry, config, kindRBF, radius, Derivative, internalNodes, ForwardProjectionDerivative, Screen_Output);
@@ -170,6 +171,9 @@ void CRadialBasisFunctionInterpolation::SolveRBF_System_IL(CGeometry* geometry, 
       
       // check if tag potentially has a sharp edge
       sharpEdge = Opps(geometry, iMarker.second); // TODO - rename function
+      sharpEdge = false;
+      cout << "Geometry is sharp: " << sharpEdge << endl;
+      
       // sharpEdge =false;
       if (dataReductionCfg) {
         su2double maxDef = 0;
@@ -317,6 +321,7 @@ void CRadialBasisFunctionInterpolation::SolveRBF_System_IL(CGeometry* geometry, 
 
         geometry->SetBoundControlVolume(config, UPDATE);
 
+        
 
         CtrlTypeVec.resize(2);
         CtrlTypeVec[0] = NODETYPE::IL_WALL;
@@ -503,6 +508,7 @@ void CRadialBasisFunctionInterpolation::SolveRBF_System_IL(CGeometry* geometry, 
       layercoord.close();
       initial.close();
 
+
     // }
 
   
@@ -647,13 +653,28 @@ void CRadialBasisFunctionInterpolation::SolveRBF_System(CGeometry* geometry, CCo
 void CRadialBasisFunctionInterpolation::ProjectSlidingNodes(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type, const su2double radius, const bool dataReduction, const CRadialBasisFunctionNode::NODETYPE nodeType) {
   
   const auto& markerToNodeSet = dataReduction ? ctrl_node_indices[nodeType] : node_indices[nodeType];
-  ofstream free ("free_disp.txt");
-  ofstream init ("free_init.txt");
-  ofstream proj ("proj.txt");
+  string typ;
+  if (nodeType == NODETYPE::EDGE) {
+    typ = "edge";
+  }
+
+  if (nodeType == NODETYPE::SURFACE) {
+    typ = "surface";
+  }
+
+  ofstream free ("free_" + typ  + ".txt");
+  ofstream init ("init_" + typ  + ".txt");
+  ofstream proj ("proj_" + typ  + ".txt");
+
+  
   for (const auto& iMarker : markerToNodeSet){
+    
     /*--- Obtaining the local marker ---*/
     const auto markerGlobal = iMarker.first;
     const auto markerLocal = config->GetMarker_Local(markerGlobal);
+    auto tag = config->GetMarker_All_TagBound(markerLocal);
+
+    
 
     /*--- Create global ADT for points of specific marker and nodetype.
             For periodic domains also periodic images are included, 
@@ -669,10 +690,10 @@ void CRadialBasisFunctionInterpolation::ProjectSlidingNodes(CGeometry* geometry,
     for (const auto iNode : targetNodes) {
       auto* const node = nodes[iNode];
       auto ic = geometry->nodes->GetCoord(node->GetIndex());
-      init << ic[0] << "\t" << ic[1] << endl;
+      init << node->GetIndex() << "\t" << ic[0] << "\t" << ic[1] << "\t" << ic[2]  << endl;
       ApplyRBF(geometry, type, radius, node); // TODO -  start here
       auto nc = nodes[iNode]->GetNewCoord();
-      free << nc[0] << "\t" << nc[1] << endl;
+      free << node->GetIndex() << "\t" << nc[0] << "\t" << nc[1] << "\t" << nc[2] <<endl;
       GetNearestNode(BoundADT.get(), node);
     }
 
@@ -686,13 +707,15 @@ void CRadialBasisFunctionInterpolation::ProjectSlidingNodes(CGeometry* geometry,
       su2double projection[3] = {0.0, 0.0, 0.0};
       ApplyProjection(geometry, markerLocal, node, projection);
       auto nc = nodes[iNode]->GetNewCoord();
-      proj << projection[0] << "\t" << projection[1] << endl;
+      proj << node->GetIndex() << "\t" << nc[0] - projection[0] << "\t" << nc[1] - projection[1] << "\t" << nc[2] - projection[2] << endl;
       UpdateVarCoord(geometry, config, node, projection);
     }
+    
   }
   free.close();
   init.close();
   proj.close();
+
 }
 
 void CRadialBasisFunctionInterpolation::InitializeDataReduction(CGeometry* geometry, CConfig* config, const bool Derivative, unsigned long& maxErrorNodeLocal, su2double& maxErrorLocal ) {
@@ -2941,15 +2964,17 @@ void CRadialBasisFunctionInterpolation::ApplyRBF(CGeometry* geometry, const RADI
     /*--- Determine distance between considered internal and control node ---*/
     const su2double dist = GetDistance(CtrlCoords[offset], coord);
 
-    // // TODO -  ideally next part is only done in case of sharpEdge == true !!
-    auto nearestNode = node->GetNodeType() == NODETYPE::IL_WALL ? node : nodes[node->GetNearestNode()];
-    auto normal = geometry->vertex[nearestNode->GetMarker()][nearestNode->GetVertex()]->GetNormal();
-    auto mag = GeometryToolbox::Norm(nDim, normal);
-    for (auto iDim = 0u; iDim < nDim; iDim++){
-      normal[iDim] = normal[iDim]/mag;
+    // Only compute edge-based weighting when sharpEdge is enabled
+    su2double contribution = 1.0;
+    if (sharpEdge) {
+      auto nearestNode = node->GetNodeType() == NODETYPE::IL_WALL ? node : nodes[node->GetNearestNode()];
+      auto normal = geometry->vertex[nearestNode->GetMarker()][nearestNode->GetVertex()]->GetNormal();
+      auto mag = GeometryToolbox::Norm(nDim, normal);
+      for (auto iDim = 0u; iDim < nDim; iDim++){
+        normal[iDim] = normal[iDim]/mag;
+      }
+      contribution = GetRbfWeight(normal, &CtrlNormals[offset]);
     }
-    
-    su2double contribution = sharpEdge ? GetRbfWeight(normal, &CtrlNormals[offset]) : 1;
     /*--- Evaluate RBF based on distance ---*/
 
     const auto rbf = contribution * SU2_TYPE::GetValue(CRadialBasisFunction::Get_RadialBasisValue(type, radius, dist));
@@ -3349,10 +3374,10 @@ bool CRadialBasisFunctionInterpolation::Opps(CGeometry* geometry, unordered_set<
 
 su2double CRadialBasisFunctionInterpolation::GetRbfWeight(const su2double* normal1, const su2double* normal2) const {
   su2double cos_ang = GeometryToolbox::DotProduct(nDim, normal1, normal2);
-  const su2double cos_min = -1.0; // 180°
-  const su2double cos_max = -0.0;    // 90°
+  const su2double cos_min = -1; // 180°
+  // const su2double cos_max = -0.0;    // 90°
   // const su2double cos_min = -1.0;   // 180°
-  // const su2double cos_max = -0.5;   // 120°
+  const su2double cos_max = -0.0;   // 120°
   su2double weight = 1.0;
   if (cos_ang < cos_max) {
       if (cos_ang <= cos_min) {
@@ -3362,6 +3387,6 @@ su2double CRadialBasisFunctionInterpolation::GetRbfWeight(const su2double* norma
           weight = (cos_ang - cos_min) / (cos_max - cos_min);
       }
   }
-
+  
   return weight;
 }
