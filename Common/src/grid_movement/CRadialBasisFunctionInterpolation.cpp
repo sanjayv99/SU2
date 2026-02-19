@@ -59,7 +59,7 @@ void CRadialBasisFunctionInterpolation::SetVolume_Deformation(CGeometry* geometr
   su2double MinVolume, MaxVolume;
   DataReduction = config->GetRBF_DataReduction(); // TODO - replace all other instances where config->GetRBF_DataReduction is called.
   PreserveIL = config->GetnMarker_Deform_Mesh_IL() == 0 ? false : true;
-
+  cout << "INFLATION LAYER IS TAKEN INTO CONSIDERATION!!!  " << PreserveIL << endl;
   /*--- Retrieving number of deformation steps and screen output from config ---*/
 
   
@@ -72,7 +72,9 @@ void CRadialBasisFunctionInterpolation::SetVolume_Deformation(CGeometry* geometr
   /*--- Setting periodic variables if neccessary ---*/                                               
   if (config->GetnMarker_Periodic() != 0) SetPeriodicVars(config);
 
-
+  for (auto imarker= 0; imarker < config->GetnMarker_All(); imarker++){
+    cout << imarker << "\t" << config->GetMarker_All_TagBound(imarker) << endl;
+  }
 
   // TODO -  create seperate function for this:
   for (auto iMarker = 0u; iMarker < primaryMarker.size(); iMarker++) {
@@ -173,8 +175,7 @@ void CRadialBasisFunctionInterpolation::SolveRBF_System_IL(CGeometry* geometry, 
       sharpEdge = Opps(geometry, iMarker.second); // TODO - rename function
       // sharpEdge = false;
       cout << "Geometry is sharp: " << sharpEdge << endl;
-      
-      // sharpEdge =false;
+
       if (dataReductionCfg) {
         su2double maxDef = 0;
         unsigned long maxNode;
@@ -321,12 +322,10 @@ void CRadialBasisFunctionInterpolation::SolveRBF_System_IL(CGeometry* geometry, 
 
         geometry->SetBoundControlVolume(config, UPDATE);
 
-        
 
         CtrlTypeVec.resize(2);
         CtrlTypeVec[0] = NODETYPE::IL_WALL;
         CtrlTypeVec[1] = NODETYPE::IL_EDGE;
-
 
         if(dataReductionCfg) {
           su2double maxDef = 2*tol;
@@ -3377,7 +3376,7 @@ su2double CRadialBasisFunctionInterpolation::GetRbfWeight(const su2double* norma
   const su2double cos_min = -1; // 180°
   // const su2double cos_max = -0.0;    // 90°
   // const su2double cos_min = -1.0;   // 180°
-  const su2double cos_max = -0.0;   // 120°
+  const su2double cos_max = -0.5;   // 120°
   su2double weight = 1.0;
   if (cos_ang < cos_max) {
       if (cos_ang <= cos_min) {
