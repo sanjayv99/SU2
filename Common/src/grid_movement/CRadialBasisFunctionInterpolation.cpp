@@ -70,11 +70,20 @@ void CRadialBasisFunctionInterpolation::SetVolume_Deformation(CGeometry* geometr
   /*--- Setting periodic variables if neccessary ---*/                                               
   if (config->GetnMarker_Periodic() != 0) SetPeriodicVars(config);
 
-  for (auto imarker= 0; imarker < config->GetnMarker_All(); imarker++){
-    cout << imarker << "\t" << config->GetMarker_All_TagBound(imarker) << endl;
+  /*--- Finding geometry pairs on periodic boundary ----*/ // TODO -   create seperate function 
+  for (auto iMarker= 0; iMarker < config->GetnMarker_All(); iMarker++){
+    auto node = geometry->vertex[iMarker][0]->GetNode();
+    if (config->GetMarker_All_Deform_Mesh_IL(iMarker)) {
+      for (auto iVertex = 0ul; iVertex < geometry->GetnVertex(iMarker); iVertex++) {
+        auto iNode = geometry->vertex[iMarker][iVertex]->GetNode();
+        if (geometry->nodes->GetPeriodicBoundary(iNode)){
+          (isPrimaryPeriodicNode(geometry, config, node) ? primaryMarker : secondaryMarker).push_back(iMarker);
+          break;
+        }
+      }      
+    }    
   }
 
-  // TODO -  create seperate function for this:
   for (auto iMarker = 0u; iMarker < primaryMarker.size(); iMarker++) {
     sec2prim[secondaryMarker[iMarker]] = primaryMarker[iMarker];
   }
@@ -875,7 +884,7 @@ const bool CRadialBasisFunctionInterpolation::SetBoundNodes(CGeometry* geometry,
         const bool isSliding = config->GetMarker_All_Deform_Mesh_Slide(iMarker);
         const bool hasInflationLayer = config->GetMarker_All_Deform_Mesh_IL(iMarker);
 
-      
+
         for (auto iVertex = 0ul; iVertex < geometry->nVertex[iMarker]; iVertex++) {
           
           /*--- Get index of node, if not part of domain then skip ---*/
@@ -1469,7 +1478,7 @@ void CRadialBasisFunctionInterpolation::SetInternalNodes(CGeometry* geometry, CC
       } else {
         internalNodes.push_back(iNode);
       }
-    } else if (geometry->nodes->GetPeriodicBoundary(iNode) && !is_in_nodes(iNode)) {     
+    } else if (geometry->nodes->GetPeriodicBoundary(iNode) && !is_in_nodes(iNode)) {
         su2double dist;
         unsigned long pointID;
         int rankID;
@@ -1563,7 +1572,7 @@ void CRadialBasisFunctionInterpolation::SetInternalNodes(CGeometry* geometry, CC
             }
           } else {
           internalNodes.push_back(iNode);
-          }  
+        }
         } else {
           internalNodes.push_back(iNode);
         }
