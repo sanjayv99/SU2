@@ -59,10 +59,8 @@ void CRadialBasisFunctionInterpolation::SetVolume_Deformation(CGeometry* geometr
   su2double MinVolume, MaxVolume;
   DataReduction = config->GetRBF_DataReduction(); // TODO - replace all other instances where config->GetRBF_DataReduction is called.
   PreserveIL = config->GetnMarker_Deform_Mesh_IL() == 0 ? false : true;
-  cout << "INFLATION LAYER IS TAKEN INTO CONSIDERATION!!!  " << PreserveIL << endl;
-  /*--- Retrieving number of deformation steps and screen output from config ---*/
 
-  
+  /*--- Retrieving number of deformation steps and screen output from config ---*/  
   auto Screen_Output = config->GetDeform_Output();
   
   /*--- Disable the screen output if we're running SU2_CFD ---*/
@@ -1563,6 +1561,8 @@ void CRadialBasisFunctionInterpolation::SetInternalNodes(CGeometry* geometry, CC
 
               layerNodes[globalMarker].push_back(iNode);
             }
+          } else {
+          internalNodes.push_back(iNode);
           }  
         } else {
           internalNodes.push_back(iNode);
