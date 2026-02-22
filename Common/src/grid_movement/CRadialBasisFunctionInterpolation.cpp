@@ -70,22 +70,24 @@ void CRadialBasisFunctionInterpolation::SetVolume_Deformation(CGeometry* geometr
   /*--- Setting periodic variables if neccessary ---*/                                               
   if (config->GetnMarker_Periodic() != 0) SetPeriodicVars(config);
 
-  /*--- Finding geometry pairs on periodic boundary ----*/ // TODO -   create seperate function 
-  for (auto iMarker= 0; iMarker < config->GetnMarker_All(); iMarker++){
-    auto node = geometry->vertex[iMarker][0]->GetNode();
-    if (config->GetMarker_All_Deform_Mesh_IL(iMarker)) {
-      for (auto iVertex = 0ul; iVertex < geometry->GetnVertex(iMarker); iVertex++) {
-        auto iNode = geometry->vertex[iMarker][iVertex]->GetNode();
-        if (geometry->nodes->GetPeriodicBoundary(iNode)){
-          (isPrimaryPeriodicNode(geometry, config, node) ? primaryMarker : secondaryMarker).push_back(iMarker);
-          break;
-        }
-      }      
-    }    
-  }
+  if (!Derivative && PreserveIL) {
+    /*--- Finding geometry pairs on periodic boundary ----*/ // TODO -   create seperate function 
+    for (auto iMarker= 0; iMarker < config->GetnMarker_All(); iMarker++){
+      auto node = geometry->vertex[iMarker][0]->GetNode();
+      if (config->GetMarker_All_Deform_Mesh_IL(iMarker)) {
+        for (auto iVertex = 0ul; iVertex < geometry->GetnVertex(iMarker); iVertex++) {
+          auto iNode = geometry->vertex[iMarker][iVertex]->GetNode();
+          if (geometry->nodes->GetPeriodicBoundary(iNode)){
+            (isPrimaryPeriodicNode(geometry, config, node) ? primaryMarker : secondaryMarker).push_back(iMarker);
+            break;
+          }
+        }      
+      }    
+    }
 
-  for (auto iMarker = 0u; iMarker < primaryMarker.size(); iMarker++) {
-    sec2prim[secondaryMarker[iMarker]] = primaryMarker[iMarker];
+    for (auto iMarker = 0u; iMarker < primaryMarker.size(); iMarker++) {
+      sec2prim[secondaryMarker[iMarker]] = primaryMarker[iMarker];
+    }
   }
 
   /*--- Determining the boundary and internal nodes. Setting the control nodes. ---*/ 
