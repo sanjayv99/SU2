@@ -69,31 +69,14 @@ void CRadialBasisFunctionInterpolation::SetVolume_Deformation(CGeometry* geometr
 
   /*--- Setting periodic variables if neccessary ---*/                                               
   if (config->GetnMarker_Periodic() != 0) SetPeriodicVars(config);
-
+               
   if (!Derivative && PreserveIL) {
-    /*--- Finding geometry pairs on periodic boundary ----*/ // TODO -   create seperate function 
-    for (auto iMarker= 0; iMarker < config->GetnMarker_All(); iMarker++){
-      auto node = geometry->vertex[iMarker][0]->GetNode();
-      if (config->GetMarker_All_Deform_Mesh_IL(iMarker)) {
-        for (auto iVertex = 0ul; iVertex < geometry->GetnVertex(iMarker); iVertex++) {
-          auto iNode = geometry->vertex[iMarker][iVertex]->GetNode();
-          if (geometry->nodes->GetPeriodicBoundary(iNode)){
-            (isPrimaryPeriodicNode(geometry, config, node) ? primaryMarker : secondaryMarker).push_back(iMarker);
-            break;
-          }
-        }      
-      }    
-    }
-
-    for (auto iMarker = 0u; iMarker < primaryMarker.size(); iMarker++) {
-      sec2prim[secondaryMarker[iMarker]] = primaryMarker[iMarker];
-    }
+    SetPeriodicGeoPairs(geometry, config);
   }
 
   /*--- Determining the boundary and internal nodes. Setting the control nodes. ---*/ 
   const bool surfaceCorrection = SetBoundNodes(geometry, config, Derivative);
   
-
   vector<unsigned long> internalNodes; 
   if(Derivative) {
     SetInternalNodesDerivative(geometry, config, internalNodes);
@@ -3399,4 +3382,23 @@ su2double CRadialBasisFunctionInterpolation::GetRbfWeight(const su2double* norma
   }
   
   return weight;
+}
+
+void CRadialBasisFunctionInterpolation::SetPeriodicGeoPairs(CGeometry* geometry, CConfig* config) {
+  
+  for (auto iMarker = 0u; iMarker < config->GetnMarker_All(); iMarker++){
+    if (config->GetMarker_All_Deform_Mesh_IL(iMarker)) {
+      for (auto iVertex = 0ul; iVertex < geometry->GetnVertex(iMarker); iVertex++) {
+        auto iNode = geometry->vertex[iMarker][iVertex]->GetNode();
+        if (geometry->nodes->GetPeriodicBoundary(iNode)){
+          (isPrimaryPeriodicNode(geometry, config, iNode) ? primaryMarker : secondaryMarker).push_back(iMarker);
+          break;
+        }
+      }      
+    }    
+  }
+
+  for (auto iMarker = 0u; iMarker < primaryMarker.size(); iMarker++) {
+    sec2prim[secondaryMarker[iMarker]] = primaryMarker[iMarker];
+  }
 }

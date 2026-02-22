@@ -594,6 +594,8 @@ public:
   void SetCorrection_IL(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type, const vector<unsigned long>& internalNodes, unsigned short marker);
   bool Opps(CGeometry* geometry, unordered_set<unsigned long> &nodeIndices);
   su2double GetRbfWeight(const su2double* normal1, const su2double* normal2) const ;
+
+  void SetPeriodicGeoPairs(CGeometry* geometry, CConfig* config);
 };
 
 
