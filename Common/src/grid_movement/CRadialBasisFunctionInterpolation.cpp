@@ -184,6 +184,9 @@ void CRadialBasisFunctionInterpolation::SolveRBF_System_IL(CGeometry* geometry, 
 
         tol = dr_tol * sqrt(maxDef);
 
+        constexpr su2double min_tol = 1e-12;
+        if (tol < min_tol) tol = min_tol;
+
         AddControlNode(config, maxNode);
         
         while(sqrt(maxDef) > tol) {
@@ -638,6 +641,10 @@ void CRadialBasisFunctionInterpolation::InitializeDataReduction(CGeometry* geome
     
   /*--- Error tolerance for the data reduction tolerance ---*/
   dataReductionTolerance = config->GetRBF_DataRedTolerance() * MaxErrorGlobal; 
+
+  constexpr su2double min_tol = 1e-12;
+  if (dataReductionTolerance < min_tol) dataReductionTolerance = min_tol;
+
 }
 
 void CRadialBasisFunctionInterpolation::InitializeDataReduction(CGeometry* geometry, const bool Derivative, const unordered_set<unsigned long>& nodeSet, unsigned long& maxErrorNodeLocal, su2double& maxErrorLocal) {
