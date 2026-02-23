@@ -27,6 +27,7 @@
 
 #include "../../include/grid_movement/CRadialBasisFunctionInterpolation.hpp"
 #include "../../include/interface_interpolation/CRadialBasisFunction.hpp"
+#include <iomanip>
 
 using NODETYPE = CRadialBasisFunctionNode::NODETYPE;
 constexpr passivedouble CRadialBasisFunctionInterpolation::NORMAL_THRESHOLD; 
@@ -163,12 +164,22 @@ void CRadialBasisFunctionInterpolation::SolveRBF_System_IL(CGeometry* geometry, 
 
     for (auto iMarker : node_indices[NODETYPE::IL_WALL]){   
       
+      auto tag = config->GetMarker_All_TagBound(iMarker.first);
+      if (find(primaryMarker.begin(), primaryMarker.end(), iMarker.first) != primaryMarker.end()) {
+        tag += ", " + config->GetMarker_All_TagBound(prim2sec[iMarker.first]);
+      } 
+      
       // check if tag potentially has a sharp edge
       sharpEdge = Opps(geometry, iMarker.second); // TODO - rename function
-      // sharpEdge = false;
-      cout << "Geometry is sharp: " << sharpEdge << endl;
+
+      unsigned long greedyIterations = 0;
 
       if (dataReductionCfg) {
+        
+        if (rank == MASTER_NODE && Screen_Output) {
+          cout << "\nGreedy iteration inflation layer of marker(s) " << tag <<  endl;
+        }
+
         su2double maxDef = 0;
         unsigned long maxNode;
         InitializeDataReduction(geometry, Derivative, iMarker.second, maxNode, maxDef);
@@ -194,6 +205,13 @@ void CRadialBasisFunctionInterpolation::SolveRBF_System_IL(CGeometry* geometry, 
             }
           }
           AddControlNode(config, maxNode);
+          greedyIterations++;
+           if (rank == MASTER_NODE && Screen_Output && greedyIterations % 50 == 0 ) {
+            cout << setw(12) << "Greedy iter: " << setw(6) << greedyIterations << "  "
+                << setw(10) << "Max err: " << setw(12) << sqrt(maxDef) << "  "
+                << setw(6) <<"tol: " << setw(12) << tol << "  "
+                << setw(12) <<"nr ctrl nodes: "  << setw(6) << nCtrlNodesGlobal << endl;
+          } 
         }
       }
       else {        
@@ -321,6 +339,7 @@ void CRadialBasisFunctionInterpolation::SolveRBF_System_IL(CGeometry* geometry, 
 
         if(dataReductionCfg) {
           su2double maxDef = 2*tol;
+        
           while(sqrt(maxDef) > tol) {
             GetInterpolationCoefficients(geometry, config, type, radius_IL, ForwardProjectionDerivative, rhs, invInterpMat);
             
@@ -339,10 +358,16 @@ void CRadialBasisFunctionInterpolation::SolveRBF_System_IL(CGeometry* geometry, 
                 // MaxErrorGlobal = sqrt(maxDef); // TODO -  
               }
             }
-            cout << "max error squared: " << sqrt(maxDef) << "\t" << tol << "\t" <<  nodes[maxNode]->GetIndex() << "\t" << nodes[maxNode]->GetNewCoord()[0] << "\t" << nodes[maxNode]->GetNewCoord()[1] <<
-                  "\t" << geometry->nodes->GetCoord(nodes[maxNode]->GetIndex())[0] << "\t" << geometry->nodes->GetCoord(nodes[maxNode]->GetIndex())[1] <<  endl;
+          
+          greedyIterations++;
+          if (rank == MASTER_NODE && Screen_Output && greedyIterations % 50 == 0 ) {
+            cout << setw(12) << "Greedy iter: " << setw(6) << greedyIterations << "  "
+                << setw(10) << "Max err: " << setw(12) << sqrt(maxDef) << "  "
+                << setw(6) <<"tol: " << setw(12) << tol << "  "
+                << setw(12) <<"nr ctrl nodes: "  << setw(6) << nCtrlNodesGlobal << endl;
+          } 
 
-            AddControlNode(config, maxNode);
+          if (sqrt(maxDef) > tol) AddControlNode(config, maxNode);
           }          
         } else {
           for (auto iNode : edge_nodes) {
@@ -584,6 +609,10 @@ void CRadialBasisFunctionInterpolation::SolveRBF_System(CGeometry* geometry, CCo
     InitializeDataReduction(geometry, config, Derivative, maxErrorNodeLocal, maxErrorLocal);
   } 
 
+  if (rank == MASTER_NODE && Screen_Output && DataReduction) {
+    cout << "\nGreedy iteration interior domain " <<  endl;
+  } 
+
   /*--- While the maximum error is above the tolerance, data reduction algorithm is continued. ---*/
   while(((MaxErrorGlobal > dataReductionTolerance)  || greedyIterations == 0)){ 
     // if(!Derivative){
@@ -624,15 +653,14 @@ void CRadialBasisFunctionInterpolation::SolveRBF_System(CGeometry* geometry, CCo
     
     greedyIterations++;
 
-    if (rank == MASTER_NODE && Screen_Output && greedyIterations % 1 == 0 ) {
-      cout << "Greedy iteration: " << greedyIterations
-           << ". Max error: " << MaxErrorGlobal 
-           << ". Global nr. of ctrl nodes: "  << nCtrlNodesGlobal << endl;
+    if (rank == MASTER_NODE && DataReduction && Screen_Output && greedyIterations % 50 == 0 ) {
+      cout << setw(12) << "Greedy iter: " << setw(6) << greedyIterations << "  "
+        << setw(10) << "Max err: " << setw(12) << MaxErrorGlobal << "  "
+        << setw(6) <<"tol: " << setw(12) << dataReductionTolerance << "  "
+        << setw(12) <<"nr ctrl nodes: "  << setw(6) << nCtrlNodesGlobal << endl;
     } 
   } 
   GetPeriodicNodeErrors(geometry, config, type, radius, Derivative);
-// TODO -  remove
-  // cout << "rank: " << rank << " local nCtrl: " << nCtrlNodesLocal << " global nCtrl: " << nCtrlNodesGlobal <<  " total points: " << geometry->GetnPoint() << " global n points: " << geometry->GetGlobal_nPoint() << " internal nodes: " << internalNodes.size() << endl; 
   
   /*--- Once the data reduction tolerance is reached the error for the periodic nodes has to be determined. ---*/
   if (Derivative){
