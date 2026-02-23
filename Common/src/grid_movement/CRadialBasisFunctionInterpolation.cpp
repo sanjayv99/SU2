@@ -3400,5 +3400,6 @@ void CRadialBasisFunctionInterpolation::SetPeriodicGeoPairs(CGeometry* geometry,
 
   for (auto iMarker = 0u; iMarker < primaryMarker.size(); iMarker++) {
     sec2prim[secondaryMarker[iMarker]] = primaryMarker[iMarker];
+    prim2sec[primaryMarker[iMarker]] = secondaryMarker[iMarker];
   }
 }

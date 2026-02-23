@@ -91,6 +91,7 @@ protected:
   vector<unsigned long> secondaryMarker;
 
   unordered_map<unsigned short, unsigned short> sec2prim;
+  unordered_map<unsigned short, unsigned short> prim2sec;
   
   bool sharpEdge = false;
 
