@@ -59,7 +59,7 @@ void CRadialBasisFunctionInterpolation::SetVolume_Deformation(CGeometry* geometr
   nIter = Derivative ? 1 : config->GetGridDef_Nonlinear_Iter();
   su2double MinVolume, MaxVolume;
   DataReduction = config->GetRBF_DataReduction(); // TODO - replace all other instances where config->GetRBF_DataReduction is called.
-  PreserveIL = config->GetnMarker_Deform_Mesh_IL() == 0 ? false : true;
+  PreserveIL = (config->GetnMarker_Deform_Mesh_IL() != 0) && !Derivative;
 
   /*--- Retrieving number of deformation steps and screen output from config ---*/  
   auto Screen_Output = config->GetDeform_Output();
@@ -148,8 +148,9 @@ void CRadialBasisFunctionInterpolation::SetVolume_Deformation(CGeometry* geometr
 
 void CRadialBasisFunctionInterpolation::SolveRBF_System_IL(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type, const bool Derivative, const bool ForwardProjectionDerivative, const bool Screen_Output) {
   
-    CtrlTypeVec.resize(1);
-    CtrlTypeVec[0] = NODETYPE::IL_WALL;
+    CtrlTypeVec.clear();
+    CtrlTypeVec.push_back(NODETYPE::IL_WALL);
+
     su2passivematrix invInterpMat;
     const auto dataReductionCfg = config->GetRBF_DataReduction();
     auto dr_tol = config->GetRBF_DataRedTolerance();
@@ -449,6 +450,11 @@ void CRadialBasisFunctionInterpolation::SolveRBF_System_IL(CGeometry* geometry, 
                 error[iDim] = new_c[iDim] - init_c[iDim] - var_c[iDim]/nIter;
               }
               nodes[x]->SetError(error, nDim);
+              su2double errMag = GeometryToolbox::Norm(nDim, error);
+              if (errMag > MaxErrorGlobal){
+                MaxErrorGlobal = errMag;
+              }
+
              }
             for (auto x : node_indices[NODETYPE::IL_EDGE][iMarker.first]) {
               auto init_c = geometry->nodes->GetCoord(nodes[x]->GetIndex());
@@ -459,6 +465,10 @@ void CRadialBasisFunctionInterpolation::SolveRBF_System_IL(CGeometry* geometry, 
                 error[iDim] = new_c[iDim] - init_c[iDim] - var_c[iDim]/nIter;
               }
               nodes[x]->SetError(error, nDim);
+            su2double errMag = GeometryToolbox::Norm(nDim, error);
+            if (errMag > MaxErrorGlobal){
+              MaxErrorGlobal = errMag;
+            }
             } 
           }
           //update control coords
@@ -615,14 +625,12 @@ void CRadialBasisFunctionInterpolation::SolveRBF_System(CGeometry* geometry, CCo
 
   /*--- While the maximum error is above the tolerance, data reduction algorithm is continued. ---*/
   while(((MaxErrorGlobal > dataReductionTolerance)  || greedyIterations == 0)){ 
-    // if(!Derivative){
-      CtrlTypeVec.resize(2);
-      CtrlTypeVec[0] = NODETYPE::DISPLACED;
-      CtrlTypeVec[1] = NODETYPE::IL_EDGE;
-    // } else{
-      // CtrlTypeVec.resize(1);
-      // CtrlTypeVec[0] = NODETYPE::DISPLACED;
-    // }
+    
+    CtrlTypeVec.clear();
+    CtrlTypeVec.push_back(NODETYPE::DISPLACED);
+    if (PreserveIL){
+      CtrlTypeVec.push_back(NODETYPE::IL_EDGE);
+    }
       
     /*--- In case of a nonzero local error, control nodes are added ---*/
     if(maxErrorLocal> 0){
@@ -747,7 +755,7 @@ void CRadialBasisFunctionInterpolation::InitializeDataReduction(CGeometry* geome
   su2double normSquaredDeformation = 0;
   passivedouble sens_i = 0.0;
 
-  const auto& markers = node_indices[NODETYPE::IL_EDGE];  // FIXME - initially this was displaced 
+  const auto& markers = node_indices[PreserveIL ? NODETYPE::IL_EDGE : NODETYPE::DISPLACED];  
   for (const auto& iMarker : markers) {
     InitializeDataReduction(geometry, Derivative, iMarker.second, maxErrorNodeLocal, maxErrorLocal);
   }
