@@ -147,7 +147,10 @@ void CRadialBasisFunctionInterpolation::SetVolume_Deformation(CGeometry* geometr
 }
 
 void CRadialBasisFunctionInterpolation::SolveRBF_System_IL(CGeometry* geometry, CConfig* config, const RADIAL_BASIS& type, const bool Derivative, const bool ForwardProjectionDerivative, const bool Screen_Output) {
-  
+
+    CtrlTypeVec.clear();
+    CtrlTypeVec.push_back(NODETYPE::IL_WALL);
+
     su2passivematrix invInterpMat;
     const auto dataReductionCfg = config->GetRBF_DataReduction();
     auto dr_tol = config->GetRBF_DataRedTolerance();
@@ -158,9 +161,7 @@ void CRadialBasisFunctionInterpolation::SolveRBF_System_IL(CGeometry* geometry, 
     DataReduction = true;    
 
     for (auto iMarker : node_indices[NODETYPE::IL_WALL]){   
-
-      CtrlTypeVec.clear();
-      CtrlTypeVec.push_back(NODETYPE::IL_WALL);
+     
       
       auto tag = config->GetMarker_All_TagBound(iMarker.first);
       if (find(primaryMarker.begin(), primaryMarker.end(), iMarker.first) != primaryMarker.end()) {
@@ -184,8 +185,8 @@ void CRadialBasisFunctionInterpolation::SolveRBF_System_IL(CGeometry* geometry, 
 
         tol = dr_tol * sqrt(maxDef);
 
-        constexpr passivedouble min_tol = 1e-12;
-        if (tol < min_tol) tol = min_tol;
+        // constexpr passivedouble min_tol = 1e-12;
+        // if (tol < min_tol) tol = min_tol;
 
         AddControlNode(config, maxNode);
         
@@ -587,7 +588,7 @@ void CRadialBasisFunctionInterpolation::ProjectSlidingNodes(CGeometry* geometry,
     /*--- Obtaining the local marker ---*/
     const auto markerGlobal = iMarker.first;
     const auto markerLocal = config->GetMarker_Local(markerGlobal);
-    auto tag = config->GetMarker_All_TagBound(markerLocal);
+
 
     
     /*--- Create global ADT for points of specific marker and nodetype.
@@ -642,8 +643,8 @@ void CRadialBasisFunctionInterpolation::InitializeDataReduction(CGeometry* geome
   /*--- Error tolerance for the data reduction tolerance ---*/
   dataReductionTolerance = config->GetRBF_DataRedTolerance() * MaxErrorGlobal; 
 
-  constexpr passivedouble min_tol = 1e-12;
-  if (dataReductionTolerance < min_tol) dataReductionTolerance = min_tol;
+  // constexpr passivedouble min_tol = 1e-12;
+  // if (dataReductionTolerance < min_tol) dataReductionTolerance = min_tol;
 
 }
 
@@ -960,11 +961,11 @@ void CRadialBasisFunctionInterpolation::GetInverseInterpolationMatrix(CGeometry*
   
 
   /*---  Build the interpolation matrix in parallel or sequentially ---*/
-  // #ifdef HAVE_MPI
-  //   GetInterpolationMatrixParallel(geometry, type, radius, interpMat);    
-  // #else
-  GetInterpolationMatrixSequential(geometry, type, radius, interpMat);    
-  // #endif
+  #ifdef HAVE_MPI
+    GetInterpolationMatrixParallel(geometry, type, radius, interpMat);    
+  #else
+    GetInterpolationMatrixSequential(geometry, type, radius, interpMat);    
+  #endif
   
   /*--- Check if the kernel is symmetric positive definite ---*/
   const bool kernelIsSPD = (type == RADIAL_BASIS::WENDLAND_C2) || (type == RADIAL_BASIS::GAUSSIAN) ||
