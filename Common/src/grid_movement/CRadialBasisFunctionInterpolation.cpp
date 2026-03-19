@@ -961,11 +961,11 @@ void CRadialBasisFunctionInterpolation::GetInverseInterpolationMatrix(CGeometry*
   
 
   /*---  Build the interpolation matrix in parallel or sequentially ---*/
-  #ifdef HAVE_MPI
-    GetInterpolationMatrixParallel(geometry, type, radius, interpMat);    
-  #else
+  // #ifdef HAVE_MPI
+  //   GetInterpolationMatrixParallel(geometry, type, radius, interpMat);    
+  // #else
     GetInterpolationMatrixSequential(geometry, type, radius, interpMat);    
-  #endif
+  // #endif
   
   /*--- Check if the kernel is symmetric positive definite ---*/
   const bool kernelIsSPD = (type == RADIAL_BASIS::WENDLAND_C2) || (type == RADIAL_BASIS::GAUSSIAN) ||
