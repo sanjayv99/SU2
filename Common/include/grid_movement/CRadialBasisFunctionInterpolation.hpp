@@ -41,6 +41,7 @@
  */
 class CRadialBasisFunctionInterpolation : public CVolumetricMovement {
 protected:
+  bool OverwritePeriodicity = false;
   bool DataReduction;
   vector<su2double> CtrlNodeDeformation;  /*!< \brief Control Node Deformation.*/  // TODO -  change name such that it can also contain sensitivity
 

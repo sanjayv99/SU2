@@ -662,6 +662,7 @@ private:
   bool RBF_DataReduction;            /*!< \brief Determines use of data reduction methods for RBF mesh deformation. */
   su2double RBF_GreedyTolerance;      /*!< \brief Tolerance used in the greedy data reduction for RBF mesh deformation. */
   su2double RBF_GreedyCorrectionFactor;   /*!< \brief Correction factor used in the greedy algorithm for RBF mesh deformation. */
+  bool RBF_OverwritePeriodicity;      /*!< \brief Not using periodic radial basis function in periodic domain. */
   unsigned short FFD_Continuity;     /*!< \brief Surface continuity at the intersection with the FFD */
   unsigned short FFD_CoordSystem;    /*!< \brief Define the coordinates system */
   su2double Deform_ElasticityMod,    /*!< \brief Young's modulus for volume deformation stiffness model */
@@ -4463,6 +4464,12 @@ public:
    * \return <code>TRUE</code> means that data reduction is used.
    */
   su2double GetRBF_DataRedCorrectionFactor(void) const { return RBF_GreedyCorrectionFactor; }
+
+  /*!
+   * \brief Determines not using periodic radial basis function for RBF mesh deformation in periodic domain.
+   * \return <code>TRUE</code> means that non-periodic version is used.
+   */
+  bool GetRBF_OverwritePeriodicity(void) const { return RBF_OverwritePeriodicity; }
 
   // TODO -  
   bool GetWrt_Mesh_Qual_Statistics(void) const { return Wrt_MeshQualStatistics; }

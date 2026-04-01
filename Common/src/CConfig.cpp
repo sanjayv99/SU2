@@ -2391,6 +2391,8 @@ void CConfig::SetConfig_Options() {
   addDoubleOption("RBF_GREEDY_TOLERANCE", RBF_GreedyTolerance, 1E-2);
   /* DESCRIPTION: Tolerance for the data reduction methods used in RBF mesh deformation. */
   addDoubleOption("RBF_GREEDY_CORRECTION_FACTOR", RBF_GreedyCorrectionFactor, 1E-2);
+  /* DESCRIPTION: Overwriting use of periodic radial basis functions in periodic domain in RBF mesh deformation. */
+  addBoolOption("RBF_OVERWRITE_PERIODICITY", RBF_OverwritePeriodicity, false);
   addBoolOption("WRT_MESH_QUAL_STATISTICS", Wrt_MeshQualStatistics, false);
   addStringOption("MESH_QUAL_FILENAME", Mesh_Qual_FileName, string("mesh_qualitity_statistics.dat"));
   /* DESCRIPTION: Mode of inflation layer during RBF mesh deformation */

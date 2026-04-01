@@ -60,7 +60,7 @@ void CRadialBasisFunctionInterpolation::SetVolume_Deformation(CGeometry* geometr
   su2double MinVolume, MaxVolume;
   DataReduction = config->GetRBF_DataReduction(); // TODO - replace all other instances where config->GetRBF_DataReduction is called.
   PreserveIL = (config->GetnMarker_Deform_Mesh_IL() != 0) && !Derivative;
-  
+   
   /*--- Retrieving number of deformation steps and screen output from config ---*/  
   auto Screen_Output = config->GetDeform_Output();
   
@@ -69,7 +69,8 @@ void CRadialBasisFunctionInterpolation::SetVolume_Deformation(CGeometry* geometr
   if (config->GetSmoothGradient()) Screen_Output = true;
 
   /*--- Setting periodic variables if neccessary ---*/                                               
-  if (config->GetnMarker_Periodic() != 0) SetPeriodicVars(config);
+  OverwritePeriodicity = config->GetRBF_OverwritePeriodicity();
+  if (config->GetnMarker_Periodic() != 0 && !OverwritePeriodicity) SetPeriodicVars(config);
                
   if (!Derivative && PreserveIL) {
     SetPeriodicGeoPairs(geometry, config);
@@ -863,7 +864,7 @@ const bool CRadialBasisFunctionInterpolation::SetBoundNodes(CGeometry* geometry,
           
           
           else {
-              if(geometry->nodes->GetPeriodicBoundary(iNode)) {
+              if(geometry->nodes->GetPeriodicBoundary(iNode) && !OverwritePeriodicity) {
                 auto& target_list = isPrimaryPeriodicNode(geometry, config, iNode) ? nodes : per_nodes;        
                 add_node(target_list, iNode, iMarker, iVertex, NODETYPE::DISPLACED);
               } else {
@@ -932,7 +933,7 @@ const bool CRadialBasisFunctionInterpolation::SetBoundNodes(CGeometry* geometry,
     auto type = per_nodes[x]->GetNodeType();
     per_node_indices[type][global_marker].insert(x);
   }
-  
+
   return surfaceCorrection;
 }
 
@@ -941,7 +942,7 @@ const bool CRadialBasisFunctionInterpolation::isPrimaryPeriodicNode(CGeometry* g
   bool isPrimaryNode = false;
   
   /*--- Finding the corresponding periodic marker index ---*/
-  unsigned short perMarker;              
+  unsigned short perMarker;
   for (auto jMarker = 0u; jMarker < config->GetnMarker_All(); jMarker++){
     if (geometry->nodes->GetVertex(nodeIndex, jMarker) != -1 && config->GetMarker_All_PerBound(jMarker)) {
 
@@ -1584,7 +1585,7 @@ void CRadialBasisFunctionInterpolation::UpdateInternalCoords(CGeometry* geometry
 
       /*--- Evaluate RBF based on distance ---*/
       su2double rbf = SU2_TYPE::GetValue(CRadialBasisFunction::Get_RadialBasisValue(type, radius, dist));
-    
+      
       /*--- Add contribution to total coordinate variation ---*/
       for(auto iDim = 0u; iDim < nDim; iDim++){
         var_coord[iDim] += rbf*InterpCoeff[jNode * nDim + iDim];
