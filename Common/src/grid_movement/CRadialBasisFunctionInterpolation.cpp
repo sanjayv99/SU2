@@ -1587,7 +1587,7 @@ void CRadialBasisFunctionInterpolation::UpdateGridCoord_Derivatives(CGeometry* g
     
     for (auto iDim = 0u; iDim < nDim; iDim++) {
       // summation of current sensitivity and the computed update
-      su2double sens_new =  geometry->GetSensitivity(iPoint, iDim) + sensitivityUpdate[near_point_id * nDim + iDim];
+      su2double sens_new =  geometry->GetSensitivity(iPoint, iDim) + sensitivityUpdate[near_point_id * nDim + iDim]/2;
       // if (iDim == 0 ){
       //   cout << "periodic node: "<<  geometry->nodes->GetGlobalIndex(iPoint) << "\t" << sensitivityUpdate[near_point_id * nDim] <<  "\t" << sensitivityUpdate[near_point_id * nDim + 1] << endl;
       //   cout << *CtrlCoords[near_point_id *nDim] << "\t" << *CtrlCoords[near_point_id *nDim+1] << endl;
@@ -1628,12 +1628,19 @@ void CRadialBasisFunctionInterpolation::UpdateGridCoord_Derivatives(CGeometry* g
         
             for (auto iDim = 0u; iDim < nDim; iDim++) {
               // summation of current sensitivity and the computed update
-              su2double sens_new =  geometry->GetSensitivity(iPoint, iDim) + sensitivityUpdate[idx * nDim + iDim];
+              if (geometry->nodes->GetPeriodicBoundary(iPoint)){
+                su2double sens_new =  geometry->GetSensitivity(iPoint, iDim) + sensitivityUpdate[idx * nDim + iDim]/2;  
+                geometry->SetSensitivity(iPoint, iDim, sens_new);
+              }else {
+                su2double sens_new =  geometry->GetSensitivity(iPoint, iDim) + sensitivityUpdate[idx * nDim + iDim];
+                geometry->SetSensitivity(iPoint, iDim, sens_new);
+              }
+              
               // if (geometry->nodes->GetPeriodicBoundary(iPoint) && iDim == 0) {
               //   cout << geometry->nodes->GetGlobalIndex(iPoint) << "\t" <<   sensitivityUpdate[idx * nDim ] << "\t"  << sensitivityUpdate[idx * nDim + 1] << endl;
               //   cout << *CtrlCoords[idx*nDim] << "\t" << *CtrlCoords[idx*nDim+1 ] << endl;
               // }              
-              geometry->SetSensitivity(iPoint, iDim, sens_new);
+              
             }
           }
           idx++;
