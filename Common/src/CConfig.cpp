@@ -8973,9 +8973,10 @@ unsigned short CConfig::GetMarker_SobolevBC(const string& val_marker) const {
 
   return iMarker_Sobolev;
 }
-
+// FIXME Double check this function 
 short CConfig::GetMarker_Local(unsigned short val_marker) const {
   const auto tag = GetMarker_CfgFile_TagBound(val_marker);
+  // cout << val_marker << " " << tag << " " << GetMarker_All_TagBound(tag) << endl;
   return GetMarker_All_TagBound(tag);
 }
 

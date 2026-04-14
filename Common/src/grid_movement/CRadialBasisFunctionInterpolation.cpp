@@ -765,6 +765,14 @@ const bool CRadialBasisFunctionInterpolation::SetBoundNodes(CGeometry* geometry,
           if(geometry->nodes->GetPeriodicBoundary(iNode)){
             auto& target_list = isPrimaryPeriodicNode(geometry, config, iNode) ? nodes : per_nodes;
             add_node(target_list, iNode, iMarker, iVertex, NODETYPE::DISPLACED);
+            for (auto iDim = 0u; iDim < nDim; iDim++) {
+              // cout << iNode << " " << iMarker << " " << SU2_TYPE::GetValue(geometry->GetSensitivity(iNode, iDim)) << endl;
+            }
+            if (!isPrimaryPeriodicNode(geometry, config, iNode)){
+              
+              // const auto& markerLocal = config->GetMarker_Local(iMarker);
+              // cout << "periodic node: " << iNode << "\t" << iMarker <<  " rank: " << rank  << " " << config->GetMarker_All_Moving(iMarker) << endl; 
+            } 
           }else{
             add_node(nodes, iNode, iMarker, iVertex, NODETYPE::DISPLACED);
           }
@@ -1084,6 +1092,7 @@ void CRadialBasisFunctionInterpolation::SetBoundaryDisplacements(CGeometry* geom
         
         su2double varCoord[3] = {0.0, 0.0, 0.0};
         if (isMoving) GetNodalDeformation(geometry, config, nodes[iNode], varCoord);
+        // cout << nodes[iNode]->GetIndex() << "\t" << varCoord[0] << "\t" << varCoord[1] << endl;
         for (auto iDim = 0u; iDim < nDim; iDim++){
           CtrlNodeDeformation[baseIndex + iDim] = SU2_TYPE::GetValue(varCoord[iDim]);
         }
@@ -1201,6 +1210,11 @@ void CRadialBasisFunctionInterpolation::SetInternalNodes(CGeometry* geometry, CC
   auto is_in_nodes = [&](unsigned long iNode) {
         return find_if(nodes.begin(), nodes.end(),
             [&](CRadialBasisFunctionNode* n) { return n->GetIndex() == iNode; }) != nodes.end();
+    };
+
+  auto is_in_per_nodes = [&](unsigned long iNode) {
+        return find_if(per_nodes.begin(), per_nodes.end(),
+            [&](CRadialBasisFunctionNode* n) { return n->GetIndex() == iNode; }) != per_nodes.end();
     };
 
   /*--- Add all non-boundary nodes and periodic nodes not already in nodes vector ---*/
@@ -1434,11 +1448,16 @@ void CRadialBasisFunctionInterpolation::SetInternalNodesDerivative(CGeometry* ge
             [&](CRadialBasisFunctionNode* n) { return n->GetIndex() == iNode; }) != nodes.end();
     };
 
+  auto is_in_per_nodes = [&](unsigned long iNode) {
+        return find_if(per_nodes.begin(), per_nodes.end(),
+            [&](CRadialBasisFunctionNode* n) { return n->GetIndex() == iNode; }) != per_nodes.end();
+    };
+
   /*--- Add all non-boundary nodes and periodic nodes not already in nodes vector ---*/
   for (auto iNode = 0ul; iNode < geometry->GetnPoint(); iNode++) {    
     if (!geometry->nodes->GetBoundary(iNode)) {
       internalNodes.push_back(iNode);
-    } else if (geometry->nodes->GetPeriodicBoundary(iNode) && !is_in_nodes(iNode)) {      
+    } else if (geometry->nodes->GetPeriodicBoundary(iNode) && !is_in_nodes(iNode) && !is_in_per_nodes(iNode)) {
       internalNodes.push_back(iNode);
     }
   }  
@@ -1452,7 +1471,7 @@ void CRadialBasisFunctionInterpolation::SetInternalNodesDerivative(CGeometry* ge
           const auto iNode = geometry->vertex[iMarker][iVertex]->GetNode();
 
           /*--- if not among the boundary nodes ---*/
-          if (!is_in_nodes(iNode)) {
+          if (!is_in_nodes(iNode) && !is_in_per_nodes(iNode)) {
             internalNodes.push_back(iNode);
           }             
         }
@@ -1526,8 +1545,52 @@ void CRadialBasisFunctionInterpolation::UpdateGridCoord(CGeometry* geometry, CCo
 
 void CRadialBasisFunctionInterpolation::UpdateGridCoord_Derivatives(CGeometry* geometry, CConfig* config, bool ForwardProjectionDerivative){
   
-  
   SU2_COMPONENT Kind_SU2 = config->GetKind_SU2();
+
+  // making adt of the globalctrlcoords:
+  
+  vector<unsigned long> PointID(nCtrlNodesGlobal);    
+  for (auto i = 0ul; i < nCtrlNodesGlobal; i++) {
+    PointID[i] = i;
+  }
+  CADTPointsOnlyClass ctrl_adt(nDim, nCtrlNodesGlobal, CtrlCoords.data(), PointID.data(), false);
+
+  su2double dist;
+  unsigned long near_point_id;
+  int near_rank_id; 
+
+  su2double target_coord[nDim];
+  for ( auto periodic_node : per_nodes) {
+
+    auto periodic_marker = periodic_node->GetMarker();
+    if (!config->GetSolid_Wall(periodic_marker) &&  (config->GetMarker_All_DV(periodic_marker) == NO)) {
+      continue;
+    }
+
+    const su2double* coord = geometry->nodes->GetCoord(periodic_node->GetIndex());
+    for(auto iDim = 0u; iDim < nDim; iDim++) {
+      target_coord[iDim] = coord[iDim] - PeriodicLength[iDim];
+    }
+
+    ctrl_adt.DetermineNearestNode(target_coord, dist, near_point_id, near_rank_id);
+    // cout << target_coord[0] << "\t" << target_coord[1] << "\t" << near_point_id <<  "\t" << *CtrlCoords[near_point_id*nDim] << "\t" << *CtrlCoords[near_point_id*nDim+1] << endl;
+
+    auto iPoint = periodic_node->GetIndex();
+    
+    for (auto iDim = 0u; iDim < nDim; iDim++) {
+      // summation of current sensitivity and the computed update
+      su2double sens_new =  geometry->GetSensitivity(iPoint, iDim) + sensitivityUpdate[near_point_id * nDim + iDim];
+      // if (iDim == 0 ){
+      //   cout << "periodic node: "<<  geometry->nodes->GetGlobalIndex(iPoint) << "\t" << sensitivityUpdate[near_point_id * nDim] <<  "\t" << sensitivityUpdate[near_point_id * nDim + 1] << endl;
+      // }
+      geometry->SetSensitivity(iPoint, iDim, sens_new);
+    }
+  }
+  
+
+  // for (auto node : per_nodes) {
+  //   cout << node->GetIndex() << "\t" <<  geometry->nodes->GetCoord(node->GetIndex())[0] << "\t" << geometry->nodes->GetCoord(node->GetIndex())[1] << endl; 
+  // }
 
   if ((Kind_SU2 == SU2_COMPONENT::SU2_DOT) && !ForwardProjectionDerivative) {
   
@@ -1553,9 +1616,13 @@ void CRadialBasisFunctionInterpolation::UpdateGridCoord_Derivatives(CGeometry* g
 
           if (config->GetSolid_Wall(iMarker) || (config->GetMarker_All_DV(iMarker) == YES)) {
             auto iPoint = nodes[idx_i]->GetIndex();
+        
             for (auto iDim = 0u; iDim < nDim; iDim++) {
               // summation of current sensitivity and the computed update
               su2double sens_new =  geometry->GetSensitivity(iPoint, iDim) + sensitivityUpdate[idx * nDim + iDim];
+              // if (geometry->nodes->GetPeriodicBoundary(iPoint) && iDim == 0) {
+              //   cout << geometry->nodes->GetGlobalIndex(iPoint) << "\t" <<   sensitivityUpdate[idx * nDim ] << "\t"  << sensitivityUpdate[idx * nDim + 1] << endl;
+              // }              
               geometry->SetSensitivity(iPoint, iDim, sens_new);
             }
           }
@@ -1563,6 +1630,8 @@ void CRadialBasisFunctionInterpolation::UpdateGridCoord_Derivatives(CGeometry* g
         }
       }
     }
+
+
   } else {
     SU2_MPI::Error("Missing feature in RBF interpolation", CURRENT_FUNCTION);
   }
