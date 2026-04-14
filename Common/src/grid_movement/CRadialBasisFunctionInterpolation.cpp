@@ -2553,7 +2553,7 @@ void CRadialBasisFunctionInterpolation::SetPeriodicVars(CConfig* config){
           }
 
           /*--- Save periodic axes and lengths ---*/
-          PeriodicLength[iDim] = fabs(periodicTranslation[iDim]);
+          PeriodicLength[iDim] = periodicTranslation[iDim]; // FIXME WHY WAS fabs() USED HERE??
         }
     }
   }
