@@ -1573,6 +1573,14 @@ void CRadialBasisFunctionInterpolation::UpdateGridCoord_Derivatives(CGeometry* g
     }
 
     ctrl_adt.DetermineNearestNode(target_coord, dist, near_point_id, near_rank_id);
+
+    if (dist > 1e-6) {
+      for(auto iDim = 0u; iDim < nDim; iDim++) {
+        target_coord[iDim] = coord[iDim] + PeriodicLength[iDim];
+      }
+    }
+    ctrl_adt.DetermineNearestNode(target_coord, dist, near_point_id, near_rank_id);
+
     // cout << target_coord[0] << "\t" << target_coord[1] << "\t" << near_point_id <<  "\t" << *CtrlCoords[near_point_id*nDim] << "\t" << *CtrlCoords[near_point_id*nDim+1] << endl;
 
     auto iPoint = periodic_node->GetIndex();
@@ -1582,6 +1590,7 @@ void CRadialBasisFunctionInterpolation::UpdateGridCoord_Derivatives(CGeometry* g
       su2double sens_new =  geometry->GetSensitivity(iPoint, iDim) + sensitivityUpdate[near_point_id * nDim + iDim];
       // if (iDim == 0 ){
       //   cout << "periodic node: "<<  geometry->nodes->GetGlobalIndex(iPoint) << "\t" << sensitivityUpdate[near_point_id * nDim] <<  "\t" << sensitivityUpdate[near_point_id * nDim + 1] << endl;
+      //   cout << *CtrlCoords[near_point_id *nDim] << "\t" << *CtrlCoords[near_point_id *nDim+1] << endl;
       // }
       geometry->SetSensitivity(iPoint, iDim, sens_new);
     }
@@ -1622,6 +1631,7 @@ void CRadialBasisFunctionInterpolation::UpdateGridCoord_Derivatives(CGeometry* g
               su2double sens_new =  geometry->GetSensitivity(iPoint, iDim) + sensitivityUpdate[idx * nDim + iDim];
               // if (geometry->nodes->GetPeriodicBoundary(iPoint) && iDim == 0) {
               //   cout << geometry->nodes->GetGlobalIndex(iPoint) << "\t" <<   sensitivityUpdate[idx * nDim ] << "\t"  << sensitivityUpdate[idx * nDim + 1] << endl;
+              //   cout << *CtrlCoords[idx*nDim] << "\t" << *CtrlCoords[idx*nDim+1 ] << endl;
               // }              
               geometry->SetSensitivity(iPoint, iDim, sens_new);
             }
@@ -2553,7 +2563,7 @@ void CRadialBasisFunctionInterpolation::SetPeriodicVars(CConfig* config){
           }
 
           /*--- Save periodic axes and lengths ---*/
-          PeriodicLength[iDim] = periodicTranslation[iDim]; // FIXME WHY WAS fabs() USED HERE??
+          PeriodicLength[iDim] = fabs(periodicTranslation[iDim]); // FIXME WHY WAS fabs() USED HERE??
         }
     }
   }
