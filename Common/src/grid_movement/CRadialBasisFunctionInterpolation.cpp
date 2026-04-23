@@ -72,7 +72,7 @@ void CRadialBasisFunctionInterpolation::SetVolume_Deformation(CGeometry* geometr
   OverwritePeriodicity = config->GetRBF_OverwritePeriodicity();
   if (config->GetnMarker_Periodic() != 0 && !OverwritePeriodicity) SetPeriodicVars(config);
                
-  if (!Derivative && PreserveIL && config->GetnMarker_Deform_Mesh_IL() > 1) {
+  if (!Derivative && PreserveIL ) {
     SetPeriodicGeoPairs(geometry, config);
   }
 
@@ -218,9 +218,13 @@ void CRadialBasisFunctionInterpolation::SolveRBF_System_IL(CGeometry* geometry, 
       }
       else {        
         // adding the surface nodes as control nodes
+        ofstream init{"init_coords.txt"};
         for(auto iNode : iMarker.second) {
           ctrl_node_indices[NODETYPE::IL_WALL][iMarker.first].insert(iNode);
+          auto coords = geometry->nodes->GetCoord(nodes[iNode]->GetIndex());
+          init << coords[0] << "\t" << coords[1] << endl;
         }
+        init.close();
       }
       
       
@@ -230,9 +234,17 @@ void CRadialBasisFunctionInterpolation::SolveRBF_System_IL(CGeometry* geometry, 
 
       auto edge_nodes = node_indices[NODETYPE::IL_EDGE][iMarker.first];
       // free displacement: 
+      ofstream free{"free_disp.txt"};
+      ofstream init_il{"il.txt"};
       for(auto iNode : edge_nodes) {
+        auto c1 = geometry->nodes->GetCoord(nodes[iNode]->GetIndex());
+        init_il << c1[0] << "\t" << c1[1] << endl;
         ApplyRBF(geometry, type, radius_IL, nodes[iNode]);
+        auto c = nodes[iNode]->GetNewCoord();
+        free << c[0] << "\t" << c[1] << endl;
       }  
+      init_il.close();
+      free.close();
 
       // update wall nodes
       for( auto jNode : iMarker.second){
@@ -242,12 +254,20 @@ void CRadialBasisFunctionInterpolation::SolveRBF_System_IL(CGeometry* geometry, 
         auto node = geometry->vertex[markerLocal][ivertex]->GetNode();
 
         const su2double* var_coord = geometry->vertex[markerLocal][ivertex]->GetVarCoord();
+        cout << var_coord[0] << "\t" << var_coord[1] << endl;
         for(auto iDim = 0u; iDim < nDim; iDim++){
           geometry->nodes->AddCoord(node, iDim, var_coord[iDim]/nIter);
         }
       }
 
       geometry->SetBoundControlVolume(config, UPDATE);
+
+      ofstream update{"update_coords.txt"};
+        for(auto iNode : iMarker.second) {
+          auto coords = geometry->nodes->GetCoord(nodes[iNode]->GetIndex());
+          update << coords[0] << "\t" << coords[1] << endl;
+        }
+        update.close();
 
 
       auto wallADT = CreateADT(geometry, iMarker.second, nodes[*iMarker.second.begin()]->GetMarker(), false, true);
@@ -262,7 +282,7 @@ void CRadialBasisFunctionInterpolation::SolveRBF_System_IL(CGeometry* geometry, 
       su2double added_thickness;
 
       /*--- Loop over inflation layer wall nodes ---*/
-      
+      ofstream proj{"proj.txt"};
         for ( auto iNode : edge_nodes){
           /*--- Get nearest wall node ---*/
 
@@ -294,6 +314,7 @@ void CRadialBasisFunctionInterpolation::SolveRBF_System_IL(CGeometry* geometry, 
           }
 
           const su2double* updated_new_coord = nodes[iNode]->GetNewCoord();
+          proj << updated_new_coord[0] << "\t" << updated_new_coord[1] << endl;
           su2double* initial_coord = geometry->nodes->GetCoord(nodes[iNode]->GetIndex());
 
           for (auto iDim = 0u; iDim < nDim; iDim++) {
@@ -302,6 +323,7 @@ void CRadialBasisFunctionInterpolation::SolveRBF_System_IL(CGeometry* geometry, 
 
           nodes[iNode]->SetVarCoord(var_coord, nDim);
         }
+        proj.close();
       
 
       // revert geometry: 
@@ -3190,13 +3212,18 @@ void CRadialBasisFunctionInterpolation::SetPeriodicGeoPairs(CGeometry* geometry,
       for (auto iVertex = 0ul; iVertex < geometry->GetnVertex(iMarker); iVertex++) {
         auto iNode = geometry->vertex[iMarker][iVertex]->GetNode();
         if (geometry->nodes->GetPeriodicBoundary(iNode)){
+          if (config->GetnMarker_Deform_Mesh_IL() == 1){
+            primaryMarker.push_back(iMarker);
+            break;
+          }else {
           (isPrimaryPeriodicNode(geometry, config, iNode) ? primaryMarker : secondaryMarker).push_back(iMarker);
           break;
+          }
         }
       }      
     }    
   }
-
+  if (config->GetnMarker_Deform_Mesh_IL() == 1) return;
   for (auto iMarker = 0u; iMarker < primaryMarker.size(); iMarker++) {
     sec2prim[secondaryMarker[iMarker]] = primaryMarker[iMarker];
     prim2sec[primaryMarker[iMarker]] = secondaryMarker[iMarker];
