@@ -72,7 +72,7 @@ void CRadialBasisFunctionInterpolation::SetVolume_Deformation(CGeometry* geometr
   OverwritePeriodicity = config->GetRBF_OverwritePeriodicity();
   if (config->GetnMarker_Periodic() != 0 && !OverwritePeriodicity) SetPeriodicVars(config);
                
-  if (!Derivative && PreserveIL) {
+  if (!Derivative && PreserveIL && config->GetnMarker_Deform_Mesh_IL() > 1) {
     SetPeriodicGeoPairs(geometry, config);
   }
 
