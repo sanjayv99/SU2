@@ -392,11 +392,10 @@ void CRadialBasisFunctionInterpolation::SolveRBF_System_IL(CGeometry* geometry, 
         GetInterpolationCoefficients(geometry, config, type, radius_IL, ForwardProjectionDerivative, rhs, invInterpMat);
 
         su2double var_coord[nDim]{0.0};          
-
+        ofstream il_nodes{"int_nodes.txt"};
         for (auto iNode : layerNodes[iMarker.first]) {
 
           auto targetCoords = geometry->nodes->GetCoord(iNode);
-
           // obtain nearest wall normal here
           GetNearestNode(ad.get(), targetCoords, pointID, rankID, dist);
           pointID = pointID % nodes.size();
@@ -435,7 +434,10 @@ void CRadialBasisFunctionInterpolation::SolveRBF_System_IL(CGeometry* geometry, 
             geometry->nodes->AddCoord(iNode, iDim, var_coord[iDim]);
             var_coord[iDim] = 0;  
           } 
+          auto t = geometry->nodes->GetCoord(iNode);
+          il_nodes << t[0] << "\t" << t[1] << endl;
         } 
+        il_nodes.close();
 
 
 
@@ -762,6 +764,12 @@ void CRadialBasisFunctionInterpolation::ComputeSensitivity(CGeometry* geometry, 
   /*--- Sum contributions of all ranks ---*/
   sensitivityUpdate.resize(vectorSize);
   SU2_MPI::Allreduce(sensUpdateLocal.data(), sensitivityUpdate.data(), vectorSize, MPI_DOUBLE, MPI_SUM, SU2_MPI::GetComm());
+  if (rank == 0) {
+    for (auto x = 0u; x < nCtrlNodesGlobal; x++) {
+      cout << sensitivityUpdate[x*nDim] << "\t" << sensitivityUpdate[x*nDim+1] << endl;
+    }
+  }
+  SU2_MPI::Barrier(SU2_MPI::GetComm());
 }
 
 
@@ -1610,10 +1618,10 @@ void CRadialBasisFunctionInterpolation::UpdateGridCoord_Derivatives(CGeometry* g
     for (auto iDim = 0u; iDim < nDim; iDim++) {
       // summation of current sensitivity and the computed update
       su2double sens_new =  geometry->GetSensitivity(iPoint, iDim) + sensitivityUpdate[near_point_id * nDim + iDim]/2;
-      // if (iDim == 0 ){
-      //   cout << "periodic node: "<<  geometry->nodes->GetGlobalIndex(iPoint) << "\t" << sensitivityUpdate[near_point_id * nDim] <<  "\t" << sensitivityUpdate[near_point_id * nDim + 1] << endl;
-      //   cout << *CtrlCoords[near_point_id *nDim] << "\t" << *CtrlCoords[near_point_id *nDim+1] << endl;
-      // }
+      if (iDim == 0 ){
+        cout << "periodic node: "<<  geometry->nodes->GetGlobalIndex(iPoint) << "\t" << sensitivityUpdate[near_point_id * nDim] <<  "\t" << sensitivityUpdate[near_point_id * nDim + 1] << "\t" <<
+         *CtrlCoords[near_point_id *nDim] << "\t" << *CtrlCoords[near_point_id *nDim+1] << endl;
+      }
       geometry->SetSensitivity(iPoint, iDim, sens_new);
     }
   }
