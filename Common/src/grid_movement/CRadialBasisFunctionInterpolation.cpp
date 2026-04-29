@@ -2003,6 +2003,11 @@ void CRadialBasisFunctionInterpolation::SetCtrlNodeCoords(CGeometry* geometry, C
   }  
   
   SU2_MPI::Allgatherv(localCoords.data(), localCoordsSize, MPI_DOUBLE, CtrlCoords.data(), localCoordsSizes.data(), disps.data(), MPI_DOUBLE, SU2_MPI::GetComm()); 
+  ofstream ctrl_coords("ctrl_coords.txt");
+  for (auto x = 0; x  < nCtrlNodesGlobal; x++) {
+    ctrl_coords << CtrlCoords[x*nDim] << "\t" << CtrlCoords[x*nDim + 1] << endl;
+  }
+  ctrl_coords.close();
 };
 
 
