@@ -85,6 +85,7 @@ void CRadialBasisFunctionInterpolation::SetVolume_Deformation(CGeometry* geometr
   } else {
     SetInternalNodes(geometry, config, internalNodes);
   }
+
   
 
   /*--- Looping over the number of deformation iterations ---*/
@@ -254,7 +255,7 @@ void CRadialBasisFunctionInterpolation::SolveRBF_System_IL(CGeometry* geometry, 
         auto node = geometry->vertex[markerLocal][ivertex]->GetNode();
 
         const su2double* var_coord = geometry->vertex[markerLocal][ivertex]->GetVarCoord();
-        cout << var_coord[0] << "\t" << var_coord[1] << endl;
+        
         for(auto iDim = 0u; iDim < nDim; iDim++){
           geometry->nodes->AddCoord(node, iDim, var_coord[iDim]/nIter);
         }
@@ -764,12 +765,6 @@ void CRadialBasisFunctionInterpolation::ComputeSensitivity(CGeometry* geometry, 
   /*--- Sum contributions of all ranks ---*/
   sensitivityUpdate.resize(vectorSize);
   SU2_MPI::Allreduce(sensUpdateLocal.data(), sensitivityUpdate.data(), vectorSize, MPI_DOUBLE, MPI_SUM, SU2_MPI::GetComm());
-  if (rank == 0) {
-    for (auto x = 0u; x < nCtrlNodesGlobal; x++) {
-      cout << sensitivityUpdate[x*nDim] << "\t" << sensitivityUpdate[x*nDim+1] << endl;
-    }
-  }
-  SU2_MPI::Barrier(SU2_MPI::GetComm());
 }
 
 
@@ -811,8 +806,6 @@ const bool CRadialBasisFunctionInterpolation::SetBoundNodes(CGeometry* geometry,
       }
     }
   } else {
-
-
       for (auto iMarker = 0u; iMarker < config->GetnMarker_All(); iMarker++) {
 
         /*--- If the marker is not a send/receive or periodic marker ---*/
@@ -971,6 +964,18 @@ const bool CRadialBasisFunctionInterpolation::SetBoundNodes(CGeometry* geometry,
     auto type = per_nodes[x]->GetNodeType();
     per_node_indices[type][global_marker].insert(x);
   }
+  ofstream n("nodes.txt");
+  for (auto x : nodes) {
+    n << x->GetIndex() << endl;
+  }
+  n.close();
+
+  ofstream pn("per_nodes.txt");
+  for (auto x : per_nodes) {
+    pn << x->GetIndex() << endl;
+  }
+  pn.close();
+
 
   return surfaceCorrection;
 }
@@ -1512,6 +1517,12 @@ void CRadialBasisFunctionInterpolation::SetInternalNodesDerivative(CGeometry* ge
   /*--- sorting of the local indices and obtain unique set ---*/
   sort(internalNodes.begin(), internalNodes.end());
   internalNodes.resize(std::distance(internalNodes.begin(), unique(internalNodes.begin(), internalNodes.end())));
+
+  ofstream in("internal_nodes.txt");
+  for (auto x : internalNodes) {
+    in << x << endl;
+  }
+  in.close();
 }
 
 void CRadialBasisFunctionInterpolation::ComputeInterpolationCoefficients(const su2passivematrix& invInterpMat) {
@@ -1619,8 +1630,8 @@ void CRadialBasisFunctionInterpolation::UpdateGridCoord_Derivatives(CGeometry* g
       // summation of current sensitivity and the computed update
       su2double sens_new =  geometry->GetSensitivity(iPoint, iDim) + sensitivityUpdate[near_point_id * nDim + iDim]/2;
       if (iDim == 0 ){
-        cout << "periodic node: "<<  geometry->nodes->GetGlobalIndex(iPoint) << "\t" << sensitivityUpdate[near_point_id * nDim] <<  "\t" << sensitivityUpdate[near_point_id * nDim + 1] << "\t" <<
-         *CtrlCoords[near_point_id *nDim] << "\t" << *CtrlCoords[near_point_id *nDim+1] << endl;
+        // cout << "periodic node: "<<  geometry->nodes->GetGlobalIndex(iPoint) << "\t" << sensitivityUpdate[near_point_id * nDim] <<  "\t" << sensitivityUpdate[near_point_id * nDim + 1] << "\t" <<
+        //  *CtrlCoords[near_point_id *nDim] << "\t" << *CtrlCoords[near_point_id *nDim+1] << endl;
       }
       geometry->SetSensitivity(iPoint, iDim, sens_new);
     }
