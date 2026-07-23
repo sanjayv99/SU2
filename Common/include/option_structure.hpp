@@ -1955,6 +1955,7 @@ enum ENUM_OBJECTIVE {
   TOPOL_DISCRETENESS = 63,      /*!< \brief Measure of the discreteness of the current topology. */
   TOPOL_COMPLIANCE = 64,        /*!< \brief Measure of the discreteness of the current topology. */
   STRESS_PENALTY = 65,          /*!< \brief Penalty function of VM stresses above a maximum value. */
+  STREAMWISE_LAMBDAL = 71,
 };
 static const MapType<std::string, ENUM_OBJECTIVE> Objective_Map = {
   MakePair("DRAG", DRAG_COEFFICIENT)
@@ -1997,6 +1998,7 @@ static const MapType<std::string, ENUM_OBJECTIVE> Objective_Map = {
   MakePair("TOPOL_DISCRETENESS", TOPOL_DISCRETENESS)
   MakePair("TOPOL_COMPLIANCE", TOPOL_COMPLIANCE)
   MakePair("STRESS_PENALTY", STRESS_PENALTY)
+  MakePair("STREAMWISE_LAMBDAL", STREAMWISE_LAMBDAL)
 };
 
 /*!
@@ -2617,6 +2619,8 @@ struct StreamwisePeriodicValues {
   su2double Streamwise_Periodic_InletTemperature;   /*!< \brief Area avg static Temp [K] at the periodic inlet. Used for adaptive outlet heatsink. */
   su2double Streamwise_Periodic_BoundaryArea;       /*!< \brief Global Surface area of the streamwise periodic interface. */
   su2double Streamwise_Periodic_AvgDensity;         /*!< \brief Area avg density on the periodic interface. */
+  su2double Streamwise_Periodic_LambdaL;            /*!< \brief Temperature Gradient in iso-thermal BCs. */
+  su2double Streamwise_Periodic_ThetaScaling;       /*!< \brief Scaled Temperature for iso-thermal BCs. */
 };
 
 /*!

@@ -118,7 +118,7 @@ public:
    */
   inline bool SetTemperature(unsigned long iPoint, su2double val_temperature) final {
     Primitive(iPoint, indices.Temperature()) = val_temperature;
-    return val_temperature <= 0.0;
+    return val_temperature < 0.0;
   }
 
   /*!

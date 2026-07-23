@@ -1086,6 +1086,7 @@ private:
   su2double Streamwise_Periodic_PressureDrop;        /*!< \brief Value of prescribed pressure drop [Pa] which results in an artificial body force vector. */
   su2double Streamwise_Periodic_TargetMassFlow;      /*!< \brief Value of prescribed massflow [kg/s] which results in an delta p and therefore an artificial body force vector. */
   su2double Streamwise_Periodic_OutletHeat;          /*!< /brief Heatflux boundary [W/m^2] imposed at streamwise periodic outlet. */
+  su2double Streamwise_Periodic_LambdaL;            /*!< /brief Exp coefficient for iso-thermal BCs Streamwise Periodic. */
 
   su2double *FreeStreamTurboNormal;     /*!< \brief Direction to initialize the flow in turbomachinery computation */
   su2double Restart_Bandwidth_Agg;      /*!< \brief The aggregate of the bandwidth for writing binary restarts (to be averaged later). */
@@ -2922,7 +2923,10 @@ public:
    * \brief Get the number of design variables.
    * \return Number of the design variables.
    */
-  unsigned short GetnDV_Value(unsigned short iDV) const { return nDV_Value[iDV]; }
+  unsigned short GetnDV_Value(unsigned short iDV) const { 
+    if (!nDV_Value) return 0; 
+    return nDV_Value[iDV]; 
+  }
 
   /*!
    * \brief Get the total number of design variables.
@@ -3157,6 +3161,12 @@ public:
    * \return Total number of heat flux markers.
    */
   unsigned short GetnMarker_HeatFlux(void) const { return nMarker_HeatFlux; }
+
+  /*!
+   * \brief Get the total (local) number of isothermal markers.
+   * \return Total number of isothermal markers.
+   */
+  unsigned short GetnMarker_Isothermal(void) const { return nMarker_Isothermal; }
 
   /*!
    * \brief Get the total number of rough markers.
@@ -6267,6 +6277,18 @@ public:
    * \return Massflow for body force computation.
    */
   su2double GetStreamwise_Periodic_TargetMassFlow(void) const { return Streamwise_Periodic_TargetMassFlow; }
+
+  /*!
+   * \brief Set Lambda L for Streamwise Periodic
+   * \return bool
+   */
+  void SetStreamwise_Periodic_LamdaL(su2double value) { Streamwise_Periodic_LambdaL = value; }
+
+  /*!
+   * \brief Get Lambda L for Streamwise Periodic
+   * \return su2double
+   */
+  su2double GetStreamwise_Periodic_LamdaL(void) const { return Streamwise_Periodic_LambdaL; }
 
   /*!
    * \brief Get information about the volumetric heat source.

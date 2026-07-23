@@ -1710,9 +1710,14 @@ void CIncEulerSolver::Source_Residual(CGeometry *geometry, CSolver **solver_cont
       /*--- Load the volume of the dual mesh cell ---*/
       numerics->SetVolume(geometry->nodes->GetVolume(iPoint));
 
+      numerics->SetThermalConductivity(nodes->GetThermalConductivity(iPoint), 0.0);
+
       /*--- Load the aux variable gradient that we already computed. ---*/
       if(streamwise_periodic_temperature && turbulent)
         numerics->SetAuxVarGrad(nodes->GetAuxVarGradient(iPoint), nullptr);
+      
+            /*--- Load the Prim variable gradient that we already computed. ---*/
+      numerics->SetPrimVarGradient(nodes->GetGradient_Primitive(iPoint), nullptr);
 
       /*--- Compute the streamwise periodic source residual and add to the total ---*/
       auto residual = numerics->ComputeResidual(config);
@@ -3181,22 +3186,42 @@ void CIncEulerSolver::SetFreeStream_Solution(const CConfig *config){
 }
 
 unsigned long CIncEulerSolver::RegisterSolutionExtra(bool input, const CConfig* config) {
+  unsigned long count = 0;
   if (config->GetKind_Streamwise_Periodic() == ENUM_STREAMWISE_PERIODIC::MASSFLOW) {
     if (input) AD::RegisterInput(SPvals.Streamwise_Periodic_PressureDrop);
     else AD::RegisterOutput(SPvalsUpdated.Streamwise_Periodic_PressureDrop);
-    return 1;
+    count++;
+  } 
+
+  if (config->GetStreamwise_Periodic_Temperature()) {
+    if (input) AD::RegisterInput(SPvals.Streamwise_Periodic_LambdaL);
+    else AD::RegisterOutput(SPvalsUpdated.Streamwise_Periodic_LambdaL);
+    count++;
   }
-  return 0;
+
+  return count;
 }
 
 void CIncEulerSolver::SetAdjoint_SolutionExtra(const su2activevector& adj_sol, const CConfig* config) {
+  unsigned long offset = 0;
   if (config->GetKind_Streamwise_Periodic() == ENUM_STREAMWISE_PERIODIC::MASSFLOW) {
-    SU2_TYPE::SetDerivative(SPvalsUpdated.Streamwise_Periodic_PressureDrop, SU2_TYPE::GetValue(adj_sol[0]));
+    SU2_TYPE::SetDerivative(SPvalsUpdated.Streamwise_Periodic_PressureDrop, SU2_TYPE::GetValue(adj_sol[offset]));
+    offset++;
   }
+  if (config->GetStreamwise_Periodic_Temperature()) {
+    SU2_TYPE::SetDerivative(SPvalsUpdated.Streamwise_Periodic_LambdaL, SU2_TYPE::GetValue(adj_sol[offset]));
+  }
+  
 }
 
 void CIncEulerSolver::ExtractAdjoint_SolutionExtra(su2activevector& adj_sol, const CConfig* config) {
+  unsigned long offset = 0;
   if (config->GetKind_Streamwise_Periodic() == ENUM_STREAMWISE_PERIODIC::MASSFLOW) {
-    adj_sol[0] = SU2_TYPE::GetDerivative(SPvals.Streamwise_Periodic_PressureDrop);
+    adj_sol[offset] = SU2_TYPE::GetDerivative(SPvals.Streamwise_Periodic_PressureDrop);
+    offset++;
+  }
+
+  if (config->GetStreamwise_Periodic_Temperature()) {
+    adj_sol[offset] = SU2_TYPE::GetDerivative(SPvals.Streamwise_Periodic_LambdaL);
   }
 }
