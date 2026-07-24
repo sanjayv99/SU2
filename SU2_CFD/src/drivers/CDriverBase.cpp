@@ -436,7 +436,3 @@ map<string, unsigned short> CDriverBase::GetPrimitiveIndices() const {
       main_config->GetKind_Regime() == ENUM_REGIME::INCOMPRESSIBLE,
       main_config->GetNEMOProblem(), nDim, main_config->GetnSpecies()));
 }
-
-void CDriverBase::SetObjectiveFunction(const std::string& name) {
-  main_config->SetObjFuncByName(name);
-}

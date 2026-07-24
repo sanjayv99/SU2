@@ -701,8 +701,6 @@ class CDriverBase {
     }
   }
 
-  void SetObjectiveFunction(const std::string& name);
-
 /// \}
 
  protected:

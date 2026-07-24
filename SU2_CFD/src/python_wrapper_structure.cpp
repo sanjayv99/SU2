@@ -175,3 +175,6 @@ void CDriver::SetMarkerTranslationRate(unsigned short iMarker, passivedouble vel
   config_container[selected_zone]->SetMarkerTranslationRate(iMarker, 2, vel_z);
 }
 
+void CDriver::SetObjectiveFunction(string name) {
+  main_config->SetObjFuncByName(name);
+}

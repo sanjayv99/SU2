@@ -554,6 +554,8 @@ class CDriver : public CDriverBase {
    * \param[in] vel_z - Value of velocity along z-axis.
    */
   void SetMarkerTranslationRate(unsigned short iMarker, passivedouble vel_x, passivedouble vel_y, passivedouble vel_z);
+
+  void SetObjectiveFunction(string name);
   
 /// \}
 };
