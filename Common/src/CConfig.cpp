@@ -8483,6 +8483,14 @@ string CConfig::GetObjFunc_Extension(string val_filename) const {
   return Filename;
 }
 
+void CConfig::SetObjFuncByName(const std::string& name, unsigned short iObj) {
+  auto it = Objective_Map.find(name);
+  if (it == Objective_Map.end())
+    SU2_MPI::Error("Unknown OBJECTIVE_FUNCTION: " + name, CURRENT_FUNCTION);
+  if (Kind_ObjFunc == nullptr) { Kind_ObjFunc = new unsigned short[1]; nObj = 1; }
+  Kind_ObjFunc[iObj] = static_cast<unsigned short>(it->second);
+}
+
 unsigned short CConfig::GetContainerPosition(unsigned short val_eqsystem) {
 
   switch (val_eqsystem) {

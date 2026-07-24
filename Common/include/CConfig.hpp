@@ -5452,6 +5452,8 @@ public:
    */
   void SetWeight_ObjFunc(unsigned short val_obj, su2double val) { Weight_ObjFunc[val_obj] = val; }
 
+  void SetObjFuncByName(const std::string& name, unsigned short iObj = 0);
+
   /*!
    * \brief Get the user expression for the custom objective function.
    */
