@@ -4118,6 +4118,9 @@ public:
                                  CNumerics **numerics,
                                  CConfig *config) { }
 
+  inline virtual void DeformMesh_Volumetric(CGeometry **geometry,
+                                CConfig *config) { }
+
   /*!
    * \brief A virtual member.
    * \param[in] geometry - Geometrical definition.

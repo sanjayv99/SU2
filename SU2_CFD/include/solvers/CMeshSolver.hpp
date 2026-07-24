@@ -55,6 +55,8 @@ protected:
 
   vector<CMeshElement> element; /*!< \brief Vector which stores element information for each problem. */
 
+  std::unique_ptr<CVolumetricMovement> vol_based_deformation;
+
   /*!
    * \brief Compute the min and max volume of the elements in the domain.
    * \param[in] geometry - Geometrical definition of the problem.
@@ -131,6 +133,9 @@ public:
   void DeformMesh(CGeometry **geometry,
                   CNumerics **numerics,
                   CConfig *config) override;
+  
+  void DeformMesh_Volumetric(CGeometry **geometry,
+              CConfig *config) override;
 
   /*!
    * \brief Set the stiffness of the mesh.

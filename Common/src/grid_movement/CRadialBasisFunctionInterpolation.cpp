@@ -1125,7 +1125,7 @@ void CRadialBasisFunctionInterpolation::SetBoundaryDisplacements(CGeometry* geom
         if (isMoving) GetNodalDeformation(geometry, config, nodes[iNode], varCoord);
         // cout << nodes[iNode]->GetIndex() << "\t" << varCoord[0] << "\t" << varCoord[1] << endl;
         for (auto iDim = 0u; iDim < nDim; iDim++){
-          CtrlNodeDeformation[baseIndex + iDim] = SU2_TYPE::GetValue(varCoord[iDim]);
+          CtrlNodeDeformation[baseIndex + iDim] = varCoord[iDim];
         }
 
         ctrlNodeIndex++;

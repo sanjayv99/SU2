@@ -29,6 +29,7 @@
 #include "../../../Common/include/parallelization/omp_structure.hpp"
 #include "../../include/solvers/CMeshSolver.hpp"
 #include "../../../Common/include/toolboxes/geometry_toolbox.hpp"
+#include "../../../Common/include/grid_movement/CVolumetricMovementFactory.hpp"
 
 using namespace GeometryToolbox;
 
@@ -488,6 +489,11 @@ void CMeshSolver::DeformMesh(CGeometry **geometry, CNumerics **numerics, CConfig
   InitiateComms(geometry[MESH_0], config, MESH_DISPLACEMENTS);
   CompleteComms(geometry[MESH_0], config, MESH_DISPLACEMENTS);
 
+  if (config->GetDeform_Kind() != DEFORM_KIND::ELASTIC) {
+    DeformMesh_Volumetric(geometry, config);   // RBF 
+    return;
+  }
+
   /*--- Compute the stiffness matrix, no point recording because we clear the residual. ---*/
 
   const bool wasActive = AD::BeginPassive();
@@ -539,6 +545,39 @@ void CMeshSolver::DeformMesh(CGeometry **geometry, CNumerics **numerics, CConfig
     ComputeGridVelocity_FromBoundary(geometry, numerics, config);
   }
 
+}
+
+void CMeshSolver::DeformMesh_Volumetric(CGeometry **geometry, CConfig *config) {
+
+  // Need to Reset here to the reference mesh cause RBF is incremental (AddCoord) 
+  // TODO: check if we can just enable it for adjoint mode only or okay to leave it?
+  for (auto iPoint = 0ul; iPoint < nPoint; ++iPoint)
+    for (auto iDim = 0u; iDim < nDim; ++iDim)
+      geometry[MESH_0]->nodes->SetCoord(iPoint, iDim, nodes->GetMesh_Coord(iPoint, iDim));
+                                                
+  // Bound_Disp to VarCoord
+  for (unsigned short iMarker = 0; iMarker < config->GetnMarker_All(); iMarker++) 
+    if (config->GetMarker_All_Deform_Mesh(iMarker) == YES)
+      for (auto iVertex = 0ul; iVertex < geometry[MESH_0]->nVertex[iMarker]; iVertex++) {
+        const auto iPoint = geometry[MESH_0]->vertex[iMarker][iVertex]->GetNode();
+        su2double vc[3] = {0.0,0.0,0.0};
+        for (unsigned short iDim = 0; iDim < nDim; iDim++) 
+          vc[iDim] = nodes->GetBound_Disp(iPoint, iDim);   
+        geometry[MESH_0]->vertex[iMarker][iVertex]->SetVarCoord(vc);
+      }
+
+  // call deform
+  const auto kind = config->GetKind_SU2(); // need to switch to SU2_DEF to make sure methods required are still callable
+  config->SetKind_SU2(SU2_COMPONENT::SU2_DEF);   
+  vol_based_deformation.reset(CVolumetricMovementFactory::CreateCVolumetricMovement(geometry[MESH_0], config));
+  vol_based_deformation->SetVolume_Deformation(geometry[MESH_0], config, true);
+  config->SetKind_SU2(kind);
+
+  // update geom
+  CGeometry::UpdateGeometry(geometry, config);
+
+  /*--- Check for failed deformation (negative volumes). ---*/
+  SetMinMaxVolume(geometry[MESH_0], config, true);
 }
 
 void CMeshSolver::UpdateGridCoord(CGeometry *geometry, const CConfig *config){
