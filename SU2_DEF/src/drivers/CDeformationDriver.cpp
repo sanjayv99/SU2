@@ -295,8 +295,11 @@ void CDeformationDriver::DeformMesh() {
   for (iZone = 0; iZone < nZone; iZone++) {
     /*--- Set the stiffness of each element mesh into the mesh numerics. ---*/
 
+    if (driver_config->GetDeform_Kind()==DEFORM_KIND::ELASTIC){
+
     solver_container[iZone][INST_0][MESH_0][MESH_SOL]->SetMesh_Stiffness(
         numerics_container[iZone][INST_0][MESH_0][MESH_SOL], config_container[iZone]);
+    }
 
     /*--- Deform the volume grid around the new boundary locations. ---*/
     /*--- Force the number of levels to be 0 because in this driver we do not build MG levels. ---*/

@@ -194,7 +194,10 @@ void CIteration::SetMesh_Deformation(CGeometry** geometry, CSolver** solver, CNu
 
   /*--- Set the stiffness of each element mesh into the mesh numerics ---*/
 
-  solver[MESH_SOL]->SetMesh_Stiffness(numerics[MESH_SOL], config);
+  if (config->GetDeform_Kind()==DEFORM_KIND::ELASTIC){
+
+    solver[MESH_SOL]->SetMesh_Stiffness(numerics[MESH_SOL], config);
+  }
 
   /*--- Deform the volume grid around the new boundary locations ---*/
 

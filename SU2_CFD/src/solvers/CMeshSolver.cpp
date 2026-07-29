@@ -551,15 +551,15 @@ void CMeshSolver::DeformMesh_Volumetric(CGeometry **geometry, CConfig *config) {
 
   // Need to Reset here to the reference mesh cause RBF is incremental (AddCoord) 
   // TODO: check if we can just enable it for adjoint mode only or okay to leave it?
-  for (auto iPoint = 0ul; iPoint < nPoint; ++iPoint)
-    for (auto iDim = 0u; iDim < nDim; ++iDim)
-      geometry[MESH_0]->nodes->SetCoord(iPoint, iDim, nodes->GetMesh_Coord(iPoint, iDim));
+  // for (unsigned long iPoint = 0ul; iPoint < nPoint; ++iPoint)
+  //   for (unsigned short iDim = 0u; iDim < nDim; ++iDim)
+  //     geometry[MESH_0]->nodes->SetCoord(iPoint, iDim, nodes->GetMesh_Coord(iPoint, iDim));
                                                 
   // Bound_Disp to VarCoord
   for (unsigned short iMarker = 0; iMarker < config->GetnMarker_All(); iMarker++) 
     if (config->GetMarker_All_Deform_Mesh(iMarker) == YES)
       for (auto iVertex = 0ul; iVertex < geometry[MESH_0]->nVertex[iMarker]; iVertex++) {
-        const auto iPoint = geometry[MESH_0]->vertex[iMarker][iVertex]->GetNode();
+        const unsigned long iPoint = geometry[MESH_0]->vertex[iMarker][iVertex]->GetNode();
         su2double vc[3] = {0.0,0.0,0.0};
         for (unsigned short iDim = 0; iDim < nDim; iDim++) 
           vc[iDim] = nodes->GetBound_Disp(iPoint, iDim);   
@@ -573,11 +573,20 @@ void CMeshSolver::DeformMesh_Volumetric(CGeometry **geometry, CConfig *config) {
   vol_based_deformation->SetVolume_Deformation(geometry[MESH_0], config, true);
   config->SetKind_SU2(kind);
 
+  /*--- Halo coords come from their owners, on the tape. ---*/
+  // geometry[MESH_0]->InitiateComms(geometry[MESH_0], config, COORDINATES);  
+  // geometry[MESH_0]->CompleteComms(geometry[MESH_0], config, COORDINATES);
+
+  // for (unsigned long iPoint = 0ul; iPoint < nPoint; ++iPoint)
+  //   for (unsigned short iDim = 0u; iDim < nDim; ++iDim)
+  //     nodes->SetSolution(iPoint, iDim,
+  //       geometry[MESH_0]->nodes->GetCoord(iPoint, iDim) - nodes->GetMesh_Coord(iPoint, iDim));
+
   // update geom
   CGeometry::UpdateGeometry(geometry, config);
 
   /*--- Check for failed deformation (negative volumes). ---*/
-  SetMinMaxVolume(geometry[MESH_0], config, true);
+  // SetMinMaxVolume(geometry[MESH_0], config, true);
 }
 
 void CMeshSolver::UpdateGridCoord(CGeometry *geometry, const CConfig *config){

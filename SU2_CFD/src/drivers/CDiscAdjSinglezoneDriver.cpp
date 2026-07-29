@@ -382,6 +382,13 @@ void CDiscAdjSinglezoneDriver::DirectRun(RECORDING kind_recording){
 
   direct_iteration->SetMesh_Deformation(geometry_container[ZONE_0][INST_0], solver, numerics, config, kind_recording);
 
+  const bool coordsAreActive = (kind_recording == RECORDING::MESH_DEFORM) ||
+                             (kind_recording == RECORDING::SOLUTION_AND_MESH);
+  bool wasActive = false;
+  if (!coordsAreActive) wasActive = AD::BeginPassive();
+  CGeometry::ComputeWallDistance(config_container, geometry_container);
+  AD::EndPassive(wasActive);
+
   /*--- Zone preprocessing ---*/
 
   direct_iteration->Preprocess(direct_output, integration_container, geometry_container, solver_container, numerics_container, config_container, surface_movement, grid_movement, FFDBox, ZONE_0, INST_0);

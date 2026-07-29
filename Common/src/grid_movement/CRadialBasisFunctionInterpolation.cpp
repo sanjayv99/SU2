@@ -725,6 +725,37 @@ void CRadialBasisFunctionInterpolation::GetInterpolationCoefficients(CGeometry* 
   /*--- Computate the (inverse) interpolation matrix. ---*/
   GetInverseInterpolationMatrix(geometry, type, radius, invInterpMat);
 
+  if (rank == MASTER_NODE) {
+    passivedouble mx = 0.0, cs = 0.0;
+    for (auto i = 0ul; i < nCtrlNodesGlobal; i++)
+      for (auto j = 0ul; j < nCtrlNodesGlobal; j++) mx = max(mx, fabs(invInterpMat(i,j)));
+    for (auto v : InterpCoeff) cs += fabs(SU2_TYPE::GetValue(v));
+    cout << "[RBF] nCtrl=" << nCtrlNodesGlobal
+        << " max|invPhi|=" << mx
+        << " sum|InterpCoeff|=" << setprecision(12) << cs << endl;
+  }
+
+  if (rank == MASTER_NODE) {
+    const su2double* cc = CtrlCoords.data();
+    passivedouble hmin = 1e30, hsum = 0.0;
+    for (auto i = 0ul; i < nCtrlNodesGlobal; i++) {
+      passivedouble dmin = 1e30;
+      for (auto j = 0ul; j < nCtrlNodesGlobal; j++) {
+        if (i == j) continue;
+        passivedouble d2 = 0.0;
+        for (auto k = 0u; k < nDim; k++) {
+          passivedouble t = SU2_TYPE::GetValue(cc[i*nDim + k]) - SU2_TYPE::GetValue(cc[j*nDim + k]);
+          d2 += t*t;
+        }
+        dmin = min(dmin, sqrt(d2));
+      }
+      hmin = min(hmin, dmin);
+      hsum += dmin;
+    }
+    cout << "nCtrl=" << nCtrlNodesGlobal
+        << "  ctrl spacing: min=" << hmin << "  mean=" << hsum/nCtrlNodesGlobal << endl;
+  }
+
   /*--- Compute the interpolation coefficients. ---*/
   ComputeInterpolationCoefficients(invInterpMat);
 }
@@ -1205,7 +1236,7 @@ void CRadialBasisFunctionInterpolation::SetCtrlNodeDerivatives(CGeometry* geomet
 
 void CRadialBasisFunctionInterpolation::SetInternalNodes(CGeometry* geometry, CConfig* config, vector<unsigned long>& internalNodes) { 
 
-
+  const bool wasActive = AD::BeginPassive();
     // it is assumed that all cell types at the inflation layer are quad cells.... 
     
   int il_type = 9;
@@ -1470,6 +1501,7 @@ void CRadialBasisFunctionInterpolation::SetInternalNodes(CGeometry* geometry, CC
   /*--- sorting of the local indices and obtain unique set ---*/
   sort(internalNodes.begin(), internalNodes.end());
   internalNodes.resize(std::distance(internalNodes.begin(), unique(internalNodes.begin(), internalNodes.end())));
+  AD::EndPassive(wasActive);
 }
 
 void CRadialBasisFunctionInterpolation::SetInternalNodesDerivative(CGeometry* geometry, CConfig* config, vector<unsigned long>& internalNodes) { 
@@ -1572,6 +1604,9 @@ void CRadialBasisFunctionInterpolation::UpdateGridCoord(CGeometry* geometry, CCo
     }
     SetCorrection(geometry, config, type, internalNodes); 
   }
+
+  // geometry->InitiateComms(geometry, config, COORDINATES);
+  // geometry->CompleteComms(geometry, config, COORDINATES);
 }
 
 void CRadialBasisFunctionInterpolation::UpdateGridCoord_Derivatives(CGeometry* geometry, CConfig* config, bool ForwardProjectionDerivative){
@@ -1701,7 +1736,7 @@ void CRadialBasisFunctionInterpolation::UpdateInternalCoords(CGeometry* geometry
       su2double dist = ComputeDistance(CtrlCoords[jNode*nDim], targetCoords);
 
       /*--- Evaluate RBF based on distance ---*/
-      su2double rbf = SU2_TYPE::GetValue(CRadialBasisFunction::Get_RadialBasisValue(type, radius, dist));
+      su2double rbf = CRadialBasisFunction::Get_RadialBasisValue(type, radius, dist);
       
       /*--- Add contribution to total coordinate variation ---*/
       for(auto iDim = 0u; iDim < nDim; iDim++){
@@ -1776,7 +1811,7 @@ void CRadialBasisFunctionInterpolation::UpdateBoundCoords(CGeometry* geometry, C
               su2double dist = ComputeDistance(CtrlCoords[jNode*nDim], targetCoords);
 
               /*--- Evaluation of the radial basis function based on the distance ---*/
-              su2double rbf = SU2_TYPE::GetValue(CRadialBasisFunction::Get_RadialBasisValue(type, radius, dist));
+              su2double rbf = CRadialBasisFunction::Get_RadialBasisValue(type, radius, dist);
 
               /*--- Computing and add the resulting coordinate variation ---*/
               for(auto iDim = 0u; iDim < nDim; iDim++){
