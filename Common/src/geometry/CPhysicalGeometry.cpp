@@ -7289,6 +7289,7 @@ void CPhysicalGeometry::SetBoundControlVolume(const CConfig* config, unsigned sh
     }
   }
   END_SU2_OMP_FOR
+  SU2_OMP_SAFE_GLOBAL_ACCESS(ComputeModifiedSymmetryNormals(config);)
 }
 
 void CPhysicalGeometry::VisualizeControlVolume(const CConfig* config) const {

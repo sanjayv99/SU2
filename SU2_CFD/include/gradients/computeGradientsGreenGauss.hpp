@@ -28,6 +28,7 @@
  */
 
 #include "../../../Common/include/parallelization/omp_structure.hpp"
+#include "correctGradientsSymmetry.hpp"
 
 namespace detail {
 
@@ -60,6 +61,7 @@ void computeGradientsGreenGauss(CSolver* solver,
                                 const FieldType& field,
                                 size_t varBegin,
                                 size_t varEnd,
+                                const int idxVel,
                                 GradientType& gradient)
 {
   const size_t nPointDomain = geometry.GetnPointDomain();
@@ -167,6 +169,10 @@ void computeGradientsGreenGauss(CSolver* solver,
       END_SU2_OMP_FOR
     }
   }
+  
+  /*--- Compute the corrections for symmetry planes and Euler walls. ---*/
+
+  correctGradientsSymmetry<nDim>(geometry, config, varBegin, varEnd, idxVel, gradient);
 
   /*--- If no solver was provided we do not communicate ---*/
 
@@ -201,15 +207,16 @@ void computeGradientsGreenGauss(CSolver* solver,
                                 const FieldType& field,
                                 size_t varBegin,
                                 size_t varEnd,
+                                const int idxVel,
                                 GradientType& gradient) {
   switch (geometry.GetnDim()) {
   case 2:
     detail::computeGradientsGreenGauss<2>(solver, kindMpiComm, kindPeriodicComm, geometry,
-                                          config, field, varBegin, varEnd, gradient);
+                                          config, field, varBegin, varEnd, idxVel, gradient);
     break;
   case 3:
     detail::computeGradientsGreenGauss<3>(solver, kindMpiComm, kindPeriodicComm, geometry,
-                                          config, field, varBegin, varEnd, gradient);
+                                          config, field, varBegin, varEnd, idxVel, gradient);
     break;
   default:
     SU2_MPI::Error("Too many dimensions to compute gradients.", CURRENT_FUNCTION);

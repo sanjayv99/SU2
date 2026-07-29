@@ -2955,6 +2955,64 @@ void CGeometry::ComputeSurf_Curvature(CConfig* config) {
   delete[] Buffer_Receive_nVertex;
 }
 
+void CGeometry::ComputeModifiedSymmetryNormals(const CConfig* config) {
+  /* Check how many symmetry planes there are and use the first (lowest ID) as the basis to orthogonalize against.
+   * All nodes that are shared by multiple symmetries have to get a corrected normal. */
+  symmetryNormals.resize(nMarker);
+  std::vector<unsigned short> symMarkers;
+
+  for (auto iMarker = 0u; iMarker < nMarker; ++iMarker) {
+    if ((config->GetMarker_All_KindBC(iMarker) == SYMMETRY_PLANE) ||
+        (config->GetMarker_All_KindBC(iMarker) == EULER_WALL)) {
+      symMarkers.push_back(iMarker);
+    }
+  }
+
+  for (size_t i = 1; i < symMarkers.size(); ++i) {
+    const auto iMarker = symMarkers[i];
+
+    for (auto iVertex = 0ul; iVertex < nVertex[iMarker]; iVertex++) {
+      const auto iPoint = vertex[iMarker][iVertex]->GetNode();
+      if (!nodes->GetDomain(iPoint)) continue;
+
+      std::array<su2double, MAXNDIM> iNormal = {};
+      vertex[iMarker][iVertex]->GetNormal(iNormal.data());
+
+      bool isShared = false;
+
+      for (size_t j = 0; j < i; ++j) {
+        const auto jMarker = symMarkers[j];
+        const auto jVertex = nodes->GetVertex(iPoint, jMarker);
+        if (jVertex < 0) continue;
+
+        isShared = true;
+
+        std::array<su2double, MAXNDIM> jNormal = {};
+        const auto it = symmetryNormals[jMarker].find(jVertex);
+
+        if (it != symmetryNormals[jMarker].end()) {
+          jNormal = it->second;
+        } else {
+          vertex[jMarker][jVertex]->GetNormal(jNormal.data());
+          const su2double area = GeometryToolbox::Norm(nDim, jNormal.data());
+          for (auto iDim = 0u; iDim < nDim; iDim++) jNormal[iDim] /= area;
+        }
+
+        const auto proj = GeometryToolbox::DotProduct(nDim, jNormal.data(), iNormal.data());
+        for (auto iDim = 0u; iDim < nDim; iDim++) iNormal[iDim] -= proj * jNormal[iDim];
+      }
+
+      if (!isShared) continue;
+
+      const su2double area = GeometryToolbox::Norm(nDim, iNormal.data());
+      if (area > EPS) {
+        for (auto iDim = 0u; iDim < nDim; iDim++) iNormal[iDim] /= area;
+        symmetryNormals[iMarker][iVertex] = iNormal;
+      }
+    }
+  }
+}
+
 void CGeometry::FilterValuesAtElementCG(const vector<su2double>& filter_radius,
                                         const vector<pair<ENUM_FILTER_KERNEL, su2double>>& kernels,
                                         const unsigned short search_limit, su2double* values) const {

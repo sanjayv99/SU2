@@ -243,6 +243,8 @@ class CGeometry {
   vector<bool>
       bound_is_straight; /*!< \brief Bool if boundary-marker is straight(2D)/plane(3D) for each local marker. */
   vector<su2double> SurfaceAreaCfgFile; /*!< \brief Total Surface area for all markers. */
+  /*!< \brief Corrected normals on nodes with shared symmetry markers. */
+  vector<std::unordered_map<unsigned long, std::array<su2double, MAXNDIM>>> symmetryNormals;
 
   /*--- Partitioning-specific variables ---*/
 
@@ -818,6 +820,12 @@ class CGeometry {
    * \param[in] action - Allocate or not the new elements.
    */
   inline virtual void SetBoundControlVolume(const CConfig* config, unsigned short action) {}
+
+  /*!
+  * \bri  ef Computes modified normals at intersecting symmetry planes.
+  * \param[in] config - Definition of the particular problem.
+  */
+  void ComputeModifiedSymmetryNormals(const CConfig* config);
 
   /*!
    * \brief A virtual member.
