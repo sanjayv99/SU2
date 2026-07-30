@@ -93,6 +93,8 @@ protected:
    */
   inline bool GetTimeConvergence() const override { return false; }
 
+  void UpdateMeshDependentQuantities(RECORDING kind_recording);
+
 public:
 
   /*!

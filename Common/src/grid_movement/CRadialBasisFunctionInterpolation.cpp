@@ -1236,7 +1236,6 @@ void CRadialBasisFunctionInterpolation::SetCtrlNodeDerivatives(CGeometry* geomet
 
 void CRadialBasisFunctionInterpolation::SetInternalNodes(CGeometry* geometry, CConfig* config, vector<unsigned long>& internalNodes) { 
 
-  const bool wasActive = AD::BeginPassive();
     // it is assumed that all cell types at the inflation layer are quad cells.... 
     
   int il_type = 9;
@@ -1501,7 +1500,6 @@ void CRadialBasisFunctionInterpolation::SetInternalNodes(CGeometry* geometry, CC
   /*--- sorting of the local indices and obtain unique set ---*/
   sort(internalNodes.begin(), internalNodes.end());
   internalNodes.resize(std::distance(internalNodes.begin(), unique(internalNodes.begin(), internalNodes.end())));
-  AD::EndPassive(wasActive);
 }
 
 void CRadialBasisFunctionInterpolation::SetInternalNodesDerivative(CGeometry* geometry, CConfig* config, vector<unsigned long>& internalNodes) { 
@@ -1605,8 +1603,6 @@ void CRadialBasisFunctionInterpolation::UpdateGridCoord(CGeometry* geometry, CCo
     SetCorrection(geometry, config, type, internalNodes); 
   }
 
-  // geometry->InitiateComms(geometry, config, COORDINATES);
-  // geometry->CompleteComms(geometry, config, COORDINATES);
 }
 
 void CRadialBasisFunctionInterpolation::UpdateGridCoord_Derivatives(CGeometry* geometry, CConfig* config, bool ForwardProjectionDerivative){
@@ -1736,7 +1732,7 @@ void CRadialBasisFunctionInterpolation::UpdateInternalCoords(CGeometry* geometry
       su2double dist = ComputeDistance(CtrlCoords[jNode*nDim], targetCoords);
 
       /*--- Evaluate RBF based on distance ---*/
-      su2double rbf = CRadialBasisFunction::Get_RadialBasisValue(type, radius, dist);
+      su2double rbf = SU2_TYPE::GetValue(CRadialBasisFunction::Get_RadialBasisValue(type, radius, dist));
       
       /*--- Add contribution to total coordinate variation ---*/
       for(auto iDim = 0u; iDim < nDim; iDim++){
@@ -1811,7 +1807,7 @@ void CRadialBasisFunctionInterpolation::UpdateBoundCoords(CGeometry* geometry, C
               su2double dist = ComputeDistance(CtrlCoords[jNode*nDim], targetCoords);
 
               /*--- Evaluation of the radial basis function based on the distance ---*/
-              su2double rbf = CRadialBasisFunction::Get_RadialBasisValue(type, radius, dist);
+              su2double rbf = SU2_TYPE::GetValue(CRadialBasisFunction::Get_RadialBasisValue(type, radius, dist));
 
               /*--- Computing and add the resulting coordinate variation ---*/
               for(auto iDim = 0u; iDim < nDim; iDim++){

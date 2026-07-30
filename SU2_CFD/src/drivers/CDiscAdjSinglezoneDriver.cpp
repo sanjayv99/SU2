@@ -382,12 +382,9 @@ void CDiscAdjSinglezoneDriver::DirectRun(RECORDING kind_recording){
 
   direct_iteration->SetMesh_Deformation(geometry_container[ZONE_0][INST_0], solver, numerics, config, kind_recording);
 
-  const bool coordsAreActive = (kind_recording == RECORDING::MESH_DEFORM) ||
-                             (kind_recording == RECORDING::SOLUTION_AND_MESH);
-  bool wasActive = false;
-  if (!coordsAreActive) wasActive = AD::BeginPassive();
-  CGeometry::ComputeWallDistance(config_container, geometry_container);
-  AD::EndPassive(wasActive);
+  /* For MESH_DEFORM we need to record the wall distance for SA turb model`s AD to be correct */
+
+  UpdateMeshDependentQuantities(kind_recording);
 
   /*--- Zone preprocessing ---*/
 
@@ -455,4 +452,18 @@ void CDiscAdjSinglezoneDriver::SecondaryRecording(){
 
   AD::ClearAdjoints();
 
+}
+
+void CDiscAdjSinglezoneDriver::UpdateMeshDependentQuantities(RECORDING kind_recording) {
+  if (!config->GetDeform_Mesh()) return;
+  /* Wall distance is a function of the coordinates, and nothing in the MESH_DEFORM
+    path recomputes it (SetDependencies covers only MESH_COORDS / CLEAR_INDICES /
+    SOLUTION_AND_MESH, and it runs before the deformation anyway). Mirrors
+    CSinglezoneDriver::DynamicMeshUpdate on the primal side. Active only where the
+    coordinates are active inputs */
+  const bool coordsAreActive = (kind_recording == RECORDING::MESH_DEFORM || kind_recording == RECORDING::SOLUTION_AND_MESH); // TOOD: Not sure if we need both MESH_DEFORM and SOLUTION_AND_MESH?
+  bool wasActive = false;
+  if (!coordsAreActive) wasActive = AD::BeginPassive();
+  CGeometry::ComputeWallDistance(config_container, geometry_container);
+  AD::EndPassive(wasActive);
 }
