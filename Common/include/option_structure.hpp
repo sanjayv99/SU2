@@ -1956,6 +1956,8 @@ enum ENUM_OBJECTIVE {
   TOPOL_COMPLIANCE = 64,        /*!< \brief Measure of the discreteness of the current topology. */
   STRESS_PENALTY = 65,          /*!< \brief Penalty function of VM stresses above a maximum value. */
   STREAMWISE_LAMBDAL = 71,
+  STREAMWISE_PERIODIC_DP = 72,    /*!< \brief pressure drop in Streamwise Periodic flow domain. */
+  STREAMWISE_PERIODIC_MASSFLOW = 73, /*!< \brief massflow rate in Streamwise Periodic flow domain. */
 };
 static const MapType<std::string, ENUM_OBJECTIVE> Objective_Map = {
   MakePair("DRAG", DRAG_COEFFICIENT)
@@ -1999,6 +2001,8 @@ static const MapType<std::string, ENUM_OBJECTIVE> Objective_Map = {
   MakePair("TOPOL_COMPLIANCE", TOPOL_COMPLIANCE)
   MakePair("STRESS_PENALTY", STRESS_PENALTY)
   MakePair("STREAMWISE_LAMBDAL", STREAMWISE_LAMBDAL)
+  MakePair("STREAMWISE_PERIODIC_DP", STREAMWISE_PERIODIC_DP)
+  MakePair("STREAMWISE_PERIODIC_MASSFLOW", STREAMWISE_PERIODIC_MASSFLOW)
 };
 
 /*!
