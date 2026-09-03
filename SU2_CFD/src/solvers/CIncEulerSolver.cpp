@@ -1685,6 +1685,7 @@ void CIncEulerSolver::Source_Residual(CGeometry *geometry, CSolver **solver_cont
       const su2double damping_factor = config->GetInc_Outlet_Damping();
       SPvalsUpdated = SPvals;
       SPvalsUpdated.Streamwise_Periodic_PressureDrop += damping_factor*ddP;
+      config->SetStreamwise_Periodic_PressureDrop(SPvalsUpdated.Streamwise_Periodic_PressureDrop);
       if (!config->GetDiscrete_Adjoint())
         SPvals = SPvalsUpdated;
 
