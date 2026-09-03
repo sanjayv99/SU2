@@ -3698,6 +3698,10 @@ void CConfig::SetPostprocessing(SU2_COMPONENT val_software, unsigned short val_i
     for (unsigned short iObj=0; iObj<nObj; iObj++)
       Weight_ObjFunc[iObj] = 1.0;
   }
+  /*--- Record the true allocated length of the objective arrays. It is not nObj: when a
+      single objective is applied to several monitoring markers the arrays are grown to
+      nMarker_Monitoring while nObj stays 1. ---*/
+  nKind_ObjFunc = max(nObj, nMarker_Monitoring);
 
   /*--- One final check for multi-objective with the set of objectives
    that are not counted per-surface. We will disable multi-objective here. ---*/
@@ -5148,8 +5152,8 @@ void CConfig::SetPostprocessing(SU2_COMPONENT val_software, unsigned short val_i
       SU2_MPI::Error("Streamwise Periodic Flow + Incompressible Euler: Not tested yet.", CURRENT_FUNCTION);
     if (nMarker_PerBound == 0)
       SU2_MPI::Error("A MARKER_PERIODIC pair has to be set with KIND_STREAMWISE_PERIODIC != NONE.", CURRENT_FUNCTION);
-    if (Energy_Equation && Streamwise_Periodic_Temperature && nMarker_Isothermal != 0)
-      SU2_MPI::Error("No MARKER_ISOTHERMAL marker allowed with STREAMWISE_PERIODIC_TEMPERATURE= YES, only MARKER_HEATFLUX & MARKER_SYM.", CURRENT_FUNCTION);
+    // if (Energy_Equation && Streamwise_Periodic_Temperature && nMarker_Isothermal != 0)
+    //   SU2_MPI::Error("No MARKER_ISOTHERMAL marker allowed with STREAMWISE_PERIODIC_TEMPERATURE= YES, only MARKER_HEATFLUX & MARKER_SYM.", CURRENT_FUNCTION);
     if (Ref_Inc_NonDim != DIMENSIONAL)
       SU2_MPI::Error("Streamwise Periodicity only works with \"INC_NONDIM= DIMENSIONAL\", the nondimensionalization with source terms doesn;t work in general.", CURRENT_FUNCTION);
     if (Axisymmetric)
@@ -8484,11 +8488,39 @@ string CConfig::GetObjFunc_Extension(string val_filename) const {
 }
 
 void CConfig::SetObjFuncByName(const std::string& name, unsigned short iObj) {
+
   auto it = Objective_Map.find(name);
   if (it == Objective_Map.end())
     SU2_MPI::Error("Unknown OBJECTIVE_FUNCTION: " + name, CURRENT_FUNCTION);
-  if (Kind_ObjFunc == nullptr) { Kind_ObjFunc = new unsigned short[1]; nObj = 1; }
-  Kind_ObjFunc[iObj] = static_cast<unsigned short>(it->second);
+
+  const auto kind = static_cast<unsigned short>(it->second);
+
+  if (Kind_ObjFunc == nullptr || nKind_ObjFunc == 0)
+    SU2_MPI::Error("SetObjFuncByName called before CConfig::SetPostprocessing.", CURRENT_FUNCTION);
+
+  if (iObj >= nKind_ObjFunc)
+    SU2_MPI::Error("Objective index out of range in SetObjFuncByName.", CURRENT_FUNCTION);
+
+  /*--- A single objective in the config file was replicated over every monitoring marker.
+        Replicate the replacement the same way, otherwise markers 1..n-1 keep the old
+        objective and EvaluateCommonObjFunc still sums their contributions. ---*/
+
+  if (nObj == 1) {
+    for (unsigned short i = 0; i < nKind_ObjFunc; i++) Kind_ObjFunc[i] = kind;
+  } else {
+    Kind_ObjFunc[iObj] = kind;
+  }
+
+  /*--- Re-run the objective checks that SetPostprocessing has already passed. ---*/
+
+  if (kind == SURFACE_PRESSURE_DROP && nMarker_Analyze < 2)
+    SU2_MPI::Error("SURFACE_PRESSURE_DROP needs at least two entries in MARKER_ANALYZE.", CURRENT_FUNCTION);
+
+  if (kind == CUSTOM_OBJFUNC && CustomObjFunc.empty() && !Multizone_Problem)
+    SU2_MPI::Error("CUSTOM_OBJFUNC was selected but the CUSTOM_OBJFUNC expression is empty.", CURRENT_FUNCTION);
+
+  if ((kind == SURFACE_SPECIES_0 || kind == SURFACE_SPECIES_VARIANCE) && nMarker_Analyze > 1)
+    SU2_MPI::Error("SURFACE_SPECIES_0 and SURFACE_SPECIES_VARIANCE allow only one MARKER_ANALYZE entry.", CURRENT_FUNCTION);
 }
 
 unsigned short CConfig::GetContainerPosition(unsigned short val_eqsystem) {

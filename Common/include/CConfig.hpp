@@ -464,6 +464,7 @@ private:
   string CustomOutputs;        /*!< \brief User-defined functions for outputs. */
   unsigned short nDV,                  /*!< \brief Number of design variables. */
   nObj, nObjW;                         /*! \brief Number of objective functions. */
+  unsigned short nKind_ObjFunc = 0;  /*!< \brief Allocated length of Kind_ObjFunc and Weight_ObjFunc. */
   unsigned short* nDV_Value;           /*!< \brief Number of values for each design variable (might be different than 1 if we allow arbitrary movement). */
   unsigned short nFFDBox;              /*!< \brief Number of ffd boxes. */
   unsigned short nTurboMachineryKind;  /*!< \brief Number turbomachinery types specified. */
@@ -1085,6 +1086,7 @@ private:
   bool Streamwise_Periodic_Temperature;              /*!< \brief Use real periodicity for Energy equation or otherwise outlet source term. */
   su2double Streamwise_Periodic_PressureDrop;        /*!< \brief Value of prescribed pressure drop [Pa] which results in an artificial body force vector. */
   su2double Streamwise_Periodic_TargetMassFlow;      /*!< \brief Value of prescribed massflow [kg/s] which results in an delta p and therefore an artificial body force vector. */
+  su2double Streamwise_Periodic_ComputedMassFlow;      /*!< \brief Value of computed massflow [kg/s] corresponding to a prescribed delta p. */
   su2double Streamwise_Periodic_OutletHeat;          /*!< /brief Heatflux boundary [W/m^2] imposed at streamwise periodic outlet. */
   su2double Streamwise_Periodic_LambdaL;            /*!< /brief Exp coefficient for iso-thermal BCs Streamwise Periodic. */
 
@@ -6273,6 +6275,17 @@ public:
    * \brief Set the value of the pressure delta from which body force vector is computed. Necessary for Restart metadata.
    */
   void SetStreamwise_Periodic_PressureDrop(su2double Streamwise_Periodic_PressureDrop_) { Streamwise_Periodic_PressureDrop = Streamwise_Periodic_PressureDrop_; }
+
+  /*!
+   * \brief Get the value of the MassFlow from which body force vector is computed.
+   * \return MassFlow for body force computation.
+   */
+  su2double GetStreamwise_Periodic_ComputedMassFlow(void) const { return Streamwise_Periodic_ComputedMassFlow; }
+
+  /*!
+   * \brief Set the value of the MassFlow from which body force vector is computed. Necessary for Restart metadata??
+   */
+  void SetStreamwise_Periodic_ComputedMassFlow(su2double Streamwise_Periodic_MassFlow_) { Streamwise_Periodic_ComputedMassFlow = Streamwise_Periodic_MassFlow_; }
 
   /*!
    * \brief Get the value of the massflow from which body force vector is computed.
