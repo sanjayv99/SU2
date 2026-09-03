@@ -723,6 +723,8 @@ CSourceIncStreamwise_Periodic::CSourceIncStreamwise_Periodic(unsigned short val_
   turbulent = (config->GetKind_Turb_Model() != TURB_MODEL::NONE);
   energy    = config->GetEnergy_Equation();
   streamwisePeriodic_temperature = config->GetStreamwise_Periodic_Temperature();
+  bool_heat_flux_bc = (config->GetnMarker_HeatFlux() > 0);
+  bool_isotherml_bc = (config->GetnMarker_Isothermal() > 0);
 
   for (unsigned short iDim = 0; iDim < nDim; iDim++)
     Streamwise_Coord_Vector[iDim] = config->GetPeriodic_Translation(0)[iDim];
