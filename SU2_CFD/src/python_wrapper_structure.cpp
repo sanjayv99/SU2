@@ -178,3 +178,10 @@ void CDriver::SetMarkerTranslationRate(unsigned short iMarker, passivedouble vel
 void CDriver::SetObjectiveFunction(string name) {
   main_config->SetObjFuncByName(name);
 }
+
+void CDriver::FinalizeAD() {
+  #ifdef CODI_REVERSE_TYPE
+    AD::Reset();
+    AD::getTape().resetHard();
+  #endif
+}

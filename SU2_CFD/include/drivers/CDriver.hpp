@@ -430,6 +430,8 @@ class CDriver : public CDriverBase {
    */
   void Finalize() override;
 
+  void FinalizeAD();
+
   /*!
    * \brief Perform some pre-processing before an iteration of the physics.
    */
