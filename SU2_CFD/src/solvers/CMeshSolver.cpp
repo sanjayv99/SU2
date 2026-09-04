@@ -551,9 +551,9 @@ void CMeshSolver::DeformMesh_Volumetric(CGeometry **geometry, CConfig *config) {
 
   // Need to Reset here to the reference mesh cause RBF is incremental (AddCoord) 
   // TODO: check if we can just enable it for adjoint mode only or okay to leave it?
-  // for (unsigned long iPoint = 0ul; iPoint < nPoint; ++iPoint)
-  //   for (unsigned short iDim = 0u; iDim < nDim; ++iDim)
-  //     geometry[MESH_0]->nodes->SetCoord(iPoint, iDim, nodes->GetMesh_Coord(iPoint, iDim));
+  for (unsigned long iPoint = 0ul; iPoint < nPoint; ++iPoint)
+    for (unsigned short iDim = 0u; iDim < nDim; ++iDim)
+      geometry[MESH_0]->nodes->SetCoord(iPoint, iDim, nodes->GetMesh_Coord(iPoint, iDim));
                                                 
   // Bound_Disp to VarCoord
   for (unsigned short iMarker = 0; iMarker < config->GetnMarker_All(); iMarker++) 
