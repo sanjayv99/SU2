@@ -2062,6 +2062,12 @@ void CConfig::SetConfig_Options() {
   /*!\brief SENS_REMOVE_SHARP
    * \n DESCRIPTION: Remove sharp edges from the sensitivity evaluation  \n Format: SENS_REMOVE_SHARP = YES \n DEFAULT: NO \ingroup Config*/
   addBoolOption("SENS_REMOVE_SHARP", Sens_Remove_Sharp, false);
+   /*!\brief SENS_FLUID_PROPERTIES
+   * \n DESCRIPTION: Register the constant fluid properties (density, laminar viscosity, Cp,
+   * thermal conductivity) as inputs of the discrete adjoint, so that the derivatives of the
+   * objective function with respect to them are computed. Incompressible solver, CONSTANT_DENSITY
+   * fluid model only. */
+  addBoolOption("SENS_FLUID_PROPERTIES", Sens_Fluid_Properties, false);
 
   /* DESCRIPTION: Automatically reorient elements that seem flipped */
   addBoolOption("REORIENT_ELEMENTS",ReorientElements, true);

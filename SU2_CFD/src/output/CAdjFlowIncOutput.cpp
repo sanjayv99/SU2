@@ -184,6 +184,15 @@ void CAdjFlowIncOutput::SetHistoryOutputFields(CConfig *config) {
   AddHistoryOutput("SENS_PRESS_OUT",  "Sens_Pout",  ScreenOutputFormat::SCIENTIFIC, "SENSITIVITY", "Sensitivity of the objective function with respect to the outlet pressure.", HistoryFieldType::COEFFICIENT);
   /// END_GROUP
 
+    /// DESCRIPTION: Sensitivity of the objective function with respect to the constant fluid properties.
+  AddHistoryOutput("SENS_DENSITY", "Sens_Rho", ScreenOutputFormat::SCIENTIFIC, "SENSITIVITY", "Sensitivity of the objective function with respect to the (constant) density.", HistoryFieldType::COEFFICIENT);
+  /// DESCRIPTION: Sensitivity of the objective function with respect to the laminar viscosity.
+  AddHistoryOutput("SENS_VISCOSITY", "Sens_Mu", ScreenOutputFormat::SCIENTIFIC, "SENSITIVITY", "Sensitivity of the objective function with respect to the (constant) laminar viscosity.", HistoryFieldType::COEFFICIENT);
+  /// DESCRIPTION: Sensitivity of the objective function with respect to the specific heat.
+  AddHistoryOutput("SENS_CP", "Sens_Cp", ScreenOutputFormat::SCIENTIFIC, "SENSITIVITY", "Sensitivity of the objective function with respect to the specific heat at constant pressure.", HistoryFieldType::COEFFICIENT);
+  /// DESCRIPTION: Sensitivity of the objective function with respect to the thermal conductivity.
+  AddHistoryOutput("SENS_CONDUCTIVITY", "Sens_Kt", ScreenOutputFormat::SCIENTIFIC, "SENSITIVITY", "Sensitivity of the objective function with respect to the (constant) thermal conductivity.", HistoryFieldType::COEFFICIENT);
+
   AddHistoryOutput("LINSOL_ITER", "LinSolIter", ScreenOutputFormat::INTEGER, "LINSOL", "Number of iterations of the linear solver.");
   AddHistoryOutput("LINSOL_RESIDUAL", "LinSolRes", ScreenOutputFormat::FIXED, "LINSOL", "Residual of the linear solver.");
 
@@ -264,6 +273,11 @@ void CAdjFlowIncOutput::LoadHistoryData(CConfig *config, CGeometry *geometry, CS
   SetHistoryOutputValue("SENS_TEMP", adjflow_solver->GetTotal_Sens_Temp());
   SetHistoryOutputValue("SENS_VEL_IN", adjflow_solver->GetTotal_Sens_ModVel());
   SetHistoryOutputValue("SENS_PRESS_OUT", adjflow_solver->GetTotal_Sens_BPress());
+
+  SetHistoryOutputValue("SENS_DENSITY", adjflow_solver->GetTotal_Sens_Density());
+  SetHistoryOutputValue("SENS_VISCOSITY", adjflow_solver->GetTotal_Sens_Viscosity());
+  SetHistoryOutputValue("SENS_CP", adjflow_solver->GetTotal_Sens_Cp());
+  SetHistoryOutputValue("SENS_CONDUCTIVITY", adjflow_solver->GetTotal_Sens_Conductivity());
 
   SetHistoryOutputValue("LINSOL_ITER", adjflow_solver->GetIterLinSolver());
   SetHistoryOutputValue("LINSOL_RESIDUAL", log10(adjflow_solver->GetResLinSolver()));

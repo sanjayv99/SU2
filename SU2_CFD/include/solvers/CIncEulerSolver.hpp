@@ -128,6 +128,17 @@ public:
   CIncEulerSolver() = delete;
 
   /*!
+   * \brief Recompute the reference values and the non-dimensional constant fluid properties
+   *        (density, viscosity, Cp, thermal conductivity) from the dimensional values currently
+   *        stored in the config, and push them into the fluid models of every thread.
+   *        This is the subset of SetNondimensionalization that depends on the constant fluid
+   *        properties. It is called by CDiscAdjSolver::RegisterVariables after those properties
+   *        have been registered as AD inputs, so that the chain from the dimensional property to
+   *        every primitive variable is on the tape.
+   */
+  void UpdateFluidProperties(CConfig *config) override;
+
+  /*!
    * \brief Constructor of the class.
    * \param[in] geometry - Geometrical definition of the problem.
    * \param[in] config - Definition of the particular problem.

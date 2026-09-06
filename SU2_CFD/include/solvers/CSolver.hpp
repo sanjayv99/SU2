@@ -3093,9 +3093,36 @@ public:
 
   /*!
    * \brief A virtual member.
+   * \return Value of the laminar viscosity sensitivity.
+   */
+  inline virtual su2double GetTotal_Sens_Viscosity() const { return 0; }
+
+  /*!
+   * \brief A virtual member.
+   * \return Value of the specific heat (Cp) sensitivity.
+   */
+  inline virtual su2double GetTotal_Sens_Cp() const { return 0; }
+
+  /*!
+   * \brief A virtual member.
+   * \return Value of the thermal conductivity sensitivity.
+   */
+  inline virtual su2double GetTotal_Sens_Conductivity() const { return 0; }
+
+  /*!
+   * \brief A virtual member.
    * \return Value of the velocity magnitude sensitivity.
    */
   inline virtual su2double GetTotal_Sens_ModVel() const { return 0; }
+
+  /*!
+   * \brief A virtual member. Recompute the non-dimensionalization of the constant fluid
+   *        properties (density, viscosity, Cp, conductivity) from the dimensional values
+   *        currently stored in the config, and push them into the fluid models.
+   *        Used by the discrete adjoint to make the primal depend, on the AD tape, on the
+   *        property values that were registered as inputs.
+   */
+  inline virtual void UpdateFluidProperties(CConfig *config) {}
 
   /*!
    * \brief A virtual member.

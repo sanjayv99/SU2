@@ -57,4 +57,13 @@ class CConstantDensity final : public CFluidModel {
        Note Cp = Cv, (gamma = 1).*/
     Temperature = t;
   }
+
+  /*!
+   * \brief Overwrite the constant density and specific heat (Cv = Cp for this model).
+   */
+  void SetConstantDensityAndCp(su2double val_density, su2double val_cp) override {
+    Density = val_density;
+    Cp = val_cp;
+    Cv = val_cp;
+  }
 };

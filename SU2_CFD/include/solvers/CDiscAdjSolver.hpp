@@ -59,6 +59,15 @@ protected:
   su2double Total_Sens_ModVel;   /*!< \brief Total sensitivity to inlet velocity (incompressible). */
   su2double Mach, Alpha, Beta, Pressure, Temperature, BPressure, ModVel;
   su2double TemperatureRad, Total_Sens_Temp_Rad;
+  /*--- Constant fluid properties registered as inputs, and the corresponding sensitivities.
+  Only used for the incompressible solver with SENS_FLUID_PROPERTIES= YES. ---*/
+  su2double DensityProp = 0.0;          /*!< \brief Registered dimensional density (INC_DENSITY_INIT). */
+  su2double ViscosityProp = 0.0;        /*!< \brief Registered dimensional laminar viscosity (MU_CONSTANT). */
+  su2double CpProp = 0.0;               /*!< \brief Registered dimensional specific heat (SPECIFIC_HEAT_CP). */
+  su2double ConductivityProp = 0.0;     /*!< \brief Registered dimensional thermal conductivity (THERMAL_CONDUCTIVITY_CONSTANT). */
+  su2double Total_Sens_Viscosity = 0.0; /*!< \brief Total sensitivity to the laminar viscosity. */
+  su2double Total_Sens_Cp = 0.0;        /*!< \brief Total sensitivity to the specific heat at constant pressure. */
+  su2double Total_Sens_Conductivity = 0.0; /*!< \brief Total sensitivity to the thermal conductivity. */
 
   CDiscAdjVariable* nodes = nullptr;  /*!< \brief The highest level in the variable hierarchy this solver can safely use. */
 
@@ -191,6 +200,24 @@ public:
    * \return Value of the velocity magnitude sensitivity.
    */
   inline su2double GetTotal_Sens_ModVel() const override { return Total_Sens_ModVel; }
+
+    /*!
+   * \brief Get the total laminar viscosity sensitivity coefficient.
+   * \return Value of the viscosity sensitivity.
+   */
+  inline su2double GetTotal_Sens_Viscosity() const override { return Total_Sens_Viscosity; }
+
+  /*!
+   * \brief Get the total specific heat (Cp) sensitivity coefficient.
+   * \return Value of the Cp sensitivity.
+   */
+  inline su2double GetTotal_Sens_Cp() const override { return Total_Sens_Cp; }
+
+  /*!
+   * \brief Get the total thermal conductivity sensitivity coefficient.
+   * \return Value of the thermal conductivity sensitivity.
+   */
+  inline su2double GetTotal_Sens_Conductivity() const override { return Total_Sens_Conductivity; }
 
   /*!
    * \brief Get the shape sensitivity coefficient.

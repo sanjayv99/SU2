@@ -139,6 +139,14 @@ class CFluidModel {
   su2double GetCv() const { return Cv; }
 
   /*!
+   * \brief Overwrite the (non-dimensional) constant density and specific heat of the model.
+   *       Only implemented by models for which these are genuinely constant inputs. It is used to
+   *       re-inject values that have been registered as inputs of the discrete adjoint, so that the
+   *       dependency of the primal on them is recorded by the AD tape.
+   */
+  inline virtual void SetConstantDensityAndCp(su2double val_density, su2double val_cp) {}
+
+  /*!
    * \brief Flamelet LUT - Get the number of transported scalars.
    */
   virtual inline unsigned short GetNScalars() const { return 0; }

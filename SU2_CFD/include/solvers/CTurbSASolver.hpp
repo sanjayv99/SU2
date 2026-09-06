@@ -372,6 +372,15 @@ public:
   void SetUniformInlet(const CConfig* config, unsigned short iMarker) override;
 
   /*!
+   * \brief Recompute the free-stream turbulence state from the constant fluid properties
+   *        currently stored in the config (nu_tilde_inf = NuFactor * mu_inf / rho_inf).
+   *        Called by CDiscAdjSolver::RegisterVariables after the flow solver has registered
+   *        rho and mu as AD inputs, so that the dependency of the turbulence far-field and
+   *        inlet state on those properties is recorded on the tape.
+   */
+  void UpdateFluidProperties(CConfig *config) override;
+
+  /*!
    * \brief Get the value of nu tilde at the far-field.
    * \return Value of nu tilde at the far-field.
    */

@@ -1051,6 +1051,33 @@ su2double CTurbSSTSolver::GetInletAtVertex(su2double *val_inlet,
 
 }
 
+void CTurbSSTSolver::UpdateFluidProperties(CConfig *config) {
+
+  /*--- Same expressions as in the constructor, re-evaluated from the (registered) properties.
+   The turbulent kinetic energy depends on the free-stream velocity only, omega depends on
+   both the density and the laminar viscosity. ---*/
+
+  const su2double rhoInf    = config->GetDensity_FreeStreamND();
+  const su2double muLamInf  = config->GetViscosity_FreeStreamND();
+  const su2double* VelInf   = config->GetVelocity_FreeStreamND();
+  const su2double Intensity = config->GetTurbulenceIntensity_FreeStream();
+  const su2double viscRatio = config->GetTurb2LamViscRatio_FreeStream();
+
+  const su2double VelMag2   = GeometryToolbox::SquaredNorm(nDim, VelInf);
+  const su2double kine_Inf  = 3.0/2.0*(VelMag2*Intensity*Intensity);
+  const su2double omega_Inf = rhoInf*kine_Inf/(muLamInf*viscRatio);
+
+  Solution_Inf[0] = kine_Inf;
+  Solution_Inf[1] = omega_Inf;
+
+  /*--- The uniform inlet state is a copy of the far-field one, so it has to follow. Inlet
+   profiles read from a file are prescribed data and are left alone. ---*/
+
+  if (!config->GetInlet_Profile_From_File()) {
+    for (unsigned short iMarker = 0; iMarker < nMarker; iMarker++) SetUniformInlet(config, iMarker);
+  }
+}
+
 void CTurbSSTSolver::SetUniformInlet(const CConfig* config, unsigned short iMarker) {
   if (config->GetMarker_All_KindBC(iMarker) == INLET_FLOW) {
     for (unsigned long iVertex = 0; iVertex < nVertex[iMarker]; iVertex++) {

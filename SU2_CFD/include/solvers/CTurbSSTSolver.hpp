@@ -296,6 +296,15 @@ public:
   void SetUniformInlet(const CConfig* config, unsigned short iMarker) override;
 
   /*!
+   * \brief Recompute the free-stream turbulence state from the constant fluid properties
+   *        currently stored in the config (omega_inf = rho_inf * k_inf / (mu_inf * ratio)).
+   *        Called by CDiscAdjSolver::RegisterVariables after the flow solver has registered
+   *        rho and mu as AD inputs, so that the dependency of the turbulence far-field and
+   *        inlet state on those properties is recorded on the tape.
+   */
+  void UpdateFluidProperties(CConfig *config) override;
+
+  /*!
    * \brief Get the value of the turbulent kinetic energy.
    * \return Value of the turbulent kinetic energy.
    */

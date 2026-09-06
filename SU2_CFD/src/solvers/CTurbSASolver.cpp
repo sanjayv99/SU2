@@ -1578,6 +1578,26 @@ su2double CTurbSASolver::GetInletAtVertex(su2double *val_inlet,
 
 }
 
+void CTurbSASolver::UpdateFluidProperties(CConfig *config) {
+
+  /*--- Same expressions as in the constructor, re-evaluated from the (registered) properties. ---*/
+
+  const su2double Density_Inf   = config->GetDensity_FreeStreamND();
+  const su2double Viscosity_Inf = config->GetViscosity_FreeStreamND();
+  const su2double bc_factor     = config->GetSAParsedOptions().bc ? 0.005 : 1.0;
+
+  Solution_Inf[0]  = bc_factor*config->GetNuFactor_FreeStream()*Viscosity_Inf/Density_Inf;
+  nu_tilde_Engine  = bc_factor*config->GetNuFactor_Engine()*Viscosity_Inf/Density_Inf;
+  nu_tilde_ActDisk = config->GetNuFactor_Engine()*Viscosity_Inf/Density_Inf;
+
+  /*--- The uniform inlet state is a copy of the far-field one, so it has to follow. Inlet
+  profiles read from a file are prescribed data and are left alone. ---*/
+
+  if (!config->GetInlet_Profile_From_File()) {
+    for (unsigned short iMarker = 0; iMarker < nMarker; iMarker++) SetUniformInlet(config, iMarker);
+  }
+}
+
 void CTurbSASolver::SetUniformInlet(const CConfig* config, unsigned short iMarker) {
   if (config->GetMarker_All_KindBC(iMarker) == INLET_FLOW) {
     for (unsigned long iVertex = 0; iVertex < nVertex[iMarker]; iVertex++) {

@@ -919,6 +919,118 @@ void CIncEulerSolver::SetNondimensionalization(CConfig *config, unsigned short i
 
 }
 
+void CIncEulerSolver::UpdateFluidProperties(CConfig *config) {
+
+  /*--- Only genuinely constant properties can be treated as independent inputs. For the other
+   fluid models the density and the specific heat are functions of the solution itself, and the
+   input would be the state of the fluid (temperature, thermodynamic pressure, composition). ---*/
+
+  if (config->GetKind_FluidModel() != CONSTANT_DENSITY)
+    SU2_MPI::Error(string("SENS_FLUID_PROPERTIES requires INC_DENSITY_MODEL= CONSTANT and\n") +
+                   string("FLUID_MODEL= CONSTANT_DENSITY."), CURRENT_FUNCTION);
+
+  const bool viscous = config->GetViscous();
+
+  if (viscous) {
+    if (config->GetKind_ViscosityModel() != VISCOSITYMODEL::CONSTANT)
+      SU2_MPI::Error("SENS_FLUID_PROPERTIES requires VISCOSITY_MODEL= CONSTANT_VISCOSITY.",
+                     CURRENT_FUNCTION);
+
+    if ((config->GetKind_ConductivityModel() != CONDUCTIVITYMODEL::CONSTANT) &&
+        (config->GetKind_ConductivityModel() != CONDUCTIVITYMODEL::CONSTANT_PRANDTL))
+      SU2_MPI::Error(string("SENS_FLUID_PROPERTIES requires CONDUCTIVITY_MODEL= CONSTANT_CONDUCTIVITY\n") +
+                     string("or CONSTANT_PRANDTL."), CURRENT_FUNCTION);
+  }
+
+  /*--- The dimensional properties. These are the quantities that the discrete adjoint registers
+   as inputs (see CDiscAdjSolver::RegisterVariables), everything below this point is a
+   differentiable function of them and must therefore be re-evaluated here, on the tape. ---*/
+
+  const su2double Density_FreeStream = config->GetInc_Density_Init();
+  config->SetDensity_FreeStream(Density_FreeStream);
+
+  /*--- Reference values. Same expressions as in SetNondimensionalization, kept in the same order.
+   Of these only the density reference depends on a registered property, and only when the
+   non-dimensionalization is based on the initial values. ---*/
+
+  su2double Density_Ref = 0.0, Velocity_Ref = 0.0, Temperature_Ref = 0.0;
+
+  if (config->GetRef_Inc_NonDim() == DIMENSIONAL) {
+    Density_Ref     = 1.0;
+    Velocity_Ref    = 1.0;
+    Temperature_Ref = 1.0;
+  }
+  else if (config->GetRef_Inc_NonDim() == INITIAL_VALUES) {
+    Density_Ref     = Density_FreeStream;
+    Velocity_Ref    = config->GetModVel_FreeStream();
+    Temperature_Ref = config->GetInc_Temperature_Init();
+  }
+  else if (config->GetRef_Inc_NonDim() == REFERENCE_VALUES) {
+    Density_Ref     = config->GetInc_Density_Ref();
+    Velocity_Ref    = config->GetInc_Velocity_Ref();
+    Temperature_Ref = config->GetInc_Temperature_Ref();
+  }
+
+  const su2double Length_Ref       = 1.0;
+  const su2double Pressure_Ref     = Density_Ref*Velocity_Ref*Velocity_Ref;
+  const su2double Heat_Flux_Ref    = Density_Ref*Velocity_Ref*Velocity_Ref*Velocity_Ref;
+  const su2double Gas_Constant_Ref = Velocity_Ref*Velocity_Ref/Temperature_Ref;
+  const su2double Viscosity_Ref    = Density_Ref*Velocity_Ref*Length_Ref;
+  const su2double Conductivity_Ref = Viscosity_Ref*Gas_Constant_Ref;
+
+  config->SetDensity_Ref(Density_Ref);
+  config->SetPressure_Ref(Pressure_Ref);
+  config->SetHeat_Flux_Ref(Heat_Flux_Ref);
+  config->SetGas_Constant_Ref(Gas_Constant_Ref);
+  config->SetViscosity_Ref(Viscosity_Ref);
+  config->SetConductivity_Ref(Conductivity_Ref);
+
+  /*--- Non-dimensional values. Note that GetMu_ConstantND, GetThermal_Conductivity_ConstantND
+   and GetSpecific_Heat_CpND divide the dimensional value by the reference values that were just
+   written, so for those three nothing else needs to be stored. ---*/
+
+  const su2double Density_FreeStreamND = Density_FreeStream/Density_Ref;
+  config->SetDensity_FreeStreamND(Density_FreeStreamND);
+
+  Density_Inf = Density_FreeStreamND;
+
+  if (viscous) {
+    const su2double Viscosity_FreeStream = config->GetMu_Constant();
+    config->SetViscosity_FreeStream(Viscosity_FreeStream);
+    config->SetViscosity_FreeStreamND(Viscosity_FreeStream/Viscosity_Ref);
+    Viscosity_Inf = config->GetViscosity_FreeStreamND();
+  }
+
+  /*--- Free-stream turbulence quantities. These are read by the turbulence solvers for the
+   far-field state and for the uniform inlet state. Of the two only omega depends on the
+   registered properties, tke is a function of the free-stream velocity alone. ---*/
+
+  if (viscous && (config->GetKind_Turb_Model() != TURB_MODEL::NONE)) {
+
+    const su2double viscRatio = config->GetTurb2LamViscRatio_FreeStream();
+
+    config->SetOmega_FreeStream(Density_FreeStream*config->GetTke_FreeStream() /
+                                (config->GetViscosity_FreeStream()*viscRatio));
+
+    config->SetOmega_FreeStreamND(Density_FreeStreamND*config->GetTke_FreeStreamND() /
+                                  (config->GetViscosity_FreeStreamND()*viscRatio));
+  }
+
+  /*--- Push the new values into the fluid model of every thread. The transport property models
+   read the non-dimensional values from the config, so re-creating them is enough. ---*/
+
+  for (auto& fluidModel : FluidModel) {
+
+    fluidModel->SetConstantDensityAndCp(Density_FreeStreamND, config->GetSpecific_Heat_CpND());
+
+    if (viscous) {
+      fluidModel->SetLaminarViscosityModel(config);
+      fluidModel->SetThermalConductivityModel(config);
+    }
+  }
+
+}
+
 void CIncEulerSolver::SetReferenceValues(const CConfig& config) {
 
   /*--- Evaluate reference values for non-dimensionalization. For dimensional or non-dim

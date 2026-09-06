@@ -263,6 +263,61 @@ void CDiscAdjSolver::RegisterVariables(CGeometry *geometry, CConfig *config, boo
 
   }
 
+  /*--- Register the constant fluid properties as input. In contrast to the boundary values
+     above, the values that the primal actually reads are held inside the fluid model objects,
+     which are built once in CIncEulerSolver::SetNondimensionalization, i.e. before the tape
+     exists. UpdateFluidProperties therefore re-evaluates the non-dimensionalization of these
+     four properties and pushes the result into the fluid models, so that the dependency of
+     every primitive variable on them is recorded. ---*/
+
+  if (config->GetSens_Fluid_Properties()) {
+
+    DensityProp      = config->GetInc_Density_Init();
+    CpProp           = config->GetSpecific_Heat_Cp();
+    ViscosityProp    = config->GetMu_Constant();
+    ConductivityProp = config->GetThermal_Conductivity_Constant();
+
+    if (!reset) {
+      AD::RegisterInput(DensityProp);
+      AD::RegisterInput(CpProp);
+      AD::RegisterInput(ViscosityProp);
+      AD::RegisterInput(ConductivityProp);
+    }
+    else {
+      AD::ResetInput(DensityProp);
+      AD::ResetInput(CpProp);
+      AD::ResetInput(ViscosityProp);
+      AD::ResetInput(ConductivityProp);
+    }
+
+    /*--- Store the (possibly registered) values back in the config. ---*/
+
+    config->SetInc_Density_Init(DensityProp);
+    config->SetSpecific_Heat_Cp(CpProp);
+    config->SetMu_Constant(ViscosityProp);
+    config->SetThermal_Conductivity_Constant(ConductivityProp);
+
+    /*--- Re-do the property part of the non-dimensionalization inside the recording. ---*/
+
+    direct_solver->UpdateFluidProperties(config);
+  }
+
+
+  /*--- Propagate the registered fluid properties to the turbulence solver. Nothing new is
+   registered here: the free-stream turbulence state is a function of the density and the
+   viscosity that the flow solver already registered, and which are now stored in the config,
+   so re-evaluating it puts the dependency on the tape. This block therefore relies on the
+   flow solver's RegisterVariables having run first, which it does because ADJFLOW_SOL comes
+   before ADJTURB_SOL both in CDiscAdjFluidIteration::RegisterInput and in the solver loop of
+   CDiscAdjSinglezoneDriver::SetRecording. ---*/
+
+  if ((config->GetKind_Regime() == ENUM_REGIME::INCOMPRESSIBLE) &&
+      (KindDirect_Solver == RUNTIME_TURB_SYS) &&
+      config->GetSens_Fluid_Properties()) {
+
+    direct_solver->UpdateFluidProperties(config);
+  }
+
   /*--- Register incompressible radiation values as input ---*/
 
   if ((config->GetKind_Regime() == ENUM_REGIME::INCOMPRESSIBLE) &&
@@ -432,6 +487,22 @@ void CDiscAdjSolver::ExtractAdjoint_Variables(CGeometry *geometry, CConfig *conf
     SU2_MPI::Allreduce(&Local_Sens_ModVel, &Total_Sens_ModVel, 1, MPI_DOUBLE, MPI_SUM, SU2_MPI::GetComm());
     SU2_MPI::Allreduce(&Local_Sens_BPress, &Total_Sens_BPress, 1, MPI_DOUBLE, MPI_SUM, SU2_MPI::GetComm());
     SU2_MPI::Allreduce(&Local_Sens_Temp,   &Total_Sens_Temp,   1, MPI_DOUBLE, MPI_SUM, SU2_MPI::GetComm());
+  }
+
+  /*--- Adjoint values of the constant fluid properties. Every rank registered its own copy of
+     the property, so the total derivative is the sum of the local ones. ---*/
+
+  if (config->GetSens_Fluid_Properties()) {
+
+    su2double Local_Sens_Density      = SU2_TYPE::GetDerivative(DensityProp);
+    su2double Local_Sens_Cp           = SU2_TYPE::GetDerivative(CpProp);
+    su2double Local_Sens_Viscosity    = SU2_TYPE::GetDerivative(ViscosityProp);
+    su2double Local_Sens_Conductivity = SU2_TYPE::GetDerivative(ConductivityProp);
+
+    SU2_MPI::Allreduce(&Local_Sens_Density,      &Total_Sens_Density,      1, MPI_DOUBLE, MPI_SUM, SU2_MPI::GetComm());
+    SU2_MPI::Allreduce(&Local_Sens_Cp,           &Total_Sens_Cp,           1, MPI_DOUBLE, MPI_SUM, SU2_MPI::GetComm());
+    SU2_MPI::Allreduce(&Local_Sens_Viscosity,    &Total_Sens_Viscosity,    1, MPI_DOUBLE, MPI_SUM, SU2_MPI::GetComm());
+    SU2_MPI::Allreduce(&Local_Sens_Conductivity, &Total_Sens_Conductivity, 1, MPI_DOUBLE, MPI_SUM, SU2_MPI::GetComm());
   }
 
   if ((config->GetKind_Regime() == ENUM_REGIME::INCOMPRESSIBLE) &&

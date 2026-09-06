@@ -131,6 +131,7 @@ private:
   Frozen_Limiter_Disc,      /*!< \brief Flag for disc. adjoint problem with/without frozen limiter. */
   Inconsistent_Disc,        /*!< \brief Use an inconsistent (primal/dual) discrete adjoint formulation. */
   Sens_Remove_Sharp,        /*!< \brief Flag for removing or not the sharp edges from the sensitivity computation. */
+  Sens_Fluid_Properties,    /*!< \brief Flag to register the constant fluid properties (density, viscosity, Cp, conductivity) as inputs of the discrete adjoint. */
   Hold_GridFixed,           /*!< \brief Flag hold fixed some part of the mesh during the deformation. */
   Axisymmetric,             /*!< \brief Flag for axisymmetric calculations */
   Integrated_HeatFlux;      /*!< \brief Flag for heat flux BC whether it deals with integrated values.*/
@@ -1704,6 +1705,12 @@ public:
   su2double GetSpecific_Heat_Cp(unsigned short val_index = 0) const { return Specific_Heat_Cp[val_index]; }
 
   /*!
+   * \brief Set the value of specific heat at constant pressure.
+   * \note Needed to register Cp as an input of the discrete adjoint.
+   */
+  void SetSpecific_Heat_Cp(su2double val_cp, unsigned short val_index = 0) { Specific_Heat_Cp[val_index] = val_cp; }
+
+  /*!
    * \brief Get the non-dimensional value of specific heat at constant pressure.
    * \return Value of the non-dim. constant: Cp
    */
@@ -2108,6 +2115,12 @@ public:
    * \return Reference temperature for custom incompressible non-dimensionalization.
    */
   su2double GetInc_Temperature_Ref(void) const { return Inc_Temperature_Ref; }
+
+  /*!
+   * \brief Set the value of the initial density for incompressible flows.
+   * \note Needed to register the density as an input of the discrete adjoint.
+   */
+  void SetInc_Density_Init(su2double val_density) { Inc_Density_Init = val_density; }
 
   /*!
    * \brief Get the value of the initial density for incompressible flows.
@@ -4038,6 +4051,12 @@ public:
   CONDUCTIVITYMODEL_TURB GetKind_ConductivityModel_Turb() const { return Kind_ConductivityModel_Turb; }
 
   /*!
+   * \brief Set the value of the constant viscosity.
+   * \note Needed to register the viscosity as an input of the discrete adjoint.
+   */
+  void SetMu_Constant(su2double val_mu, unsigned short val_index = 0) { Mu_Constant[val_index] = val_mu; }
+
+  /*!
    * \brief Get the value of the mass diffusivity model.
    * \return Mass diffusivity model.
    */
@@ -4048,6 +4067,14 @@ public:
    * \return Constant viscosity.
    */
   su2double GetMu_Constant(unsigned short val_index = 0) const { return Mu_Constant[val_index]; }
+
+  /*!
+   * \brief Set the value of the thermal conductivity.
+   * \note Needed to register the conductivity as an input of the discrete adjoint.
+   */
+  void SetThermal_Conductivity_Constant(su2double val_kt, unsigned short val_index = 0) {
+    Thermal_Conductivity_Constant[val_index] = val_kt;
+  }
 
   /*!
    * \brief Get the value of the non-dimensional constant viscosity.
@@ -5050,6 +5077,13 @@ public:
    * \return <code>FALSE</code> means that the adjoint turbulence equations will be used.
    */
   bool GetFrozen_Visc_Cont(void) const { return Frozen_Visc_Cont; }
+
+  /*!
+   * \brief Get information about whether the constant fluid properties are registered as inputs
+   *        of the discrete adjoint (density, laminar viscosity, Cp and thermal conductivity).
+   * \return TRUE means that the property sensitivities are computed.
+   */
+  bool GetSens_Fluid_Properties(void) const { return Sens_Fluid_Properties; }
 
   /*!
    * \brief Provides information about the way in which the turbulence will be treated by the
