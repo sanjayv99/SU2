@@ -2397,7 +2397,9 @@ void CFlowOutput::WriteMetaData(const CConfig *config){
     if(config->GetKind_Streamwise_Periodic() == ENUM_STREAMWISE_PERIODIC::MASSFLOW) {
       meta_file << "STREAMWISE_PERIODIC_PRESSURE_DROP=" << GetHistoryFieldValue("STREAMWISE_DP") << endl;
       meta_file << "STREAMWISE_PERIODIC_MASSFLOW=" << GetHistoryFieldValue("STREAMWISE_MASSFLOW") << endl;
-      meta_file << "STREAMWISE_PERIODIC_LAMBDAL=" << GetHistoryFieldValue("STREAMWISE_LAMBDAL") << endl;
+      if (config->GetnMarker_Isothermal() > 0){
+        meta_file << "STREAMWISE_PERIODIC_LAMBDAL=" << GetHistoryFieldValue("STREAMWISE_LAMBDAL") << endl;
+      }
     }
   }
 
