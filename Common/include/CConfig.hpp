@@ -132,6 +132,7 @@ private:
   Inconsistent_Disc,        /*!< \brief Use an inconsistent (primal/dual) discrete adjoint formulation. */
   Sens_Remove_Sharp,        /*!< \brief Flag for removing or not the sharp edges from the sensitivity computation. */
   Sens_Fluid_Properties,    /*!< \brief Flag to register the constant fluid properties (density, viscosity, Cp, conductivity) as inputs of the discrete adjoint. */
+  Sens_Streamwise_Periodic, /*!< \brief Flag to register the streamwise periodic control input (pressure drop or target massflow) as an input of the discrete adjoint. */
   Hold_GridFixed,           /*!< \brief Flag hold fixed some part of the mesh during the deformation. */
   Axisymmetric,             /*!< \brief Flag for axisymmetric calculations */
   Integrated_HeatFlux;      /*!< \brief Flag for heat flux BC whether it deals with integrated values.*/
@@ -5086,6 +5087,14 @@ public:
   bool GetSens_Fluid_Properties(void) const { return Sens_Fluid_Properties; }
 
   /*!
+   * \brief Get information about whether the streamwise periodic control input is registered as an
+   *        input of the discrete adjoint. In PRESSURE_DROP mode that is the prescribed pressure
+   *        drop, in MASSFLOW mode the prescribed massflow.
+   * \return TRUE means that the control input sensitivity is computed.
+   */
+  bool GetSens_Streamwise_Periodic(void) const { return Sens_Streamwise_Periodic; }
+
+  /*!
    * \brief Provides information about the way in which the turbulence will be treated by the
    *        disc. adjoint method.
    * \return <code>FALSE</code> means that the adjoint turbulence equations will be used.
@@ -6320,6 +6329,12 @@ public:
    * \brief Set the value of the MassFlow from which body force vector is computed. Necessary for Restart metadata??
    */
   void SetStreamwise_Periodic_ComputedMassFlow(su2double Streamwise_Periodic_MassFlow_) { Streamwise_Periodic_ComputedMassFlow = Streamwise_Periodic_MassFlow_; }
+
+  /*!
+   * \brief Set the value of the prescribed massflow for streamwise periodic flow.
+   *        Needed to register the target massflow as an input of the discrete adjoint.
+   */
+  void SetStreamwise_Periodic_TargetMassFlow(su2double val_massflow) { Streamwise_Periodic_TargetMassFlow = val_massflow; }
 
   /*!
    * \brief Get the value of the massflow from which body force vector is computed.

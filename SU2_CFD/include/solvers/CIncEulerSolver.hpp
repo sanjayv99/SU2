@@ -139,6 +139,16 @@ public:
   void UpdateFluidProperties(CConfig *config) override;
 
   /*!
+   * \brief Re-inject the streamwise periodic control input from the config into SPvals.
+   *        Only needed in PRESSURE_DROP mode: there SPvals.Streamwise_Periodic_PressureDrop is
+   *        set once in the CIncNSSolver constructor, i.e. before the tape exists, so a value
+   *        registered as an AD input would never reach the source term. In MASSFLOW mode the
+   *        target massflow is read from the config on every call of Source_Residual, inside the
+   *        recording, so nothing has to be done here.
+   */
+  void UpdateStreamwisePeriodicInputs(CConfig *config) override;
+
+  /*!
    * \brief Constructor of the class.
    * \param[in] geometry - Geometrical definition of the problem.
    * \param[in] config - Definition of the particular problem.

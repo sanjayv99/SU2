@@ -3116,6 +3116,25 @@ public:
   inline virtual su2double GetTotal_Sens_ModVel() const { return 0; }
 
   /*!
+   * \brief A virtual member.
+   * \return Value of the prescribed streamwise periodic pressure drop sensitivity.
+   */
+  inline virtual su2double GetTotal_Sens_PressureDrop() const { return 0; }
+
+  /*!
+   * \brief A virtual member.
+   * \return Value of the prescribed streamwise periodic massflow sensitivity.
+   */
+  inline virtual su2double GetTotal_Sens_MassFlow() const { return 0; }
+
+  /*!
+   * \brief A virtual member. Re-inject the streamwise periodic control input from the config
+   *        into the solver state, so that a registered value is picked up by the recording.
+   * \param[in] config - Definition of the particular problem.
+   */
+  inline virtual void UpdateStreamwisePeriodicInputs(CConfig *config) {}
+
+  /*!
    * \brief A virtual member. Recompute the non-dimensionalization of the constant fluid
    *        properties (density, viscosity, Cp, conductivity) from the dimensional values
    *        currently stored in the config, and push them into the fluid models.

@@ -1031,6 +1031,18 @@ void CIncEulerSolver::UpdateFluidProperties(CConfig *config) {
 
 }
 
+void CIncEulerSolver::UpdateStreamwisePeriodicInputs(CConfig *config) {
+
+  /*--- Mirror of the assignment in the CIncNSSolver constructor. Re-evaluating it inside the
+   recording is what puts the prescribed pressure drop on the tape. Source_Residual copies SPvals
+   into the numerics on every iteration, so this single assignment carries the whole chain. ---*/
+
+  if (config->GetKind_Streamwise_Periodic() == ENUM_STREAMWISE_PERIODIC::PRESSURE_DROP) {
+    SPvals.Streamwise_Periodic_PressureDrop = config->GetStreamwise_Periodic_PressureDrop();
+  }
+
+}
+
 void CIncEulerSolver::SetReferenceValues(const CConfig& config) {
 
   /*--- Evaluate reference values for non-dimensionalization. For dimensional or non-dim
@@ -1800,6 +1812,10 @@ void CIncEulerSolver::Source_Residual(CGeometry *geometry, CSolver **solver_cont
       config->SetStreamwise_Periodic_PressureDrop(SPvalsUpdated.Streamwise_Periodic_PressureDrop);
       if (!config->GetDiscrete_Adjoint())
         SPvals = SPvalsUpdated;
+
+      /*--- Publish the computed massflow so that the STREAMWISE_PERIODIC_MASSFLOW objective
+       function is available in MASSFLOW mode as well, not only in PRESSURE_DROP mode. ---*/
+      config->SetStreamwise_Periodic_ComputedMassFlow(SPvals.Streamwise_Periodic_MassFlow);
 
       /*--- Set delta_p, m_dot, inlet_T, integrated_heat ---*/
       numerics->SetStreamwisePeriodicValues(SPvalsUpdated);
@@ -3310,12 +3326,29 @@ unsigned long CIncEulerSolver::RegisterSolutionExtra(bool input, const CConfig* 
 
 void CIncEulerSolver::SetAdjoint_SolutionExtra(const su2activevector& adj_sol, const CConfig* config) {
   if (config->GetKind_Streamwise_Periodic() == ENUM_STREAMWISE_PERIODIC::MASSFLOW) {
-    SU2_TYPE::SetDerivative(SPvalsUpdated.Streamwise_Periodic_PressureDrop, SU2_TYPE::GetValue(adj_sol[0]));
+    
+    /*--- The pressure drop is one global scalar that every rank holds a copy of, but the tape
+     sees one independent input per rank because dP_in -> dP_out is purely local. The adjoint of
+     the single physical scalar is therefore the SUM over ranks of the per rank values, which is
+     formed in ExtractAdjoint_SolutionExtra. To make that sum come out right the incoming seed
+     must be applied on one rank only, otherwise it would be counted once per rank. ---*/
+
+    const su2double seed = (rank == MASTER_NODE) ? adj_sol[0] : su2double(0.0);
+    SU2_TYPE::SetDerivative(SPvalsUpdated.Streamwise_Periodic_PressureDrop, SU2_TYPE::GetValue(seed));
   }
 }
 
 void CIncEulerSolver::ExtractAdjoint_SolutionExtra(su2activevector& adj_sol, const CConfig* config) {
   if (config->GetKind_Streamwise_Periodic() == ENUM_STREAMWISE_PERIODIC::MASSFLOW) {
-    adj_sol[0] = SU2_TYPE::GetDerivative(SPvals.Streamwise_Periodic_PressureDrop);
+    
+    /*--- Sum the per rank contributions into the adjoint of the single global pressure drop, see
+     the comment in SetAdjoint_SolutionExtra. With the seed applied on the master rank only, this
+     gives seed + sum_r(local contribution), which is the correct update. Without this reduction
+     every rank iterates its own partial sum and the gradient becomes rank dependent. ---*/
+
+    passivedouble local = SU2_TYPE::GetValue(SU2_TYPE::GetDerivative(SPvals.Streamwise_Periodic_PressureDrop));
+    passivedouble global = 0.0;
+    SU2_MPI::Allreduce(&local, &global, 1, MPI_DOUBLE, MPI_SUM, SU2_MPI::GetComm());
+    adj_sol[0] = global;
   }
 }

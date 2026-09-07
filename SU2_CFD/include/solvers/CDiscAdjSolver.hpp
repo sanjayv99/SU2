@@ -68,6 +68,12 @@ protected:
   su2double Total_Sens_Viscosity = 0.0; /*!< \brief Total sensitivity to the laminar viscosity. */
   su2double Total_Sens_Cp = 0.0;        /*!< \brief Total sensitivity to the specific heat at constant pressure. */
   su2double Total_Sens_Conductivity = 0.0; /*!< \brief Total sensitivity to the thermal conductivity. */
+  /*--- Streamwise periodic control input registered as an AD input, and its sensitivity. Which of
+  the two is active follows KIND_STREAMWISE_PERIODIC. ---*/
+  su2double PressureDropInput = 0.0;      /*!< \brief Registered STREAMWISE_PERIODIC_PRESSURE_DROP. */
+  su2double TargetMassFlowInput = 0.0;    /*!< \brief Registered STREAMWISE_PERIODIC_MASSFLOW. */
+  su2double Total_Sens_PressureDrop = 0.0;/*!< \brief Total sensitivity to the prescribed pressure drop. */
+  su2double Total_Sens_MassFlow = 0.0;    /*!< \brief Total sensitivity to the prescribed massflow. */
 
   CDiscAdjVariable* nodes = nullptr;  /*!< \brief The highest level in the variable hierarchy this solver can safely use. */
 
@@ -218,6 +224,16 @@ public:
    * \return Value of the thermal conductivity sensitivity.
    */
   inline su2double GetTotal_Sens_Conductivity() const override { return Total_Sens_Conductivity; }
+
+  /*!
+   * \brief Get the total sensitivity to the prescribed streamwise periodic pressure drop.
+   */
+  inline su2double GetTotal_Sens_PressureDrop() const override { return Total_Sens_PressureDrop; }
+
+  /*!
+   * \brief Get the total sensitivity to the prescribed streamwise periodic massflow.
+   */
+  inline su2double GetTotal_Sens_MassFlow() const override { return Total_Sens_MassFlow; }
 
   /*!
    * \brief Get the shape sensitivity coefficient.

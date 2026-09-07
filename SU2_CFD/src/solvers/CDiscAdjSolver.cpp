@@ -304,6 +304,39 @@ void CDiscAdjSolver::RegisterVariables(CGeometry *geometry, CConfig *config, boo
     direct_solver->UpdateFluidProperties(config);
   }
 
+  /*--- Register the streamwise periodic control input. In PRESSURE_DROP mode the prescribed
+   pressure drop lives in SPvals, which CIncNSSolver fills in its constructor, so the registered
+   value has to be pushed back in by UpdateStreamwisePeriodicInputs. In MASSFLOW mode the target
+   massflow is read from the config on every call of Source_Residual, inside the recording, so
+   registering it is already enough. Note that in MASSFLOW mode the whole dependency runs through
+   the pressure drop extra solution variable, while PRESSURE_DROP mode has no extra variable. ---*/
+
+  if ((config->GetKind_Regime() == ENUM_REGIME::INCOMPRESSIBLE) &&
+      (KindDirect_Solver == RUNTIME_FLOW_SYS) &&
+      config->GetSens_Streamwise_Periodic()) {
+
+    switch (config->GetKind_Streamwise_Periodic()) {
+
+      case ENUM_STREAMWISE_PERIODIC::PRESSURE_DROP:
+        PressureDropInput = config->GetStreamwise_Periodic_PressureDrop();
+        if (!reset) AD::RegisterInput(PressureDropInput);
+        else        AD::ResetInput(PressureDropInput);
+        config->SetStreamwise_Periodic_PressureDrop(PressureDropInput);
+        direct_solver->UpdateStreamwisePeriodicInputs(config);
+        break;
+
+      case ENUM_STREAMWISE_PERIODIC::MASSFLOW:
+        TargetMassFlowInput = config->GetStreamwise_Periodic_TargetMassFlow();
+        if (!reset) AD::RegisterInput(TargetMassFlowInput);
+        else        AD::ResetInput(TargetMassFlowInput);
+        config->SetStreamwise_Periodic_TargetMassFlow(TargetMassFlowInput);
+        break;
+
+      default:
+        break;
+    }
+  }
+
 
   /*--- Propagate the registered fluid properties to the turbulence solver. Nothing new is
    registered here: the free-stream turbulence state is a function of the density and the
@@ -505,6 +538,20 @@ void CDiscAdjSolver::ExtractAdjoint_Variables(CGeometry *geometry, CConfig *conf
     SU2_MPI::Allreduce(&Local_Sens_Cp,           &Total_Sens_Cp,           1, MPI_DOUBLE, MPI_SUM, SU2_MPI::GetComm());
     SU2_MPI::Allreduce(&Local_Sens_Viscosity,    &Total_Sens_Viscosity,    1, MPI_DOUBLE, MPI_SUM, SU2_MPI::GetComm());
     SU2_MPI::Allreduce(&Local_Sens_Conductivity, &Total_Sens_Conductivity, 1, MPI_DOUBLE, MPI_SUM, SU2_MPI::GetComm());
+  }
+
+    /*--- Adjoint of the streamwise periodic control input. ---*/
+
+  if (config->GetSens_Streamwise_Periodic()) {
+
+    if (config->GetKind_Streamwise_Periodic() == ENUM_STREAMWISE_PERIODIC::PRESSURE_DROP) {
+      su2double Local_Sens_PressureDrop = SU2_TYPE::GetDerivative(PressureDropInput);
+      SU2_MPI::Allreduce(&Local_Sens_PressureDrop, &Total_Sens_PressureDrop, 1, MPI_DOUBLE, MPI_SUM, SU2_MPI::GetComm());
+    }
+    else if (config->GetKind_Streamwise_Periodic() == ENUM_STREAMWISE_PERIODIC::MASSFLOW) {
+      su2double Local_Sens_MassFlow = SU2_TYPE::GetDerivative(TargetMassFlowInput);
+      SU2_MPI::Allreduce(&Local_Sens_MassFlow, &Total_Sens_MassFlow, 1, MPI_DOUBLE, MPI_SUM, SU2_MPI::GetComm());
+    }
   }
 
   if ((config->GetKind_Regime() == ENUM_REGIME::INCOMPRESSIBLE) &&

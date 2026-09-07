@@ -2068,6 +2068,11 @@ void CConfig::SetConfig_Options() {
    * objective function with respect to them are computed. Incompressible solver, CONSTANT_DENSITY
    * fluid model only. */
   addBoolOption("SENS_FLUID_PROPERTIES", Sens_Fluid_Properties, false);
+  /*!\brief SENS_STREAMWISE_PERIODIC
+   * \n DESCRIPTION: Register the streamwise periodic control input as an input of the discrete
+   * adjoint. With KIND_STREAMWISE_PERIODIC= PRESSURE_DROP that is STREAMWISE_PERIODIC_PRESSURE_DROP,
+   * with MASSFLOW it is STREAMWISE_PERIODIC_MASSFLOW. */
+  addBoolOption("SENS_STREAMWISE_PERIODIC", Sens_Streamwise_Periodic, false);
 
   /* DESCRIPTION: Automatically reorient elements that seem flipped */
   addBoolOption("REORIENT_ELEMENTS",ReorientElements, true);

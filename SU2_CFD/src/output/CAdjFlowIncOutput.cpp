@@ -192,6 +192,9 @@ void CAdjFlowIncOutput::SetHistoryOutputFields(CConfig *config) {
   AddHistoryOutput("SENS_CP", "Sens_Cp", ScreenOutputFormat::SCIENTIFIC, "SENSITIVITY", "Sensitivity of the objective function with respect to the specific heat at constant pressure.", HistoryFieldType::COEFFICIENT);
   /// DESCRIPTION: Sensitivity of the objective function with respect to the thermal conductivity.
   AddHistoryOutput("SENS_CONDUCTIVITY", "Sens_Kt", ScreenOutputFormat::SCIENTIFIC, "SENSITIVITY", "Sensitivity of the objective function with respect to the (constant) thermal conductivity.", HistoryFieldType::COEFFICIENT);
+  /// DESCRIPTION: Sensitivity with respect to the streamwise periodic control input.
+  AddHistoryOutput("SENS_DP", "Sens_dP", ScreenOutputFormat::SCIENTIFIC, "SENSITIVITY", "Sensitivity of the objective function with respect to the prescribed streamwise periodic pressure drop.", HistoryFieldType::COEFFICIENT);
+  AddHistoryOutput("SENS_MASSFLOW", "Sens_mdot", ScreenOutputFormat::SCIENTIFIC, "SENSITIVITY", "Sensitivity of the objective function with respect to the prescribed streamwise periodic massflow.", HistoryFieldType::COEFFICIENT);
 
   AddHistoryOutput("LINSOL_ITER", "LinSolIter", ScreenOutputFormat::INTEGER, "LINSOL", "Number of iterations of the linear solver.");
   AddHistoryOutput("LINSOL_RESIDUAL", "LinSolRes", ScreenOutputFormat::FIXED, "LINSOL", "Residual of the linear solver.");
@@ -278,6 +281,9 @@ void CAdjFlowIncOutput::LoadHistoryData(CConfig *config, CGeometry *geometry, CS
   SetHistoryOutputValue("SENS_VISCOSITY", adjflow_solver->GetTotal_Sens_Viscosity());
   SetHistoryOutputValue("SENS_CP", adjflow_solver->GetTotal_Sens_Cp());
   SetHistoryOutputValue("SENS_CONDUCTIVITY", adjflow_solver->GetTotal_Sens_Conductivity());
+
+  SetHistoryOutputValue("SENS_DP", adjflow_solver->GetTotal_Sens_PressureDrop());
+  SetHistoryOutputValue("SENS_MASSFLOW", adjflow_solver->GetTotal_Sens_MassFlow());
 
   SetHistoryOutputValue("LINSOL_ITER", adjflow_solver->GetIterLinSolver());
   SetHistoryOutputValue("LINSOL_RESIDUAL", log10(adjflow_solver->GetResLinSolver()));
