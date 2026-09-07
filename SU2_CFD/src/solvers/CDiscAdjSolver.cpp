@@ -270,7 +270,9 @@ void CDiscAdjSolver::RegisterVariables(CGeometry *geometry, CConfig *config, boo
      four properties and pushes the result into the fluid models, so that the dependency of
      every primitive variable on them is recorded. ---*/
 
-  if (config->GetSens_Fluid_Properties()) {
+  if ((config->GetKind_Regime() == ENUM_REGIME::INCOMPRESSIBLE) &&
+      (KindDirect_Solver == RUNTIME_FLOW_SYS) &&
+      config->GetSens_Fluid_Properties()) {
 
     DensityProp      = config->GetInc_Density_Init();
     CpProp           = config->GetSpecific_Heat_Cp();
