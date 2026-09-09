@@ -229,6 +229,8 @@ void CIncNSSolver::GetStreamwise_Periodic_Properties(const CGeometry *geometry,
       } // loop Heatflux marker
 
       if (config->GetMarker_All_KindBC(iMarker) == ISOTHERMAL) {
+        const auto Marker_StringTag = config->GetMarker_All_TagBound(iMarker);
+        su2double Twall = config->GetIsothermal_Temperature(Marker_StringTag) / config->GetTemperature_Ref();
         /*--- Identify the boundary by string name and retrive ISOTHERMAL from config ---*/
 
         for (auto iVertex = 0ul; iVertex < geometry->nVertex[iMarker]; iVertex++) {
@@ -240,11 +242,26 @@ void CIncNSSolver::GetStreamwise_Periodic_Properties(const CGeometry *geometry,
           /*--- Compute wall heat flux (normal to the wall) based on computed temperature gradient ---*/
           const auto AreaNormal = geometry->vertex[iMarker][iVertex]->GetNormal();
 
-          const auto GradT = nodes->GetGradient_Primitive(iPoint)[prim_idx.Temperature()];
+          // const auto GradT = nodes->GetGradient_Primitive(iPoint)[prim_idx.Temperature()];
 
-          dTdn_Local += nodes->GetThermalConductivity(iPoint) * GeometryToolbox::DotProduct(nDim, GradT, AreaNormal);
+          // dTdn_Local += nodes->GetThermalConductivity(iPoint) * GeometryToolbox::DotProduct(nDim, GradT, AreaNormal);
 
           const su2double FaceArea = GeometryToolbox::Norm(nDim, AreaNormal);
+
+          const auto Point_Normal = geometry->vertex[iMarker][iVertex]->GetNormal_Neighbor();
+
+          /*--- Get coordinates of i & nearest normal and compute distance ---*/
+
+          const auto Coord_i = geometry->nodes->GetCoord(iPoint);
+          const auto Coord_j = geometry->nodes->GetCoord(Point_Normal);
+          su2double Edge_Vector[MAXNDIM];
+          GeometryToolbox::Distance(nDim, Coord_j, Coord_i, Edge_Vector);
+          su2double dist_ij_2 = GeometryToolbox::SquaredNorm(nDim, Edge_Vector);
+          su2double dist_ij = sqrt(dist_ij_2);
+
+          /*--- Compute the normal gradient in temperature using Twall ---*/
+
+          dTdn_Local += nodes->GetThermalConductivity(iPoint) * FaceArea * (nodes->GetTemperature(Point_Normal) - Twall)/dist_ij;          
 
         } // loop Vertices
       } // loop Isothermal Marker

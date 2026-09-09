@@ -787,7 +787,7 @@ CNumerics::ResidualType<> CSourceIncStreamwise_Periodic::ComputeResidual(const C
       }
       
       if (bool_isotherml_bc) {
-        scalar_factor = (-V_i[nDim + 1] * SPvals.Streamwise_Periodic_LambdaL) * config->GetSpecific_Heat_Cp() / Prandtl_Turb;
+        scalar_factor = (-V_i[nDim + 1] * SPvals.Streamwise_Periodic_LambdaL) * config->GetSpecific_Heat_Cp() / (sqrt(norm2_translation) * Prandtl_Turb);
       }
       
       /*--- Compute scalar product between periodic translation vector and eddy viscosity gradient. ---*/
