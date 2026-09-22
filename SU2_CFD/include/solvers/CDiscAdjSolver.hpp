@@ -72,8 +72,10 @@ protected:
   the two is active follows KIND_STREAMWISE_PERIODIC. ---*/
   su2double PressureDropInput = 0.0;      /*!< \brief Registered STREAMWISE_PERIODIC_PRESSURE_DROP. */
   su2double TargetMassFlowInput = 0.0;    /*!< \brief Registered STREAMWISE_PERIODIC_MASSFLOW. */
+  su2double Periodic_Translation_Input = 0.0;    /*!< \brief Registered PERIODIC_TRANSLATION (only x for now). */
   su2double Total_Sens_PressureDrop = 0.0;/*!< \brief Total sensitivity to the prescribed pressure drop. */
   su2double Total_Sens_MassFlow = 0.0;    /*!< \brief Total sensitivity to the prescribed massflow. */
+  su2double Total_Sens_PeriodicTranslation = 0.0;    /*!< \brief Total sensitivity to the prescribed periodic translation. */
 
   CDiscAdjVariable* nodes = nullptr;  /*!< \brief The highest level in the variable hierarchy this solver can safely use. */
 

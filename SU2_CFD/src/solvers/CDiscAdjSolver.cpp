@@ -335,6 +335,10 @@ void CDiscAdjSolver::RegisterVariables(CGeometry *geometry, CConfig *config, boo
       default:
         break;
     }
+    // Note: For now this works only for x direction translation
+    Periodic_Translation_Input = config->GetPeriodic_Translation(0)[0];
+    if (!reset) AD::RegisterInput(Periodic_Translation_Input);
+    else        AD::ResetInput(Periodic_Translation_Input);
   }
 
 
@@ -552,6 +556,9 @@ void CDiscAdjSolver::ExtractAdjoint_Variables(CGeometry *geometry, CConfig *conf
       su2double Local_Sens_MassFlow = SU2_TYPE::GetDerivative(TargetMassFlowInput);
       SU2_MPI::Allreduce(&Local_Sens_MassFlow, &Total_Sens_MassFlow, 1, MPI_DOUBLE, MPI_SUM, SU2_MPI::GetComm());
     }
+
+    su2double Local_Sens_Periodic_Translation = SU2_TYPE::GetDerivative(Periodic_Translation_Input);
+    SU2_MPI::Allreduce(&Local_Sens_Periodic_Translation, &Total_Sens_PeriodicTranslation, 1, MPI_DOUBLE, MPI_SUM, SU2_MPI::GetComm());
   }
 
   if ((config->GetKind_Regime() == ENUM_REGIME::INCOMPRESSIBLE) &&

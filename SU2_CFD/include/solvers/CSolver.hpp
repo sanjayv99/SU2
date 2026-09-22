@@ -3128,6 +3128,12 @@ public:
   inline virtual su2double GetTotal_Sens_MassFlow() const { return 0; }
 
   /*!
+   * \brief A virtual member.
+   * \return Value of the prescribed streamwise periodic massflow sensitivity.
+   */
+  inline virtual su2double GetTotal_Sens_PeriodicTranslation() const { return 0; }
+
+  /*!
    * \brief A virtual member. Re-inject the streamwise periodic control input from the config
    *        into the solver state, so that a registered value is picked up by the recording.
    * \param[in] config - Definition of the particular problem.

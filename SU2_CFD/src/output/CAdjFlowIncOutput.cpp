@@ -196,6 +196,8 @@ void CAdjFlowIncOutput::SetHistoryOutputFields(CConfig *config) {
   AddHistoryOutput("SENS_DP", "Sens_dP", ScreenOutputFormat::SCIENTIFIC, "SENSITIVITY", "Sensitivity of the objective function with respect to the prescribed streamwise periodic pressure drop.", HistoryFieldType::COEFFICIENT);
   AddHistoryOutput("SENS_MASSFLOW", "Sens_mdot", ScreenOutputFormat::SCIENTIFIC, "SENSITIVITY", "Sensitivity of the objective function with respect to the prescribed streamwise periodic massflow.", HistoryFieldType::COEFFICIENT);
 
+  AddHistoryOutput("SENS_PERIODIC_TRANSLATION", "Sens_swp_translation", ScreenOutputFormat::SCIENTIFIC, "SENSITIVITY", "Sensitivity of the objective function with respect to the prescribed streamwise periodic markers translation.", HistoryFieldType::COEFFICIENT);
+
   AddHistoryOutput("LINSOL_ITER", "LinSolIter", ScreenOutputFormat::INTEGER, "LINSOL", "Number of iterations of the linear solver.");
   AddHistoryOutput("LINSOL_RESIDUAL", "LinSolRes", ScreenOutputFormat::FIXED, "LINSOL", "Residual of the linear solver.");
 
@@ -284,6 +286,8 @@ void CAdjFlowIncOutput::LoadHistoryData(CConfig *config, CGeometry *geometry, CS
 
   SetHistoryOutputValue("SENS_DP", adjflow_solver->GetTotal_Sens_PressureDrop());
   SetHistoryOutputValue("SENS_MASSFLOW", adjflow_solver->GetTotal_Sens_MassFlow());
+
+  SetHistoryOutputValue("SENS_PERIODIC_TRANSLATION", adjflow_solver->GetTotal_Sens_PeriodicTranslation());
 
   SetHistoryOutputValue("LINSOL_ITER", adjflow_solver->GetIterLinSolver());
   SetHistoryOutputValue("LINSOL_RESIDUAL", log10(adjflow_solver->GetResLinSolver()));
