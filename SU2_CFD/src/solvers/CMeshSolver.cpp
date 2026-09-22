@@ -554,15 +554,63 @@ void CMeshSolver::DeformMesh_Volumetric(CGeometry **geometry, CConfig *config) {
   for (unsigned long iPoint = 0ul; iPoint < nPoint; ++iPoint)
     for (unsigned short iDim = 0u; iDim < nDim; ++iDim)
       geometry[MESH_0]->nodes->SetCoord(iPoint, iDim, nodes->GetMesh_Coord(iPoint, iDim));
+  
+  /*--- Periodic stretch: fit u.t = s * (x0.t) + b on the deformed periodic markers.
+        The RBF gets the remainder, the stretch is added to every node afterwards.
+        One translational periodic pair assumed. s = b = 0 if the periodic markers
+        do not move along t, which gives the stock result. ---*/
+  su2double dir[3] = {0.0, 0.0, 0.0}, s = 0.0, b = 0.0;
+  bool usePeriodicStretch = false;
+
+  if (config->GetnMarker_Periodic() != 0 && !config->GetRBF_OverwritePeriodicity()) {
+    const su2double* t = config->GetPeriodic_Translation(0);
+    const su2double L = sqrt(t[0] * t[0] + t[1] * t[1] + t[2] * t[2]);
+
+    if (L > 0.0) {                                            // translational periodicity
+      for (unsigned short iDim = 0; iDim < nDim; iDim++) dir[iDim] = t[iDim] / L;
+
+      /*--- sums: n, xi, xi^2, u, xi*u  with xi = x0.t, u = Bound_Disp.t ---*/
+      su2double loc[5] = {0.0, 0.0, 0.0, 0.0, 0.0}, glb[5] = {0.0, 0.0, 0.0, 0.0, 0.0};
+      for (unsigned short iMarker = 0; iMarker < config->GetnMarker_All(); iMarker++) {
+        if (config->GetMarker_All_KindBC(iMarker) != PERIODIC_BOUNDARY ||
+            config->GetMarker_All_Deform_Mesh(iMarker) != YES) continue;
+        for (auto iVertex = 0ul; iVertex < geometry[MESH_0]->nVertex[iMarker]; iVertex++) {
+          const auto iPoint = geometry[MESH_0]->vertex[iMarker][iVertex]->GetNode();
+          if (!geometry[MESH_0]->nodes->GetDomain(iPoint)) continue;
+          su2double xi = 0.0, u = 0.0;
+          for (unsigned short iDim = 0; iDim < nDim; iDim++) {
+            xi += nodes->GetMesh_Coord(iPoint, iDim) * dir[iDim];
+            u  += nodes->GetBound_Disp(iPoint, iDim) * dir[iDim];
+          }
+          loc[0] += 1.0; loc[1] += xi; loc[2] += xi * xi; loc[3] += u; loc[4] += xi * u;
+        }
+      }
+      SU2_MPI::Allreduce(loc, glb, 5, MPI_DOUBLE, MPI_SUM, SU2_MPI::GetComm());
+
+      const su2double det = glb[0] * glb[2] - glb[1] * glb[1];
+      if (glb[0] > 0.0 && det > 0.0) {                        // periodic markers are deformed
+        s = (glb[0] * glb[4] - glb[1] * glb[3]) / det;
+        b = (glb[3] - s * glb[1]) / glb[0];
+        usePeriodicStretch = true;
+      }
+    }
+  }
+
                                                 
   // Bound_Disp to VarCoord
   for (unsigned short iMarker = 0; iMarker < config->GetnMarker_All(); iMarker++) 
     if (config->GetMarker_All_Deform_Mesh(iMarker) == YES)
       for (auto iVertex = 0ul; iVertex < geometry[MESH_0]->nVertex[iMarker]; iVertex++) {
         const unsigned long iPoint = geometry[MESH_0]->vertex[iMarker][iVertex]->GetNode();
+        su2double st = 0.0;
+        if (usePeriodicStretch) {
+          for (unsigned short iDim = 0; iDim < nDim; iDim++)
+            st += nodes->GetMesh_Coord(iPoint, iDim) * dir[iDim];
+          st = s * st + b;
+        }
         su2double vc[3] = {0.0,0.0,0.0};
-        for (unsigned short iDim = 0; iDim < nDim; iDim++) 
-          vc[iDim] = nodes->GetBound_Disp(iPoint, iDim);   
+        for (unsigned short iDim = 0; iDim < nDim; iDim++)
+          vc[iDim] = nodes->GetBound_Disp(iPoint, iDim) - st * dir[iDim];
         geometry[MESH_0]->vertex[iMarker][iVertex]->SetVarCoord(vc);
       }
 
@@ -572,6 +620,17 @@ void CMeshSolver::DeformMesh_Volumetric(CGeometry **geometry, CConfig *config) {
   vol_based_deformation.reset(CVolumetricMovementFactory::CreateCVolumetricMovement(geometry[MESH_0], config));
   vol_based_deformation->SetVolume_Deformation(geometry[MESH_0], config, true);
   config->SetKind_SU2(kind);
+
+  /*--- Add the stretch to every node (halos included, same formula). ---*/
+  if (usePeriodicStretch) {
+    for (unsigned long iPoint = 0ul; iPoint < nPoint; ++iPoint) {
+      su2double xi = 0.0;
+      for (unsigned short iDim = 0; iDim < nDim; iDim++)
+        xi += nodes->GetMesh_Coord(iPoint, iDim) * dir[iDim];
+      for (unsigned short iDim = 0; iDim < nDim; iDim++)
+        geometry[MESH_0]->nodes->AddCoord(iPoint, iDim, (s * xi + b) * dir[iDim]);
+    }
+  }
 
   /*--- Halo coords come from their owners, on the tape. ---*/
   // geometry[MESH_0]->InitiateComms(geometry[MESH_0], config, COORDINATES);  
