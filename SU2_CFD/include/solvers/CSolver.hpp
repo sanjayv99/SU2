@@ -3129,7 +3129,7 @@ public:
 
   /*!
    * \brief A virtual member.
-   * \return Value of the prescribed streamwise periodic massflow sensitivity.
+   * \return Value of the prescribed streamwise periodic x translation sensitivity.
    */
   inline virtual su2double GetTotal_Sens_PeriodicTranslation() const { return 0; }
 

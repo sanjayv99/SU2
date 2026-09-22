@@ -238,6 +238,11 @@ public:
   inline su2double GetTotal_Sens_MassFlow() const override { return Total_Sens_MassFlow; }
 
   /*!
+   * \brief Get the total sensitivity w.r.t. the streamwise periodic translation (x component).
+   */
+  inline su2double GetTotal_Sens_PeriodicTranslation() const override { return Total_Sens_PeriodicTranslation; }
+
+  /*!
    * \brief Get the shape sensitivity coefficient.
    * \param[in] val_marker - Surface marker where the coefficient is computed.
    * \param[in] val_vertex - Vertex of the marker <i>val_marker</i> where the coefficient is evaluated.
