@@ -726,16 +726,21 @@ CSourceIncStreamwise_Periodic::CSourceIncStreamwise_Periodic(unsigned short val_
   bool_heat_flux_bc = (config->GetnMarker_HeatFlux() > 0);
   bool_isotherml_bc = (config->GetnMarker_Isothermal() > 0);
 
-  for (unsigned short iDim = 0; iDim < nDim; iDim++)
-    Streamwise_Coord_Vector[iDim] = config->GetPeriodic_Translation(0)[iDim];
+  // for (unsigned short iDim = 0; iDim < nDim; iDim++)
+  //   Streamwise_Coord_Vector[iDim] = config->GetPeriodic_Translation(0)[iDim];
 
-  /*--- Compute square of the distance between the 2 periodic surfaces via inner product with itself:
-        dot_prod(t*t) = (|t|_2)^2  ---*/
-  norm2_translation = GeometryToolbox::SquaredNorm(nDim, Streamwise_Coord_Vector);
+  // /*--- Compute square of the distance between the 2 periodic surfaces via inner product with itself:
+  //       dot_prod(t*t) = (|t|_2)^2  ---*/
+  // norm2_translation = GeometryToolbox::SquaredNorm(nDim, Streamwise_Coord_Vector);
 
 }
 
 CNumerics::ResidualType<> CSourceIncStreamwise_Periodic::ComputeResidual(const CConfig *config) {
+
+    /*--- Read every call: the translation is a registered input and changes with the design. ---*/
+  for (unsigned short iDim = 0; iDim < nDim; iDim++)
+    Streamwise_Coord_Vector[iDim] = config->GetStreamwise_Periodic_Translation()[iDim];
+  norm2_translation = GeometryToolbox::SquaredNorm(nDim, Streamwise_Coord_Vector);
 
   /* Value of prescribed pressure drop which results in an artificial body force vector. */
   const su2double delta_p = SPvals.Streamwise_Periodic_PressureDrop;

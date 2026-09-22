@@ -335,10 +335,11 @@ void CDiscAdjSolver::RegisterVariables(CGeometry *geometry, CConfig *config, boo
       default:
         break;
     }
-    // Note: For now this works only for x direction translation
-    Periodic_Translation_Input = config->GetPeriodic_Translation(0)[0];
+    // Note: For now this works only for x direction translation, used by the flow terms only.
+    Periodic_Translation_Input = config->GetStreamwise_Periodic_Translation()[0];
     if (!reset) AD::RegisterInput(Periodic_Translation_Input);
     else        AD::ResetInput(Periodic_Translation_Input);
+    config->SetStreamwise_Periodic_Translation(Periodic_Translation_Input);
   }
 
 

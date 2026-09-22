@@ -294,27 +294,27 @@ void CIncNSSolver::GetStreamwise_Periodic_Properties(const CGeometry *geometry,
       if (turbulent && (config->GetnMarker_Isothermal() != 0)) {
         su2double dot_product= 0.0, length= 0.0;
               for (unsigned short iDim = 0; iDim < nDim; iDim++) {
-                length += config->GetPeriodic_Translation(0)[iDim] * config->GetPeriodic_Translation(0)[iDim];
+                length += config->GetStreamwise_Periodic_Translation()[iDim] * config->GetStreamwise_Periodic_Translation()[iDim];
         }
 
         length = sqrt(length);
         for (unsigned short iDim = 0; iDim < nDim; iDim++) {
-          dot_product += config->GetPeriodic_Translation(0)[iDim]* nodes->GetAuxVarGradient(iPoint, 0, iDim)/length;
+          dot_product += config->GetStreamwise_Periodic_Translation()[iDim]* nodes->GetAuxVarGradient(iPoint, 0, iDim)/length;
         }
-        // su2double dot_product = GeometryToolbox::DotProduct(nDim, config->GetPeriodic_Translation(0), nodes->GetAuxVarGradient(iPoint, 0));
+        // su2double dot_product = GeometryToolbox::DotProduct(nDim, config->GetStreamwise_Periodic_Translation(), nodes->GetAuxVarGradient(iPoint, 0));
         turb_b1_coeff_Local += Temp * dot_product * config->GetSpecific_Heat_Cp() * volume  / config->GetPrandtl_Turb();
       }
         su2double dot_product_vel= 0.0, length= 0.0;
         for (unsigned short iDim = 0; iDim < nDim; iDim++) {
-            length += config->GetPeriodic_Translation(0)[iDim] * config->GetPeriodic_Translation(0)[iDim];
+            length += config->GetStreamwise_Periodic_Translation()[iDim] * config->GetStreamwise_Periodic_Translation()[iDim];
         }
         length = sqrt(length);
         for (unsigned short iDim = 0; iDim < nDim; iDim++) {
-          dot_product_vel += config->GetPeriodic_Translation(0)[iDim]* nodes->GetVelocity(iPoint, iDim)/length;
+          dot_product_vel += config->GetStreamwise_Periodic_Translation()[iDim]* nodes->GetVelocity(iPoint, iDim)/length;
         }
         su2double dot_product_theta= 0.0;
         for (unsigned short iDim = 0; iDim < nDim; iDim++) {
-          dot_product_theta += config->GetPeriodic_Translation(0)[iDim] * nodes->GetGradient_Primitive(iPoint)[prim_idx.Temperature()][iDim]/length;
+          dot_product_theta += config->GetStreamwise_Periodic_Translation()[iDim] * nodes->GetGradient_Primitive(iPoint)[prim_idx.Temperature()][iDim]/length;
         }
 
       Volume_VTemp_Local += volume * Temp * dot_product_vel * nodes->GetDensity(iPoint) * config->GetSpecific_Heat_Cp();
@@ -375,7 +375,7 @@ void CIncNSSolver::Compute_Streamwise_Periodic_Recovered_Values(CConfig *config,
   const auto ReferenceNode = geometry->GetStreamwise_Periodic_RefNode();
 
   /*--- Compute square of the distance between the 2 periodic surfaces. ---*/
-  const su2double norm2_translation = GeometryToolbox::SquaredNorm(nDim, config->GetPeriodic_Translation(0));
+  const su2double norm2_translation = GeometryToolbox::SquaredNorm(nDim, config->GetStreamwise_Periodic_Translation());
 
   /*--- Compute recoverd pressure and temperature for all points ---*/
   SU2_OMP_FOR_STAT(omp_chunk_size)
@@ -384,7 +384,7 @@ void CIncNSSolver::Compute_Streamwise_Periodic_Recovered_Values(CConfig *config,
     /*--- First, compute helping terms based on relative distance (0,l) between periodic markers ---*/
     su2double dot_product = 0.0;
     for (unsigned short iDim = 0; iDim < nDim; iDim++)
-      dot_product += fabs( (geometry->nodes->GetCoord(iPoint,iDim) - ReferenceNode[iDim]) * config->GetPeriodic_Translation(0)[iDim]);
+      dot_product += fabs( (geometry->nodes->GetCoord(iPoint,iDim) - ReferenceNode[iDim]) * config->GetStreamwise_Periodic_Translation()[iDim]);
 
     /*--- Second, substract/add correction from reduced pressure/temperature to get recoverd pressure/temperature ---*/
     const su2double Pressure_Recovered = nodes->GetPressure(iPoint) - SPvals.Streamwise_Periodic_PressureDrop /
@@ -570,11 +570,11 @@ void CIncNSSolver::BC_Wall_Generic(const CGeometry *geometry, const CConfig *con
         thermal_conductivity = nodes->GetThermalConductivity(iPoint);
 
         /*--- Scalar factor of the residual contribution ---*/
-        const su2double norm2_translation = GeometryToolbox::SquaredNorm(nDim, config->GetPeriodic_Translation(0));
+        const su2double norm2_translation = GeometryToolbox::SquaredNorm(nDim, config->GetStreamwise_Periodic_Translation());
         scalar_factor = SPvals.Streamwise_Periodic_IntegratedHeatFlow*thermal_conductivity / (SPvals.Streamwise_Periodic_MassFlow * Cp * norm2_translation);
 
         /*--- Dot product ---*/
-        dot_product = GeometryToolbox::DotProduct(nDim, config->GetPeriodic_Translation(0), Normal);
+        dot_product = GeometryToolbox::DotProduct(nDim, config->GetStreamwise_Periodic_Translation(), Normal);
 
         LinSysRes(iPoint, nDim+1) += scalar_factor*dot_product;
       } // if streamwise_periodic

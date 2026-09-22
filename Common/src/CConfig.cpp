@@ -1167,6 +1167,8 @@ void CConfig::SetConfig_Options() {
   addDoubleOption("STREAMWISE_PERIODIC_PRESSURE_DROP", Streamwise_Periodic_PressureDrop, 1.0);
   /* DESCRIPTION: Target Massflow [kg/s], Delta P will be adapted until m_dot is met. \n DEFAULT: 0.0 \ingroup Config  */
   addDoubleOption("STREAMWISE_PERIODIC_MASSFLOW", Streamwise_Periodic_TargetMassFlow, 0.0);
+  /* DESCRIPTION: x component of the periodic translation used by the flow [m]. 0 = MARKER_PERIODIC value. \ingroup Config */
+  addDoubleOption("STREAMWISE_PERIODIC_TRANSLATION", Streamwise_Periodic_Translation_X, 0.0);
 
   /*!\brief RESTART_SOL \n DESCRIPTION: Restart solution from native solution file \n Options: NO, YES \ingroup Config */
   addBoolOption("RESTART_SOL", Restart, false);
@@ -5170,6 +5172,10 @@ void CConfig::SetPostprocessing(SU2_COMPONENT val_software, unsigned short val_i
     if (Axisymmetric)
       SU2_MPI::Error("Streamwise Periodicity terms does not not have axisymmetric corrections.", CURRENT_FUNCTION);
     if (!Energy_Equation) Streamwise_Periodic_Temperature = false;
+    for (unsigned short iDim = 0; iDim < 3; iDim++)
+      Streamwise_Periodic_Translation[iDim] = Periodic_Translation[0][iDim];
+    if (Streamwise_Periodic_Translation_X != 0.0)
+      Streamwise_Periodic_Translation[0] = Streamwise_Periodic_Translation_X;
   } else {
     /*--- Safety measure ---*/
     Streamwise_Periodic_Temperature = false;

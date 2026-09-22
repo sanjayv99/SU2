@@ -1092,6 +1092,9 @@ private:
   su2double Streamwise_Periodic_OutletHeat;          /*!< /brief Heatflux boundary [W/m^2] imposed at streamwise periodic outlet. */
   su2double Streamwise_Periodic_LambdaL;            /*!< /brief Exp coefficient for iso-thermal BCs Streamwise Periodic. */
 
+  su2double Streamwise_Periodic_Translation_X;             /*!< \brief STREAMWISE_PERIODIC_TRANSLATION option, 0 = take MARKER_PERIODIC. */
+  su2double Streamwise_Periodic_Translation[3] = {0.0};    /*!< \brief Periodic translation used by the flow physics. */
+
   su2double *FreeStreamTurboNormal;     /*!< \brief Direction to initialize the flow in turbomachinery computation */
   su2double Restart_Bandwidth_Agg;      /*!< \brief The aggregate of the bandwidth for writing binary restarts (to be averaged later). */
   su2double Max_Vel2;                   /*!< \brief The maximum velocity^2 in the domain for the incompressible preconditioner. */
@@ -6353,6 +6356,19 @@ public:
    * \return su2double
    */
   su2double GetStreamwise_Periodic_LamdaL(void) const { return Streamwise_Periodic_LambdaL; }
+
+  /*!
+   * \brief Periodic translation of the current design, used by the streamwise periodic flow terms.
+   *        Defaults to MARKER_PERIODIC. MARKER_PERIODIC itself stays the period of the mesh file
+   *        (node pairing, RBF).
+   */
+  const su2double* GetStreamwise_Periodic_Translation(void) const { return Streamwise_Periodic_Translation; }
+
+  /*!
+   * \brief Set the x component of the streamwise periodic translation.
+   *        Needed to register it as an input of the discrete adjoint.
+   */
+  void SetStreamwise_Periodic_Translation(su2double val_x) { Streamwise_Periodic_Translation[0] = val_x; }
 
   /*!
    * \brief Get information about the volumetric heat source.
