@@ -1248,7 +1248,7 @@ history_header_map = {
         "HEADER": "CSF",
         "TYPE": "COEFFICIENT",
     },
-    "STREAMWISE_DP": {
+    "STREAMWISE_PERIODIC_DP": {
         "DESCRIPTION": "Pressure drop in streamwise periodic flow",
         "GROUP": "STREAMWISE_PERIODIC",
         "HEADER": "SWDeltaP",
