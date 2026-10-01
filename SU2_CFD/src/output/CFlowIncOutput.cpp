@@ -175,11 +175,11 @@ void CFlowIncOutput::SetHistoryOutputFields(CConfig *config){
   }
 
   if(streamwisePeriodic) {
-    AddHistoryOutput("STREAMWISE_MASSFLOW", "SWMassflow", ScreenOutputFormat::FIXED, "STREAMWISE_PERIODIC", "Massflow in streamwise periodic flow");
-    AddHistoryOutput("STREAMWISE_PERIODIC_DP",       "SWDeltaP",   ScreenOutputFormat::FIXED, "STREAMWISE_PERIODIC", "Pressure drop in streamwise periodic flow");
-    AddHistoryOutput("STREAMWISE_HEAT",     "SWHeat",     ScreenOutputFormat::FIXED, "STREAMWISE_PERIODIC", "Integrated heat for streamwise periodic flow");
+    AddHistoryOutput("STREAMWISE_MASSFLOW", "SWMassflow", ScreenOutputFormat::FIXED, "STREAMWISE_PERIODIC", "Massflow in streamwise periodic flow", HistoryFieldType::COEFFICIENT);
+    AddHistoryOutput("STREAMWISE_PERIODIC_DP",       "SWDeltaP",   ScreenOutputFormat::FIXED, "STREAMWISE_PERIODIC", "Pressure drop in streamwise periodic flow", HistoryFieldType::COEFFICIENT);
+    AddHistoryOutput("STREAMWISE_HEAT",     "SWHeat",     ScreenOutputFormat::FIXED, "STREAMWISE_PERIODIC", "Integrated heat for streamwise periodic flow", HistoryFieldType::COEFFICIENT);
     if (config->GetnMarker_Isothermal() > 0)
-      AddHistoryOutput("STREAMWISE_LAMBDAL", "SWLambdaL", ScreenOutputFormat::FIXED, "STREAMWISE_PERIODIC", "Exponential factor for iso-thermal temperature gradient");
+      AddHistoryOutput("STREAMWISE_LAMBDAL", "SWLambdaL", ScreenOutputFormat::FIXED, "STREAMWISE_PERIODIC", "Exponential factor for iso-thermal temperature gradient", HistoryFieldType::COEFFICIENT);
   }
 
   AddAnalyzeSurfaceOutput(config);
