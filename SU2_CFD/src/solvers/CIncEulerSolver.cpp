@@ -1769,28 +1769,28 @@ void CIncEulerSolver::Source_Residual(CGeometry *geometry, CSolver **solver_cont
   if (streamwise_periodic) {
 
     /*--- For turbulent streamwise periodic problems w/ energy eq, we need an additional gradient of Eddy viscosity. ---*/
-    if (streamwise_periodic_temperature && turbulent) {
+    // if (streamwise_periodic_temperature && turbulent) {
 
-      AD::StartNoSharedReading();
+    //   AD::StartNoSharedReading();
 
-      SU2_OMP_FOR_STAT(omp_chunk_size)
-      for (iPoint = 0; iPoint < nPoint; iPoint++) {
-        /*--- Set the auxiliary variable, Eddy viscosity mu_t, for this node. ---*/
-        nodes->SetAuxVar(iPoint, 0, nodes->GetEddyViscosity(iPoint));
-      }
-      END_SU2_OMP_FOR
+    //   SU2_OMP_FOR_STAT(omp_chunk_size)
+    //   for (iPoint = 0; iPoint < nPoint; iPoint++) {
+    //     /*--- Set the auxiliary variable, Eddy viscosity mu_t, for this node. ---*/
+    //     nodes->SetAuxVar(iPoint, 0, nodes->GetEddyViscosity(iPoint));
+    //   }
+    //   END_SU2_OMP_FOR
 
-      AD::EndNoSharedReading();
+    //   AD::EndNoSharedReading();
 
-      /*--- Compute the auxiliary variable gradient with GG or WLS. ---*/
-      if (config->GetKind_Gradient_Method() == GREEN_GAUSS) {
-        SetAuxVar_Gradient_GG(geometry, config);
-      }
-      if (config->GetKind_Gradient_Method() == WEIGHTED_LEAST_SQUARES) {
-        SetAuxVar_Gradient_LS(geometry, config);
-      }
+    //   /*--- Compute the auxiliary variable gradient with GG or WLS. ---*/
+    //   if (config->GetKind_Gradient_Method() == GREEN_GAUSS) {
+    //     SetAuxVar_Gradient_GG(geometry, config);
+    //   }
+    //   if (config->GetKind_Gradient_Method() == WEIGHTED_LEAST_SQUARES) {
+    //     SetAuxVar_Gradient_LS(geometry, config);
+    //   }
 
-    } // if turbulent
+    // } // if turbulent
 
     if (config->GetKind_Streamwise_Periodic() == ENUM_STREAMWISE_PERIODIC::MASSFLOW) {
       /*---------------------------------------------------------------------------------------------*/

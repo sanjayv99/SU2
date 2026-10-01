@@ -113,6 +113,33 @@ void CIncNSSolver::Preprocessing(CGeometry *geometry, CSolver **solver_container
     // seteddyviscfirstpoint
   }
 
+  /*--- Gradient of the eddy viscosity for turbulent streamwise periodic flow with energy.
+        It is used twice: by the turbulent b1 term of LambdaL (GetStreamwise_Periodic_Properties,
+        called below) and by the turbulent part of the isothermal source term (Source_Residual).
+        It is computed HERE, before LambdaL, so that both use the gradient of the CURRENT mu_t.
+        Computing it only in Source_Residual made LambdaL read last iteration's gradient: the
+        primal fixed point is the same, but on the discrete adjoint tape that value is a constant,
+        so d(LambdaL)/d(nu_tilde, mesh) through this term was missing. ---*/
+  const bool sp_energy_turb = (config->GetKind_Streamwise_Periodic() != ENUM_STREAMWISE_PERIODIC::NONE) &&
+                              config->GetStreamwise_Periodic_Temperature() &&
+                              (config->GetKind_Turb_Model() != TURB_MODEL::NONE);
+  if (sp_energy_turb) {
+    AD::StartNoSharedReading();
+    SU2_OMP_FOR_STAT(omp_chunk_size)
+    for (unsigned long iPoint = 0; iPoint < nPoint; iPoint++) {
+      nodes->SetAuxVar(iPoint, 0, nodes->GetEddyViscosity(iPoint));
+    }
+    END_SU2_OMP_FOR
+    AD::EndNoSharedReading();
+
+    if (config->GetKind_Gradient_Method() == GREEN_GAUSS) {
+      SetAuxVar_Gradient_GG(geometry, config);
+    }
+    if (config->GetKind_Gradient_Method() == WEIGHTED_LEAST_SQUARES) {
+      SetAuxVar_Gradient_LS(geometry, config);
+    }
+  }
+
   /*--- Compute recovered pressure and temperature for streamwise periodic flow ---*/
   if (config->GetKind_Streamwise_Periodic() != ENUM_STREAMWISE_PERIODIC::NONE)
     Compute_Streamwise_Periodic_Recovered_Values(config, geometry, iMesh);
