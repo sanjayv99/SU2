@@ -106,6 +106,12 @@ protected:
 
   su2vector<bool> Has_Deformation;  /*!< \brief True if iZone has mesh deformation (used for
                                                 lazy evaluation of TRANSFER tape section). */
+  
+  su2vector<bool> Prescribed_Deformation;  /*!< \brief True if iZone deforms from boundary displacements set
+                                                       through the python wrapper (DEFORM_MESH = YES, no FSI). */
+
+  RECORDING CurrentRecording = RECORDING::CLEAR_INDICES;  /*!< \brief Recording in progress, so that
+                                                                  HandleDataTransfer knows when to tape the deformation. */
 
   /*!< \brief Individual cross-terms of the coupled problem, 5D array [iZone][jZone][iSol](iPoint,iVar).
               The column sum, i.e. along all iZones for each jZone, gives the External (total cross-term)

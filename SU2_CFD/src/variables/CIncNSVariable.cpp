@@ -81,7 +81,7 @@ bool CIncNSVariable::SetPrimVar(unsigned long iPoint, su2double eddy_visc, su2do
 
   /*--- Non-physical solution found. Revert to old values. ---*/
 
-  if (check_dens || check_temp) {
+  if (check_dens) {
 
     /*--- Copy the old solution ---*/
 

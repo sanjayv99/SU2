@@ -265,6 +265,17 @@ void CMultizoneDriver::Preprocess(unsigned long TimeIter) {
 
   DynamicMeshUpdate(TimeIter);
 
+  
+  /*--- Prescribed boundary displacements (python wrapper, SetMarkerCustomDisplacement) in zones with
+   *    DEFORM_MESH = YES that are not driven by an FSI transfer. Without this, a CHT case never deforms,
+   *    because the per-zone update below only runs when a data transfer asks for it.
+   *    Mirrors CSinglezoneDriver::Preprocess -> DynamicMeshUpdate. ---*/
+  if (!fsi) {
+    for (iZone = 0; iZone < nZone; iZone++) {
+      if (config_container[iZone]->GetDeform_Mesh()) DynamicMeshUpdate(iZone, TimeIter);
+    }
+  }
+
   /*--- Updating zone interface communication patterns for unsteady problems with pre-fixed motion in the config file ---*/
   if (driver_config->GetTime_Domain()) {
     for (iZone = 0; iZone < nZone; iZone++) {

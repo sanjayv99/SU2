@@ -109,14 +109,14 @@ class CDriverBase {
    * \brief Get the list of available outputs.
    * \return List of output names.
    */
-  inline vector<string> GetOutputNames() const { return output_container[MESH_0]->GetHistoryOutputList(); }
+  inline vector<string> GetOutputNames() const { return output_container[selected_zone]->GetHistoryOutputList(); }
 
   /*!
    * \brief Get the value of one of the available history outputs.
    * \return Value of the output.
    */
   inline passivedouble GetOutputValue(const std::string& output_name) const {
-    return SU2_TYPE::GetValue(output_container[MESH_0]->GetHistoryFieldValue(output_name));
+    return SU2_TYPE::GetValue(output_container[selected_zone]->GetHistoryFieldValue(output_name));
   }
 
   /*!
@@ -124,7 +124,7 @@ class CDriverBase {
    * \return List of surface output names.
    */
   inline vector<string> GetMarkerOutputNames() const {
-    return output_container[MESH_0]->GetHistoryOutputPerSurfaceList();
+    return output_container[selected_zone]->GetHistoryOutputPerSurfaceList();
   }
 
   /*!
@@ -135,7 +135,7 @@ class CDriverBase {
                                                       const std::string& marker_monitoring) const {
     for (auto iMarker = 0u; iMarker < main_config->GetnMarker_Monitoring(); ++iMarker) {
       if (marker_monitoring == main_config->GetMarker_Monitoring_TagBound(iMarker))
-        return SU2_TYPE::GetValue(output_container[MESH_0]->GetHistoryFieldValuePerSurface(output_name, iMarker));
+        return SU2_TYPE::GetValue(output_container[selected_zone]->GetHistoryFieldValuePerSurface(output_name, iMarker));
     }
     SU2_MPI::Error(marker_monitoring + " is not in MARKER_MONITORING.", CURRENT_FUNCTION);
     return 0;
@@ -149,7 +149,7 @@ class CDriverBase {
                                                    const std::string& marker_analyze) const {
     for (auto iMarker = 0u; iMarker < main_config->GetnMarker_Analyze(); ++iMarker) {
       if (marker_analyze == main_config->GetMarker_Analyze_TagBound(iMarker))
-        return SU2_TYPE::GetValue(output_container[MESH_0]->GetHistoryFieldValuePerSurface(output_name, iMarker));
+        return SU2_TYPE::GetValue(output_container[selected_zone]->GetHistoryFieldValuePerSurface(output_name, iMarker));
     }
     SU2_MPI::Error(marker_analyze + " is not in MARKER_ANALYZE.", CURRENT_FUNCTION);
     return 0;

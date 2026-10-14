@@ -45,6 +45,16 @@ CDiscAdjMultizoneDriver::CDiscAdjMultizoneDriver(char* confFile,
 
   Has_Deformation.resize(nZone) = false;
 
+  /*--- Zones with prescribed boundary displacement (python wrapper, no FSI transfer). They must be flagged
+   *    before the first recording, because SetRecording reads Has_Deformation in RegisterInput, which runs
+   *    before HandleDataTransfer. With the flag set, the MESH_COORDS recording becomes MESH_DEFORM for these
+   *    zones and EvaluateSensitivities extracts dJ/d(boundary displacement) through ADJMESH_SOL. ---*/
+  Prescribed_Deformation.resize(nZone) = false;
+  for (iZone = 0; iZone < nZone; iZone++) {
+    Prescribed_Deformation(iZone) = config_container[iZone]->GetDeform_Mesh() && !fsi;
+    Has_Deformation(iZone) = Prescribed_Deformation(iZone);
+  }
+
 
   FixPtCorrector.resize(nZone);
   LinSolver.resize(nZone);
@@ -568,6 +578,7 @@ void CDiscAdjMultizoneDriver::EvaluateSensitivities(unsigned long Iter, bool for
 
 void CDiscAdjMultizoneDriver::SetRecording(RECORDING kind_recording, Kind_Tape tape_type, unsigned short record_zone) {
 
+  CurrentRecording = kind_recording;
   AD::Reset();
 
   /*--- Prepare for recording by resetting the solution to the initial converged solution. ---*/
@@ -858,9 +869,21 @@ void CDiscAdjMultizoneDriver::HandleDataTransfer() {
 
     /*--- If a mesh update is required due to the transfer of data ---*/
     const unsigned long ExtIter = 0;
-    if (DeformMesh) DynamicMeshUpdate(iZone, ExtIter);
+    if (DeformMesh) {
+      DynamicMeshUpdate(iZone, ExtIter);
+    }
+    else if (Prescribed_Deformation(iZone)) {
+      /*--- The displacements are fixed during the adjoint solve, so the deformation only has to be on the
+       *    tape for the geometric-sensitivity recording. In the solution recordings it runs passively.
+       *    Otherwise the deformation would sit in the TRANSFER section, which is replayed on every outer
+       *    adjoint iteration, and each iteration would pay for a mesh-adjoint solve. ---*/
+      bool wasActive = false;
+      if (CurrentRecording != RECORDING::MESH_COORDS) wasActive = AD::BeginPassive();
+      DynamicMeshUpdate(iZone, ExtIter);
+      AD::EndPassive(wasActive);
+    }
 
-    Has_Deformation(iZone) = DeformMesh;
+    Has_Deformation(iZone) = DeformMesh || Prescribed_Deformation(iZone);
   }
 }
 
