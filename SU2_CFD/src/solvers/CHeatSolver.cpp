@@ -117,7 +117,7 @@ CHeatSolver::CHeatSolver(CGeometry *geometry, CConfig *config, unsigned short iM
   /*--- Store the value of the temperature and the heat flux density at the boundaries,
    used for communications with donor cells ---*/
 
-  const unsigned short nConjVariables = 4;
+  const unsigned short nConjVariables = 5;  // Twall, heat flux density, conductivity/dist, Tnormal, conductivity
   AllocVectorOfMatrices(nVertex, nConjVariables, ConjugateVar, Solution_Inf[0]);
 
   /*--- Heat flux in all the markers ---*/
@@ -594,6 +594,31 @@ void CHeatSolver::BC_ConjugateHeat_Interface(CGeometry *geometry, CSolver **solv
     END_SU2_OMP_FOR
   }
   else if (heat_equation) {
+
+    /*--- Decaying temperature formulation (STREAMWISE_PERIODIC_EXP_DECAY): with T = theta exp(-lambda x), the flux
+          condition k_f dT_f/dn = k_s dT_s/dn becomes
+            -k_s dtheta_s/dn = -k_f dtheta_f/dn + (k_f - k_s) lambda n_x theta_w,
+          n from fluid into solid. The Robin flux below is the first term; the second is the conduction of the
+          fade's streamwise gradient -lambda theta t_hat, continuous across the interface but carried with
+          different conductivities on the two sides. The stored vertex normal of this (solid) marker points
+          into the solid, i.e. it is n, and Normal . t_hat = n_x * Area. ---*/
+
+    const bool exp_decay = config->GetStreamwise_Periodic_ExpDecay();
+    su2double t_hat[MAXNDIM] = {0.0}, lambda = 0.0, k_solid = 0.0;
+    if (exp_decay) {
+      if (config->GetKind_CHT_Coupling() != CHT_COUPLING::DIRECT_TEMPERATURE_ROBIN_HEATFLUX)
+        SU2_MPI::Error("The decaying temperature formulation needs CHT_COUPLING_METHOD= DIRECT_TEMPERATURE_ROBIN_HEATFLUX.",
+                       CURRENT_FUNCTION);
+      const su2double* translation = config->GetStreamwise_Periodic_Translation();
+      const su2double norm = GeometryToolbox::Norm(nDim, translation);
+      if (norm == 0.0)
+        SU2_MPI::Error("STREAMWISE_PERIODIC_EXP_DECAY in a solid zone needs the streamwise direction of the fluid zone.",
+                       CURRENT_FUNCTION);
+      for (unsigned short iDim = 0; iDim < nDim; iDim++) t_hat[iDim] = translation[iDim] / norm;
+      lambda = config->GetStreamwise_Periodic_LamdaL();
+      k_solid = config->GetThermalDiffusivity() * rho_cp_solid;
+    }
+
     SU2_OMP_FOR_STAT(OMP_MIN_SIZE)
     for (auto iVertex = 0ul; iVertex < geometry->nVertex[val_marker]; iVertex++) {
 
@@ -628,6 +653,23 @@ void CHeatSolver::BC_ConjugateHeat_Interface(CGeometry *geometry, CSolver **solv
         }
 
         LinSysRes(iPoint, 0) += HeatFlux;
+
+        if (exp_decay) {
+          /*--- Heat INTO the solid lowers the residual (same sign as the Robin term above). Units of the heat
+                solver: divide by rho*cp of the solid. ---*/
+          const su2double k_fluid = GetConjugateHeatVariable(val_marker, iVertex, 4);
+          const su2double theta_w = nodes->GetTemperature(iPoint);
+          const su2double n_x_area = GeometryToolbox::DotProduct(nDim, Normal, t_hat);
+          const su2double coeff = (k_fluid - k_solid) * lambda * n_x_area / rho_cp_solid;
+          LinSysRes(iPoint, 0) -= coeff * theta_w;
+
+          /*--- Implicit: with k_s >> k_f this term is a sizeable fraction of the wall-normal conduction and
+                changes sign around the tube, so leaving it explicit diverges at large CFL. ---*/
+          if (implicit) {
+            su2double Jacobian_i[] = {coeff};
+            Jacobian.SubtractBlock2Diag(iPoint, &Jacobian_i);
+          }
+        }
       }
     }
     END_SU2_OMP_FOR

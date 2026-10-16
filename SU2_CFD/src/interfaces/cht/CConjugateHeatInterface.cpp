@@ -133,7 +133,8 @@ void CConjugateHeatInterface::GetDonor_Variable(CSolver *donor_solution, CGeomet
         (donor_config->GetKind_CHT_Coupling() == CHT_COUPLING::AVERAGED_TEMPERATURE_ROBIN_HEATFLUX)) {
 
       const su2double rho_cp_solid = donor_config->GetSpecific_Heat_Cp()*donor_config->GetMaterialDensity(0);
-      conductivity_over_dist  = thermal_diffusivity*rho_cp_solid/dist;
+      thermal_conductivity    = thermal_diffusivity*rho_cp_solid;
+      conductivity_over_dist  = thermal_conductivity/dist;
     }
   }
 
@@ -149,6 +150,9 @@ void CConjugateHeatInterface::GetDonor_Variable(CSolver *donor_solution, CGeomet
 
     Donor_Variable[2] = conductivity_over_dist;
     Donor_Variable[3] = Tnormal*donor_config->GetTemperature_Ref();
+    /*--- Conductivity of the donor at the wall. The decaying temperature formulation needs both conductivities
+          at the interface for the lambda term of the flux condition. ---*/
+    Donor_Variable[4] = thermal_conductivity;
   }
 
 }
@@ -169,5 +173,7 @@ void CConjugateHeatInterface::SetTarget_Variable(CSolver *target_solution, CGeom
                                               target_config->GetRelaxation_Factor_CHT(), Target_Variable[2]);
     target_solution->SetConjugateHeatVariable(Marker_Target, Vertex_Target, 3,
                                               target_config->GetRelaxation_Factor_CHT(), Target_Variable[3]);
+    target_solution->SetConjugateHeatVariable(Marker_Target, Vertex_Target, 4,
+                                              target_config->GetRelaxation_Factor_CHT(), Target_Variable[4]);
   }
 }

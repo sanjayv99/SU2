@@ -190,7 +190,7 @@ void CFVMFlowSolverBase<V, R>::Allocate(const CConfig& config) {
 
   /*--- Store the values of the temperature and the heat flux density at the boundaries,
    used for coupling with a solid donor cell ---*/
-  constexpr auto nHeatConjugateVar = 4u;
+  constexpr auto nHeatConjugateVar = 5u;  // Twall, heat flux density, conductivity/dist, Tnormal, conductivity
   AllocVectorOfMatrices(nVertex, nHeatConjugateVar, HeatConjugateVar, config.GetTemperature_FreeStreamND());
 
   if (MGLevel == MESH_0) {

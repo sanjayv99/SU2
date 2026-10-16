@@ -2523,7 +2523,8 @@ void CDriver::InitializeInterface(CConfig **config, CSolver***** solver, CGeomet
             interface_type = NO_TRANSFER;
 
           if (interface_type != NO_TRANSFER) {
-            auto nVar = 4;
+            /*--- Twall, heat flux density, conductivity/distance, Tnormal, conductivity of the donor wall. ---*/
+            auto nVar = 5;
             interface[donor][target] = new CConjugateHeatInterface(nVar, 0);
             if (rank == MASTER_NODE) cout << "conjugate heat variables." << endl;
           }

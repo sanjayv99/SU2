@@ -720,6 +720,11 @@ void CIncNSSolver::BC_ConjugateHeat_Interface(CGeometry *geometry, CSolver **sol
   const su2double Temperature_Ref = config->GetTemperature_Ref();
   const bool implicit = (config->GetKind_TimeIntScheme() == EULER_IMPLICIT);
   const bool energy = config->GetEnergy_Equation();
+  const bool exp_decay = energy && config->GetStreamwise_Periodic_ExpDecay();
+
+  if (exp_decay && (config->GetKind_CHT_Coupling() != CHT_COUPLING::DIRECT_TEMPERATURE_ROBIN_HEATFLUX))
+    SU2_MPI::Error("The decaying temperature formulation needs CHT_COUPLING_METHOD= DIRECT_TEMPERATURE_ROBIN_HEATFLUX.",
+                   CURRENT_FUNCTION);
 
   /*--- Identify the boundary ---*/
 
@@ -761,13 +766,47 @@ void CIncNSSolver::BC_ConjugateHeat_Interface(CGeometry *geometry, CSolver **sol
     if (implicit) {
       for (unsigned short iVar = 1; iVar <= nDim; iVar++)
         Jacobian.DeleteValsRowi(iPoint*nVar+iVar);
-      if (energy) Jacobian.DeleteValsRowi(iPoint*nVar+nDim+1);
+      if (energy && !exp_decay) Jacobian.DeleteValsRowi(iPoint*nVar+nDim+1);
     }
 
     if (!energy) continue;
 
     su2double Tconjugate = GetConjugateHeatVariable(val_marker, iVertex, 0) / Temperature_Ref;
     su2double Twall = 0.0;
+
+    if (exp_decay) {
+
+      /*--- Decaying temperature formulation: WEAK imposition of the solid interface theta, the same expression
+            as the weak isothermal wall. The heat this removes from the fluid, k (T_normal - Twall) / dist * Area,
+            is exactly the flux the solid applies with DIRECT_TEMPERATURE_ROBIN_HEATFLUX (same k, dist and area
+            on a conforming interface). The two zones then use one number per vertex, so the energy sum over
+            both zones, which the lambda balance relies on, closes on the mesh. A strong condition discards the
+            fluid residual at the wall nodes, and that discarded heat is not what the solid receives. ---*/
+
+      const auto Point_Normal = geometry->vertex[val_marker][iVertex]->GetNormal_Neighbor();
+      const auto Normal = geometry->vertex[val_marker][iVertex]->GetNormal();
+      const su2double Area = GeometryToolbox::Norm(nDim, Normal);
+
+      const auto Coord_i = geometry->nodes->GetCoord(iPoint);
+      const auto Coord_j = geometry->nodes->GetCoord(Point_Normal);
+      su2double Edge_Vector[MAXNDIM];
+      GeometryToolbox::Distance(nDim, Coord_j, Coord_i, Edge_Vector);
+      const su2double dist_ij_2 = GeometryToolbox::SquaredNorm(nDim, Edge_Vector);
+      const su2double dist_ij = sqrt(dist_ij_2);
+
+      const su2double dTdn = -(nodes->GetTemperature(Point_Normal) - Tconjugate) / dist_ij;
+      const su2double thermal_conductivity = nodes->GetThermalConductivity(iPoint);
+
+      LinSysRes(iPoint, nDim+1) -= thermal_conductivity * dTdn * Area;
+
+      if (implicit) {
+        su2double proj_vector_ij = 0.0;
+        if (dist_ij_2 > 0.0)
+          proj_vector_ij = GeometryToolbox::DotProduct(nDim, Edge_Vector, Normal) / dist_ij_2;
+        Jacobian.AddVal2Diag(iPoint, nDim+1, thermal_conductivity * proj_vector_ij);
+      }
+      continue;
+    }
 
     if ((config->GetKind_CHT_Coupling() == CHT_COUPLING::AVERAGED_TEMPERATURE_NEUMANN_HEATFLUX) ||
         (config->GetKind_CHT_Coupling() == CHT_COUPLING::AVERAGED_TEMPERATURE_ROBIN_HEATFLUX)) {
