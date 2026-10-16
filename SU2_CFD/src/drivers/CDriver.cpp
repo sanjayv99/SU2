@@ -120,6 +120,23 @@ CDriverBase(confFile, val_nZone, MPICommunicator), StopCalc(false), fsi(false), 
 
   PreprocessInput(config_container, driver_config);
 
+  /*--- CHT with the decaying temperature formulation (a solid zone with STREAMWISE_PERIODIC_EXP_DECAY): the theta
+        normalisation and lambda belong to the multizone driver. Flag the zones NOW, before the solvers are built,
+        because loading a restart calls the fluid Preprocessing, which would otherwise rescale the fluid theta on its
+        own and leave the solid theta at the old scale (a uniform solid/fluid amplitude mismatch, invisible only if
+        the fluid mean is exactly 1 on the geometry at load time, e.g. without mesh deformation).
+        CMultizoneDriver checks the setup and copies lambda and the translation to the solid. ---*/
+  {
+    bool solid_decay = false;
+    for (unsigned short jZone = 0; jZone < nZone; jZone++)
+      solid_decay |= config_container[jZone]->GetHeatProblem() && config_container[jZone]->GetStreamwise_Periodic_ExpDecay();
+    if (solid_decay) {
+      for (unsigned short jZone = 0; jZone < nZone; jZone++)
+        if (config_container[jZone]->GetStreamwise_Periodic_ExpDecay())
+          config_container[jZone]->SetStreamwise_Periodic_ThetaCoupled(true);
+    }
+  }
+
   /*--- Retrieve dimension from mesh file ---*/
 
   nDim = CConfig::GetnDim(config_container[ZONE_0]->GetMesh_FileName(),
