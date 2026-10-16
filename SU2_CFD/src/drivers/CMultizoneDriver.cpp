@@ -326,7 +326,15 @@ void CMultizoneDriver::RunGaussSeidel() {
   /*--- Loop over the number of outer iterations ---*/
   for (auto iOuter_Iter = 0ul; iOuter_Iter < driver_config->GetnOuter_Iter(); iOuter_Iter++) {
 
-    /*--- Decaying temperature formulation across zones: one lambda and one normalisation for all of them. ---*/
+    /*--- Decaying temperature formulation across zones: one lambda and one normalisation for all of them.
+          The solid's interface term needs the fluid wall conductivity, which only arrives with a transfer. Before
+          the first outer iteration no transfer has happened yet (the conjugate variables still hold the solid's
+          freestream temperature), so transfer once first; otherwise the first lambda of a restart is wrong. ---*/
+    if (streamwise_theta_coupled && iOuter_Iter == 0) {
+      for (unsigned short iZ = 0; iZ < nZone; iZ++)
+        for (unsigned short jZ = 0; jZ < nZone; jZ++)
+          if (jZ != iZ && interface_container[jZ][iZ] != nullptr) TransferData(jZ, iZ);
+    }
     StreamwisePeriodicThetaCoupling(false);
 
     /*--- Loop over the number of zones (IZONE) ---*/

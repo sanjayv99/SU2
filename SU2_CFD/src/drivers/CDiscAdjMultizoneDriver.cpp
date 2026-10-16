@@ -879,6 +879,13 @@ void CDiscAdjMultizoneDriver::HandleDataTransfer() {
       AD::EndPassive(wasActive);
     }
 
+    /*--- The solid's interface term of the lambda balance uses the fluid wall conductivity, a transferred
+          variable. In the first recording of a run nothing has been transferred yet, so transfer once before
+          the coupling step as well. The values that depend on theta are overwritten by the transfer below. ---*/
+    for (iZone = 0; iZone < nZone; iZone++)
+      for (unsigned short jZone = 0; jZone < nZone; jZone++)
+        if (jZone != iZone && interface_container[jZone][iZone] != nullptr) TransferData(jZone, iZone);
+
     StreamwisePeriodicThetaCoupling(true);
 
     for (iZone = 0; iZone < nZone; iZone++) {
