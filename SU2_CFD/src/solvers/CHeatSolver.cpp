@@ -330,8 +330,8 @@ void CHeatSolver::Source_Residual(CGeometry *geometry, CSolver **solver_containe
   /*--- Same residual convention and form as the fluid source (CSourceIncStreamwise_Periodic, term1 + term2),
         divided by rho*cp of the solid because this solver works in diffusivity units:
         residual += V * alpha * lambda * (2 dtheta/dx - lambda theta).
-        Jacobian: the exact diagonal of the lambda^2 term. The gradient term couples the neighbours and is left
-        explicit; its cell Peclet number 2 lambda h is small. ---*/
+        Jacobian: the exact diagonal of the lambda^2 term. The gradient term is left explicit. The lambda**2 term (conduction)
+        is expected to be the dominant one anyway.  ---*/
   const bool implicit = (config->GetKind_TimeIntScheme() == EULER_IMPLICIT);
   SU2_OMP_FOR_STAT(OMP_MIN_SIZE)
   for (auto iPoint = 0ul; iPoint < nPointDomain; iPoint++) {
