@@ -6388,6 +6388,14 @@ public:
   void SetStreamwise_Periodic_Translation(su2double val_x) { Streamwise_Periodic_Translation[0] = val_x; }
 
   /*!
+   * \brief Set the full streamwise periodic translation vector. Used to hand the direction of the fluid zone
+   *        to a solid zone of the decaying formulation, which has no periodic markers of its own.
+   */
+  void SetStreamwise_Periodic_TranslationVector(const su2double* val) {
+    for (unsigned short iDim = 0; iDim < 3; iDim++) Streamwise_Periodic_Translation[iDim] = val[iDim];
+  }
+
+  /*!
    * \brief Get information about the volumetric heat source.
    * \return <code>TRUE</code> if it uses a volumetric heat source; otherwise <code>FALSE</code>.
    */

@@ -310,6 +310,47 @@ void CHeatSolver::Viscous_Residual(CGeometry *geometry, CSolver **solver_contain
   }
 }
 
+void CHeatSolver::Source_Residual(CGeometry *geometry, CSolver **solver_container, CNumerics **numerics_container,
+                                  CConfig *config, unsigned short iMesh) {
+
+  if (flow || !config->GetStreamwise_Periodic_ExpDecay() || (iMesh != MESH_0)) return;
+
+  /*--- Unit vector of the streamwise direction, handed over from the fluid zone. ---*/
+  const su2double* translation = config->GetStreamwise_Periodic_Translation();
+  const su2double norm = GeometryToolbox::Norm(nDim, translation);
+  if (norm == 0.0)
+    SU2_MPI::Error("STREAMWISE_PERIODIC_EXP_DECAY in a solid zone needs the streamwise direction of the fluid zone "
+                   "(set by the multizone driver).", CURRENT_FUNCTION);
+  su2double t_hat[MAXNDIM] = {0.0};
+  for (unsigned short iDim = 0; iDim < nDim; iDim++) t_hat[iDim] = translation[iDim] / norm;
+
+  const su2double lambda = config->GetStreamwise_Periodic_LamdaL();
+  const su2double diffusivity = config->GetThermalDiffusivity();
+
+  /*--- Same residual convention and form as the fluid source (CSourceIncStreamwise_Periodic, term1 + term2),
+        divided by rho*cp of the solid because this solver works in diffusivity units:
+        residual += V * alpha * lambda * (2 dtheta/dx - lambda theta).
+        Jacobian: the exact diagonal of the lambda^2 term. The gradient term couples the neighbours and is left
+        explicit; its cell Peclet number 2 lambda h is small. ---*/
+  const bool implicit = (config->GetKind_TimeIntScheme() == EULER_IMPLICIT);
+  SU2_OMP_FOR_STAT(OMP_MIN_SIZE)
+  for (auto iPoint = 0ul; iPoint < nPointDomain; iPoint++) {
+    const su2double volume = geometry->nodes->GetVolume(iPoint);
+    const su2double theta = nodes->GetSolution(iPoint, 0);
+    su2double dtheta_dx = 0.0;
+    for (unsigned short iDim = 0; iDim < nDim; iDim++)
+      dtheta_dx += t_hat[iDim] * nodes->GetGradient(iPoint, 0, iDim);
+
+    LinSysRes(iPoint, 0) += volume * diffusivity * lambda * (2.0 * dtheta_dx - lambda * theta);
+
+    if (implicit) {
+      su2double Jacobian_i[] = {-volume * diffusivity * lambda * lambda};
+      Jacobian.AddBlock2Diag(iPoint, &Jacobian_i);
+    }
+  }
+  END_SU2_OMP_FOR
+}
+
 void CHeatSolver::Set_Heatflux_Areas(CGeometry *geometry, CConfig *config) {
 
   BEGIN_SU2_OMP_SAFE_GLOBAL_ACCESS {

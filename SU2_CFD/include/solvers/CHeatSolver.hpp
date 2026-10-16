@@ -203,6 +203,24 @@ public:
   void Set_Heatflux_Areas(CGeometry *geometry, CConfig *config) override;
 
   /*!
+   * \brief Lambda terms of the decaying (self-similar) temperature formulation in a solid zone,
+   *        STREAMWISE_PERIODIC_EXP_DECAY= YES. With T - T_ref = theta exp(-lambda x), conduction becomes
+   *        laplace(theta) - 2 lambda dtheta/dx + lambda^2 theta = 0. The terms come from the change of
+   *        variable, not from periodicity, so they are needed although the solid has no periodic boundary.
+   *        Lambda and the direction x are set on this zone's config by the multizone driver.
+   * \param[in] geometry - Geometrical definition of the problem.
+   * \param[in] solver_container - Container vector with all the solutions.
+   * \param[in] numerics_container - Description of the numerical method.
+   * \param[in] config - Definition of the particular problem.
+   * \param[in] iMesh - Index of the mesh in multigrid computations.
+   */
+  void Source_Residual(CGeometry *geometry,
+                       CSolver **solver_container,
+                       CNumerics **numerics_container,
+                       CConfig *config,
+                       unsigned short iMesh) override;
+
+  /*!
    * \brief Impose the Navier-Stokes boundary condition (strong).
    * \param[in] geometry - Geometrical definition of the problem.
    * \param[in] solver_container - Container vector with all the solutions.
