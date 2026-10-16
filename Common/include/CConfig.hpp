@@ -1091,6 +1091,7 @@ private:
   su2double Streamwise_Periodic_ComputedMassFlow;      /*!< \brief Value of computed massflow [kg/s] corresponding to a prescribed delta p. */
   su2double Streamwise_Periodic_OutletHeat;          /*!< /brief Heatflux boundary [W/m^2] imposed at streamwise periodic outlet. */
   su2double Streamwise_Periodic_LambdaL;            /*!< /brief Exp coefficient for iso-thermal BCs Streamwise Periodic. */
+  bool Streamwise_Periodic_ThetaNormalize;          /*!< \brief Rescale theta to a unit fluid volume mean every iteration. */
 
   su2double Streamwise_Periodic_Translation_X;             /*!< \brief STREAMWISE_PERIODIC_TRANSLATION option, 0 = take MARKER_PERIODIC. */
   su2double Streamwise_Periodic_Translation[3] = {0.0};    /*!< \brief Periodic translation used by the flow physics. */
@@ -6356,6 +6357,13 @@ public:
    * \return su2double
    */
   su2double GetStreamwise_Periodic_LamdaL(void) const { return Streamwise_Periodic_LambdaL; }
+
+  /*!
+   * \brief Whether theta (the periodic temperature of the decaying formulation) is rescaled to a
+   *        unit fluid volume mean every iteration. The equations are homogeneous in theta, so its
+   *        amplitude is free. Thats why we need some way of pinning it.
+   */
+  bool GetStreamwise_Periodic_ThetaNormalize(void) const { return Streamwise_Periodic_ThetaNormalize; }
 
   /*!
    * \brief Periodic translation of the current design, used by the streamwise periodic flow terms.

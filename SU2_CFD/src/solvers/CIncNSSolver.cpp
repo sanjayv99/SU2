@@ -71,6 +71,22 @@ void CIncNSSolver::Preprocessing(CGeometry *geometry, CSolver **solver_container
   const bool van_albada = (config->GetKind_SlopeLimit_Flow() == LIMITER::VAN_ALBADA_EDGE);
   const bool wall_functions = config->GetWall_Functions();
 
+  /*--- Decaying (self-similar) temperature: the energy equation is homogeneous in theta, so the amplitude
+        of theta is free. Rescale it to a unit volume mean before the primitives are computed, so the
+        whole iteration (and Solution_Old, set after Preprocessing) sees the scaled field. Lambda is a ratio
+        of linear sums of theta and does not change. Inside the recorded iteration, so it is on the adjoint
+        tape and removes the neutral (eigenvalue 1) amplitude direction of the fixed-point map. ---*/
+
+  if ((iMesh == MESH_0) && config->GetStreamwise_Periodic_ThetaNormalize() && StreamwisePeriodicThetaLocal(config)) {
+    BEGIN_SU2_OMP_SAFE_GLOBAL_ACCESS
+    {
+      su2double sums[2];
+      GetStreamwisePeriodicThetaSums(geometry, sums);
+      ScaleStreamwisePeriodicTheta(sums[1] / sums[0]);
+    }
+    END_SU2_OMP_SAFE_GLOBAL_ACCESS
+  }
+
   /*--- Common preprocessing steps (implemented by CEulerSolver) ---*/
 
   CommonPreprocessing(geometry, solver_container, config, iMesh, iRKStep, RunTime_EqSystem, Output);
@@ -391,6 +407,24 @@ void CIncNSSolver::GetStreamwise_Periodic_Properties(const CGeometry *geometry,
   } // if energy
 }
 
+
+void CIncNSSolver::GetStreamwisePeriodicThetaSums(const CGeometry *geometry, su2double *sums) const {
+
+  su2double local[2] = {0.0, 0.0};
+  for (unsigned long iPoint = 0; iPoint < nPointDomain; iPoint++) {
+    const su2double volume = geometry->nodes->GetVolume(iPoint);
+    local[0] += volume * nodes->GetSolution(iPoint, nDim+1);
+    local[1] += volume;
+  }
+  SU2_MPI::Allreduce(local, sums, 2, MPI_DOUBLE, MPI_SUM, SU2_MPI::GetComm());
+}
+
+void CIncNSSolver::ScaleStreamwisePeriodicTheta(su2double factor) {
+
+  /*--- All points, halos included: the factor is global, so halos stay consistent without communication. ---*/
+  for (unsigned long iPoint = 0; iPoint < nPoint; iPoint++)
+    nodes->SetSolution(iPoint, nDim+1, factor * nodes->GetSolution(iPoint, nDim+1));
+}
 
 void CIncNSSolver::Compute_Streamwise_Periodic_Recovered_Values(CConfig *config, const CGeometry *geometry,
                                                                 const unsigned short iMesh) {

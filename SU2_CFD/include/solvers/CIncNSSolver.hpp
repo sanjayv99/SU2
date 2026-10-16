@@ -95,7 +95,26 @@ class CIncNSSolver final : public CIncEulerSolver {
   void Compute_Streamwise_Periodic_Recovered_Values(CConfig *config, const CGeometry *geometry,
                                                     const unsigned short iMesh);
 
+  /*!
+   * \brief Whether this zone solves the decaying (self-similar) temperature formulation on its own,
+   *        i.e. computes lambda and normalises theta itself.
+   */
+  bool StreamwisePeriodicThetaLocal(const CConfig *config) const {
+    return config->GetEnergy_Equation() && config->GetStreamwise_Periodic_Temperature() &&
+           (config->GetnMarker_Isothermal() > 0);
+  }
+
 public:
+  /*!
+   * \brief Volume integral of theta and of 1 over the domain, summed over all ranks.
+   */
+  void GetStreamwisePeriodicThetaSums(const CGeometry *geometry, su2double *sums) const override;
+
+  /*!
+   * \brief Multiply theta (solution temperature) by a factor at all points, halos included.
+   */
+  void ScaleStreamwisePeriodicTheta(su2double factor) override;
+
   /*!
    * \brief Constructor of the class.
    * \param[in] geometry - Geometrical definition of the problem.

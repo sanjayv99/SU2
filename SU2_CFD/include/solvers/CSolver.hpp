@@ -4346,6 +4346,21 @@ public:
   virtual StreamwisePeriodicValues GetStreamwisePeriodicValues() const { return StreamwisePeriodicValues(); }
 
   /*!
+   * \brief Volume integral of theta and of 1 over the domain points of this rank, summed over all ranks.
+   *        Used to normalise theta in the decaying (self-similar) temperature formulation.
+   *        sums[0] = sum(V*theta), sums[1] = sum(V).
+   */
+  virtual void GetStreamwisePeriodicThetaSums(const CGeometry *geometry, su2double *sums) const {
+    sums[0] = 0.0; sums[1] = 0.0;
+  }
+
+  /*!
+   * \brief Multiply theta (the temperature solution variable) by a factor at all points, halos included.
+   * \param[in] factor - Scale factor, the same on every rank.
+   */
+  virtual void ScaleStreamwisePeriodicTheta(su2double factor) { }
+
+  /*!
    * \brief Save snapshot or POD data using libROM
    * \param[in] geometry - Geometrical definition of the problem.
    * \param[in] config - Definition of the particular problem.

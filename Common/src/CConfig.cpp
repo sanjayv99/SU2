@@ -1169,6 +1169,12 @@ void CConfig::SetConfig_Options() {
   addDoubleOption("STREAMWISE_PERIODIC_MASSFLOW", Streamwise_Periodic_TargetMassFlow, 0.0);
   /* DESCRIPTION: x component of the periodic translation used by the flow [m]. 0 = MARKER_PERIODIC value. \ingroup Config */
   addDoubleOption("STREAMWISE_PERIODIC_TRANSLATION", Streamwise_Periodic_Translation_X, 0.0);
+  /* DESCRIPTION: Initial value of the decay rate lambda [1/m] of the self-similar temperature (isothermal walls).
+   * A restart file overrides it. \n DEFAULT: 0.0 \ingroup Config */
+  addDoubleOption("STREAMWISE_PERIODIC_LAMBDAL", Streamwise_Periodic_LambdaL, 0.0);
+  /* DESCRIPTION: Rescale theta to a unit fluid volume mean every iteration (decaying temperature formulation).
+   * \n Options: NO, YES \n DEFAULT: NO \ingroup Config */
+  addBoolOption("STREAMWISE_PERIODIC_THETA_NORMALIZE", Streamwise_Periodic_ThetaNormalize, false);
 
   /*!\brief RESTART_SOL \n DESCRIPTION: Restart solution from native solution file \n Options: NO, YES \ingroup Config */
   addBoolOption("RESTART_SOL", Restart, false);
