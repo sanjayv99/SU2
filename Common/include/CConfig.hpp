@@ -1092,6 +1092,7 @@ private:
   su2double Streamwise_Periodic_OutletHeat;          /*!< /brief Heatflux boundary [W/m^2] imposed at streamwise periodic outlet. */
   su2double Streamwise_Periodic_LambdaL;            /*!< /brief Exp coefficient for iso-thermal BCs Streamwise Periodic. */
   bool Streamwise_Periodic_ThetaNormalize;          /*!< \brief Rescale theta to a unit fluid volume mean every iteration. */
+  bool CHT_Weak_Interface;                          /*!< \brief Fluid side of a CHT interface takes the solid temperature weakly. */
   bool Streamwise_Periodic_ExpDecay;                /*!< \brief Energy variable is theta of the decaying (self-similar) formulation. */
   bool Streamwise_Periodic_ThetaCoupled = false;    /*!< \brief Lambda and theta normalisation are handled by the multizone driver. */
 
@@ -6366,6 +6367,12 @@ public:
    *        amplitude is free. Thats why we need some way of pinning it.
    */
   bool GetStreamwise_Periodic_ThetaNormalize(void) const { return Streamwise_Periodic_ThetaNormalize; }
+
+  /*!
+   * \brief Fluid side of a CHT interface takes the solid temperature weakly (conservative with the Robin flux of
+   *        DIRECT_TEMPERATURE_ROBIN_HEATFLUX). Always on in the decaying temperature formulation.
+   */
+  bool GetCHT_Weak_Interface(void) const { return CHT_Weak_Interface; }
 
   /*!
    * \brief Whether the energy variable is theta of the decaying formulation T - T_ref = theta exp(-lambda x),

@@ -727,10 +727,13 @@ void CIncNSSolver::BC_ConjugateHeat_Interface(CGeometry *geometry, CSolver **sol
   const bool implicit = (config->GetKind_TimeIntScheme() == EULER_IMPLICIT);
   const bool energy = config->GetEnergy_Equation();
   const bool exp_decay = energy && config->GetStreamwise_Periodic_ExpDecay();
+  /*--- Weak interface: always in the decaying formulation, optional (CHT_WEAK_INTERFACE= YES) with the physical
+        temperature, e.g. for a full-row reference that uses the same wall discretisation as the periodic cell. ---*/
+  const bool weak_cht = exp_decay || (energy && config->GetCHT_Weak_Interface());
 
-  if (exp_decay && (config->GetKind_CHT_Coupling() != CHT_COUPLING::DIRECT_TEMPERATURE_ROBIN_HEATFLUX))
-    SU2_MPI::Error("The decaying temperature formulation needs CHT_COUPLING_METHOD= DIRECT_TEMPERATURE_ROBIN_HEATFLUX.",
-                   CURRENT_FUNCTION);
+  if (weak_cht && (config->GetKind_CHT_Coupling() != CHT_COUPLING::DIRECT_TEMPERATURE_ROBIN_HEATFLUX))
+    SU2_MPI::Error("The weak CHT interface (decaying temperature formulation or CHT_WEAK_INTERFACE) needs "
+                   "CHT_COUPLING_METHOD= DIRECT_TEMPERATURE_ROBIN_HEATFLUX.", CURRENT_FUNCTION);
 
   /*--- Identify the boundary ---*/
 
@@ -780,9 +783,9 @@ void CIncNSSolver::BC_ConjugateHeat_Interface(CGeometry *geometry, CSolver **sol
     su2double Tconjugate = GetConjugateHeatVariable(val_marker, iVertex, 0) / Temperature_Ref;
     su2double Twall = 0.0;
 
-    if (exp_decay) {
+    if (weak_cht) {
 
-      /*--- Decaying temperature formulation: WEAK imposition of the solid interface theta, the same expression
+      /*--- Decaying temperature formulation (or CHT_WEAK_INTERFACE): WEAK imposition of the solid interface theta, the same expression
             as the weak isothermal wall. The heat this removes from the fluid, k (T_normal - Twall) / dist * Area,
             is exactly the flux the solid applies with DIRECT_TEMPERATURE_ROBIN_HEATFLUX (same k, dist and area
             on a conforming interface). The two zones then use one number per vertex, so the energy sum over

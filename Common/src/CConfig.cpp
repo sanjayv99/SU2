@@ -1175,6 +1175,9 @@ void CConfig::SetConfig_Options() {
   /* DESCRIPTION: Rescale theta to a unit fluid volume mean every iteration (decaying temperature formulation).
    * \n Options: NO, YES \n DEFAULT: NO \ingroup Config */
   addBoolOption("STREAMWISE_PERIODIC_THETA_NORMALIZE", Streamwise_Periodic_ThetaNormalize, false);
+  /* DESCRIPTION: Fluid side of a CHT interface takes the solid temperature weakly, with the same flux the solid
+                  receives from DIRECT_TEMPERATURE_ROBIN_HEATFLUX (always on with STREAMWISE_PERIODIC_EXP_DECAY). */
+  addBoolOption("CHT_WEAK_INTERFACE", CHT_Weak_Interface, false);
   /* DESCRIPTION: Energy variable is theta of the decaying formulation T - T_ref = theta exp(-lambda x). Implied by
    * STREAMWISE_PERIODIC_TEMPERATURE= YES with isothermal walls; needed explicitly for a CHT fluid zone (no isothermal
    * walls) and for the solid zone coupled to it. \n Options: NO, YES \n DEFAULT: NO \ingroup Config */
