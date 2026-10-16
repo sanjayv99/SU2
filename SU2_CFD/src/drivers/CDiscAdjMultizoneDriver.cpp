@@ -855,8 +855,46 @@ void CDiscAdjMultizoneDriver::InitializeCrossTerms() {
 void CDiscAdjMultizoneDriver::HandleDataTransfer() {
 
   /*--- Decaying temperature formulation across zones: lambda and the theta normalisation depend on all zones,
-        so they belong to the coupling (transfer) section of the tape, before the interface data is transferred. ---*/
-  StreamwisePeriodicThetaCoupling(true);
+        so they belong to the coupling (transfer) section of the tape. They must see the FINAL geometry of the
+        recording: in the geometric-sensitivity recording the prescribed deformation below is what links the
+        mesh to the registered boundary displacements, so the coupling step runs after it (and after the
+        geometry dependent quantities are recomputed), and before the interface data is transferred.
+        Otherwise lambda, and with it the objective STREAMWISE_LAMBDAL, misses its explicit dependence on the
+        shape. In the primal the deformation happens in Preprocess, before any coupling step, so this is the
+        same order. ---*/
+
+  if (streamwise_theta_coupled) {
+
+    const unsigned long ExtIter = 0;
+    for (iZone = 0; iZone < nZone; iZone++) {
+      Has_Deformation(iZone) = Prescribed_Deformation(iZone);
+      if (!Prescribed_Deformation(iZone)) continue;
+      bool wasActive = false;
+      if (CurrentRecording != RECORDING::MESH_COORDS) wasActive = AD::BeginPassive();
+      DynamicMeshUpdate(iZone, ExtIter);
+      if (CurrentRecording == RECORDING::MESH_COORDS) {
+        iteration_container[iZone][INST_0]->SetDependencies(solver_container, geometry_container, numerics_container,
+                                                            config_container, iZone, INST_0, CurrentRecording);
+      }
+      AD::EndPassive(wasActive);
+    }
+
+    StreamwisePeriodicThetaCoupling(true);
+
+    for (iZone = 0; iZone < nZone; iZone++) {
+      bool DeformMesh = false;
+      for (unsigned short jZone = 0; jZone < nZone; jZone++) {
+        if (jZone != iZone && interface_container[jZone][iZone] != nullptr) {
+          DeformMesh |= TransferData(jZone, iZone);
+        }
+      }
+      if (DeformMesh) {
+        DynamicMeshUpdate(iZone, ExtIter);
+        Has_Deformation(iZone) = true;
+      }
+    }
+    return;
+  }
 
   for(iZone = 0; iZone < nZone; iZone++) {
 
