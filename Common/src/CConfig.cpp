@@ -1175,6 +1175,10 @@ void CConfig::SetConfig_Options() {
   /* DESCRIPTION: Rescale theta to a unit fluid volume mean every iteration (decaying temperature formulation).
    * \n Options: NO, YES \n DEFAULT: NO \ingroup Config */
   addBoolOption("STREAMWISE_PERIODIC_THETA_NORMALIZE", Streamwise_Periodic_ThetaNormalize, false);
+  /* DESCRIPTION: Energy variable is theta of the decaying formulation T - T_ref = theta exp(-lambda x). Implied by
+   * STREAMWISE_PERIODIC_TEMPERATURE= YES with isothermal walls; needed explicitly for a CHT fluid zone (no isothermal
+   * walls) and for the solid zone coupled to it. \n Options: NO, YES \n DEFAULT: NO \ingroup Config */
+  addBoolOption("STREAMWISE_PERIODIC_EXP_DECAY", Streamwise_Periodic_ExpDecay, false);
 
   /*!\brief RESTART_SOL \n DESCRIPTION: Restart solution from native solution file \n Options: NO, YES \ingroup Config */
   addBoolOption("RESTART_SOL", Restart, false);
@@ -5178,6 +5182,17 @@ void CConfig::SetPostprocessing(SU2_COMPONENT val_software, unsigned short val_i
     if (Axisymmetric)
       SU2_MPI::Error("Streamwise Periodicity terms does not not have axisymmetric corrections.", CURRENT_FUNCTION);
     if (!Energy_Equation) Streamwise_Periodic_Temperature = false;
+    /*--- Isothermal walls imply the decaying formulation (behaviour before STREAMWISE_PERIODIC_EXP_DECAY existed). ---*/
+    if (Streamwise_Periodic_Temperature && (nMarker_Isothermal > 0)) Streamwise_Periodic_ExpDecay = true;
+    if (!Streamwise_Periodic_Temperature) Streamwise_Periodic_ExpDecay = false;
+    /*--- The decaying formulation is homogeneous in theta: heat flux walls must be adiabatic. ---*/
+    if (Streamwise_Periodic_ExpDecay) {
+      for (unsigned short iMarker = 0; iMarker < nMarker_HeatFlux; iMarker++) {
+        if (Heat_Flux[iMarker] != 0.0)
+          SU2_MPI::Error("STREAMWISE_PERIODIC_EXP_DECAY (or isothermal walls with STREAMWISE_PERIODIC_TEMPERATURE) "
+                         "allows only adiabatic MARKER_HEATFLUX (value 0).", CURRENT_FUNCTION);
+      }
+    }
     for (unsigned short iDim = 0; iDim < 3; iDim++)
       Streamwise_Periodic_Translation[iDim] = Periodic_Translation[0][iDim];
     if (Streamwise_Periodic_Translation_X != 0.0)
@@ -5185,6 +5200,8 @@ void CConfig::SetPostprocessing(SU2_COMPONENT val_software, unsigned short val_i
   } else {
     /*--- Safety measure ---*/
     Streamwise_Periodic_Temperature = false;
+    /*--- A solid zone coupled to a decaying-temperature fluid zone keeps the option. ---*/
+    if (!GetHeatProblem()) Streamwise_Periodic_ExpDecay = false;
   }
 
   if (nRough_Wall > 0) {

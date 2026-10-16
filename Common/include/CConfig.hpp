@@ -1092,6 +1092,7 @@ private:
   su2double Streamwise_Periodic_OutletHeat;          /*!< /brief Heatflux boundary [W/m^2] imposed at streamwise periodic outlet. */
   su2double Streamwise_Periodic_LambdaL;            /*!< /brief Exp coefficient for iso-thermal BCs Streamwise Periodic. */
   bool Streamwise_Periodic_ThetaNormalize;          /*!< \brief Rescale theta to a unit fluid volume mean every iteration. */
+  bool Streamwise_Periodic_ExpDecay;                /*!< \brief Energy variable is theta of the decaying (self-similar) formulation. */
 
   su2double Streamwise_Periodic_Translation_X;             /*!< \brief STREAMWISE_PERIODIC_TRANSLATION option, 0 = take MARKER_PERIODIC. */
   su2double Streamwise_Periodic_Translation[3] = {0.0};    /*!< \brief Periodic translation used by the flow physics. */
@@ -6364,6 +6365,14 @@ public:
    *        amplitude is free. Thats why we need some way of pinning it.
    */
   bool GetStreamwise_Periodic_ThetaNormalize(void) const { return Streamwise_Periodic_ThetaNormalize; }
+
+  /*!
+   * \brief Whether the energy variable is theta of the decaying formulation T - T_ref = theta exp(-lambda x),
+   *        theta periodic. Set by STREAMWISE_PERIODIC_EXP_DECAY, and implied (for compatibility) by
+   *        STREAMWISE_PERIODIC_TEMPERATURE= YES with isothermal walls. In a solid (heat) zone it switches on
+   *        the lambda terms of the conduction equation.
+   */
+  bool GetStreamwise_Periodic_ExpDecay(void) const { return Streamwise_Periodic_ExpDecay; }
 
   /*!
    * \brief Periodic translation of the current design, used by the streamwise periodic flow terms.

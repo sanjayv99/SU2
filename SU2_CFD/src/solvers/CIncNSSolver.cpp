@@ -334,7 +334,7 @@ void CIncNSSolver::GetStreamwise_Periodic_Properties(const CGeometry *geometry,
       Volume_Temp_Local += volume * Temp * nodes->GetThermalConductivity(iPoint);
 
       // coeff_b1 for turbulence
-      if (turbulent && (config->GetnMarker_Isothermal() != 0)) {
+      if (turbulent && config->GetStreamwise_Periodic_ExpDecay()) {
         su2double dot_product= 0.0, length= 0.0;
               for (unsigned short iDim = 0; iDim < nDim; iDim++) {
                 length += config->GetStreamwise_Periodic_Translation()[iDim] * config->GetStreamwise_Periodic_Translation()[iDim];
@@ -372,14 +372,14 @@ void CIncNSSolver::GetStreamwise_Periodic_Properties(const CGeometry *geometry,
     SU2_MPI::Allreduce(&Volume_Local, &Volume_Global, 1, MPI_DOUBLE, MPI_SUM, SU2_MPI::GetComm());
     SU2_MPI::Allreduce(&Volume_TempS_Local, &Volume_TempS_Global, 1, MPI_DOUBLE, MPI_SUM, SU2_MPI::GetComm());
     SU2_MPI::Allreduce(&b1_coeff_new_Local, &b1_coeff_new_Global, 1, MPI_DOUBLE, MPI_SUM, SU2_MPI::GetComm());
-    if (turbulent && (config->GetnMarker_Isothermal() != 0))
+    if (turbulent && config->GetStreamwise_Periodic_ExpDecay())
       SU2_MPI::Allreduce(&turb_b1_coeff_Local, &turb_b1_coeff_Global, 1, MPI_DOUBLE, MPI_SUM, SU2_MPI::GetComm());
 
     /*--- Set the solver variable Integrated Heatflux ---*/
     if (config->GetnMarker_HeatFlux() > 0)
       SPvals.Streamwise_Periodic_IntegratedHeatFlow = HeatFlow_Global;
 
-    if (config->GetnMarker_Isothermal() > 0) {
+    if (config->GetStreamwise_Periodic_ExpDecay()) {
       SPvals.Streamwise_Periodic_ThetaScaling = Volume_TempS_Global/Volume_Global;
       
       for (unsigned long iPoint = 0; iPoint < geometry->GetnPoint(); iPoint++) {
@@ -625,7 +625,7 @@ void CIncNSSolver::BC_Wall_Generic(const CGeometry *geometry, const CConfig *con
       LinSysRes(iPoint, nDim+1) -= Wall_HeatFlux*Area;
 
       /*--- With streamwise periodic flow and heatflux walls an additional term is introduced in the boundary formulation ---*/
-      if (streamwise_periodic && streamwise_periodic_temperature) {
+      if (streamwise_periodic && streamwise_periodic_temperature && !config->GetStreamwise_Periodic_ExpDecay()) {
 
         Cp = nodes->GetSpecificHeatCp(iPoint);
         thermal_conductivity = nodes->GetThermalConductivity(iPoint);

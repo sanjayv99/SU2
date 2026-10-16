@@ -100,8 +100,7 @@ class CIncNSSolver final : public CIncEulerSolver {
    *        i.e. computes lambda and normalises theta itself.
    */
   bool StreamwisePeriodicThetaLocal(const CConfig *config) const {
-    return config->GetEnergy_Equation() && config->GetStreamwise_Periodic_Temperature() &&
-           (config->GetnMarker_Isothermal() > 0);
+    return config->GetEnergy_Equation() && config->GetStreamwise_Periodic_ExpDecay();
   }
 
 public:

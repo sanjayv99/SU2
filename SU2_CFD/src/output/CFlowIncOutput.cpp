@@ -178,8 +178,10 @@ void CFlowIncOutput::SetHistoryOutputFields(CConfig *config){
     AddHistoryOutput("STREAMWISE_MASSFLOW", "SWMassflow", ScreenOutputFormat::FIXED, "STREAMWISE_PERIODIC", "Massflow in streamwise periodic flow", HistoryFieldType::COEFFICIENT);
     AddHistoryOutput("STREAMWISE_PERIODIC_DP",       "SWDeltaP",   ScreenOutputFormat::FIXED, "STREAMWISE_PERIODIC", "Pressure drop in streamwise periodic flow", HistoryFieldType::COEFFICIENT);
     AddHistoryOutput("STREAMWISE_HEAT",     "SWHeat",     ScreenOutputFormat::FIXED, "STREAMWISE_PERIODIC", "Integrated heat for streamwise periodic flow", HistoryFieldType::COEFFICIENT);
-    if (config->GetnMarker_Isothermal() > 0)
+    if (config->GetStreamwise_Periodic_ExpDecay()) {
       AddHistoryOutput("STREAMWISE_LAMBDAL", "SWLambdaL", ScreenOutputFormat::FIXED, "STREAMWISE_PERIODIC", "Exponential factor for iso-thermal temperature gradient", HistoryFieldType::COEFFICIENT);
+      AddHistoryOutput("STREAMWISE_THETA_MEAN", "SWThetaMean", ScreenOutputFormat::SCIENTIFIC, "STREAMWISE_PERIODIC", "Fluid volume mean of theta (amplitude of the decaying formulation)", HistoryFieldType::COEFFICIENT);
+    }
   }
 
   AddAnalyzeSurfaceOutput(config);
@@ -264,8 +266,10 @@ void CFlowIncOutput::LoadHistoryData(CConfig *config, CGeometry *geometry, CSolv
     SetHistoryOutputValue("STREAMWISE_MASSFLOW", flow_solver->GetStreamwisePeriodicValues().Streamwise_Periodic_MassFlow);
     SetHistoryOutputValue("STREAMWISE_PERIODIC_DP", flow_solver->GetStreamwisePeriodicValues().Streamwise_Periodic_PressureDrop);
     SetHistoryOutputValue("STREAMWISE_HEAT", flow_solver->GetStreamwisePeriodicValues().Streamwise_Periodic_IntegratedHeatFlow);
-    if (config->GetnMarker_Isothermal() > 0)
+    if (config->GetStreamwise_Periodic_ExpDecay()) {
       SetHistoryOutputValue("STREAMWISE_LAMBDAL", flow_solver->GetStreamwisePeriodicValues().Streamwise_Periodic_LambdaL);
+      SetHistoryOutputValue("STREAMWISE_THETA_MEAN", flow_solver->GetStreamwisePeriodicValues().Streamwise_Periodic_ThetaScaling);
+    }
   }
 
   /*--- Set the analyse surface history values --- */

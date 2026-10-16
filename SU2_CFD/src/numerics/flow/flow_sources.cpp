@@ -723,8 +723,11 @@ CSourceIncStreamwise_Periodic::CSourceIncStreamwise_Periodic(unsigned short val_
   turbulent = (config->GetKind_Turb_Model() != TURB_MODEL::NONE);
   energy    = config->GetEnergy_Equation();
   streamwisePeriodic_temperature = config->GetStreamwise_Periodic_Temperature();
-  bool_heat_flux_bc = (config->GetnMarker_HeatFlux() > 0);
-  bool_isotherml_bc = (config->GetnMarker_Isothermal() > 0);
+  /*--- The decaying (lambda) formulation and the outlet-heat formulation exclude each other. Gating on the
+        marker kinds let the lambda branch silently overwrite the heat-flux branch when both kinds were present,
+        and switched the lambda terms off for a CHT fluid zone, which has no isothermal walls. ---*/
+  bool_isotherml_bc = config->GetStreamwise_Periodic_ExpDecay();
+  bool_heat_flux_bc = (config->GetnMarker_HeatFlux() > 0) && !bool_isotherml_bc;
 
 }
 
