@@ -1433,8 +1433,11 @@ void CIncEulerSolver::Upwind_Residual(CGeometry *geometry, CSolver **solver_cont
        checked. Pressure is the dynamic pressure (can be negative). ---*/
 
       if (config->GetEnergy_Equation()) {
-        const bool neg_temperature_i = (Primitive_i[prim_idx.Temperature()] < 0.0);
-        const bool neg_temperature_j = (Primitive_j[prim_idx.Temperature()] < 0.0);
+        /*--- Not in the decaying (theta) formulation, where theta <= 0 near the reference wall is not
+              unphysical (see CIncEulerVariable::CheckNegativeTemperature). ---*/
+        const bool check_temp = !config->GetStreamwise_Periodic_ExpDecay();
+        const bool neg_temperature_i = check_temp && (Primitive_i[prim_idx.Temperature()] < 0.0);
+        const bool neg_temperature_j = check_temp && (Primitive_j[prim_idx.Temperature()] < 0.0);
 
         const bool neg_density_i  = (Primitive_i[prim_idx.Density()] < 0.0);
         const bool neg_density_j  = (Primitive_j[prim_idx.Density()] < 0.0);

@@ -69,6 +69,12 @@ public:
  protected:
   const CIndices<unsigned long> indices;
 
+  /*--- False in the decaying (theta) formulation: the energy variable is the scaled excess temperature theta,
+        which is 0 on the reference wall and may undershoot slightly below it at wall nodes. A negative value
+        is not unphysical there, and reverting the node to Solution_Old would change the discrete operator
+        (and on the adjoint tape cut the dependence on the recorded solution). ---*/
+  bool CheckNegativeTemperature = true;
+
   VectorType Streamwise_Periodic_RecoveredPressure,    /*!< \brief Recovered/Physical pressure [Pa] for streamwise periodic flow. */
              Streamwise_Periodic_RecoveredTemperature; /*!< \brief Recovered/Physical temperature [K] for streamwise periodic flow. */
  public:
@@ -118,7 +124,7 @@ public:
    */
   inline bool SetTemperature(unsigned long iPoint, su2double val_temperature) final {
     Primitive(iPoint, indices.Temperature()) = val_temperature;
-    return val_temperature < 0.0;
+    return CheckNegativeTemperature && (val_temperature < 0.0);
   }
 
   /*!

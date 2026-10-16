@@ -33,6 +33,8 @@ CIncEulerVariable::CIncEulerVariable(su2double pressure, const su2double *veloci
   : CFlowVariable(npoint, ndim, nvar, ndim + 9, ndim + 4, config),
     indices(ndim, 0) {
 
+  CheckNegativeTemperature = !config->GetStreamwise_Periodic_ExpDecay();
+
   const bool dual_time = (config->GetTime_Marching() == TIME_MARCHING::DT_STEPPING_1ST) ||
                          (config->GetTime_Marching() == TIME_MARCHING::DT_STEPPING_2ND);
   const bool classical_rk4 = (config->GetKind_TimeIntScheme_Flow() == CLASSICAL_RK4_EXPLICIT);
