@@ -221,6 +221,19 @@ public:
                        unsigned short iMesh) override;
 
   /*!
+   * \brief Multiply theta (the temperature) by a factor at all points, halos included.
+   */
+  void ScaleStreamwisePeriodicTheta(su2double factor) override;
+
+  /*!
+   * \brief Contribution of the solid to the lambda balance, from exactly the terms its residual contains:
+   *        coeffs[0] = sum V k_s theta, coeffs[1] = -2 sum V k_s dtheta/dx + sum_CHT (k_f - k_s) n_x theta_w A,
+   *        coeffs[2] = -(heat into the isothermal walls, weak expression). Conductivity units.
+   */
+  void GetStreamwisePeriodicLambdaCoeffs(const CGeometry *geometry, const CConfig *config,
+                                         su2double *coeffs) const override;
+
+  /*!
    * \brief Impose the Navier-Stokes boundary condition (strong).
    * \param[in] geometry - Geometrical definition of the problem.
    * \param[in] solver_container - Container vector with all the solutions.

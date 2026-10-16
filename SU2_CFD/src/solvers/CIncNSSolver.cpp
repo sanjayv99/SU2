@@ -392,17 +392,23 @@ void CIncNSSolver::GetStreamwise_Periodic_Properties(const CGeometry *geometry,
       const su2double b1_coeff = Volume_VTemp_Global  - turb_b1_coeff_Global - b1_coeff_new_Global;
       const su2double b2_coeff = -dTdn_Global;
 
-      // cout<<"b1_coeff_new_Global :: "<<b1_coeff_new_Global<<endl;
-      // cout<<"turb_b1_coeff_Global :: "<<turb_b1_coeff_Global<<endl;
+      LambdaCoeffs[0] = b0_coeff;
+      LambdaCoeffs[1] = b1_coeff;
+      LambdaCoeffs[2] = b2_coeff;
 
-      /*--- Find the value of Lambda L by solving the quadratic equation ---*/
-      const su2double pred_lambda = (- b1_coeff + sqrt(b1_coeff * b1_coeff - 4 * b0_coeff * b2_coeff))/(2 * b0_coeff);
-      if (!config->GetDiscrete_Adjoint())
-        SPvals.Streamwise_Periodic_LambdaL -= 0.01 * (SPvals.Streamwise_Periodic_LambdaL - pred_lambda);
-      else
-        SPvals.Streamwise_Periodic_LambdaL = pred_lambda;
-      
-      config->SetStreamwise_Periodic_LamdaL(SPvals.Streamwise_Periodic_LambdaL);
+      /*--- In CHT the balance needs the solid zone too: the multizone driver sums the coefficients of all zones
+            and sets lambda (CMultizoneDriver::StreamwisePeriodicThetaCoupling). ---*/
+      if (!config->GetStreamwise_Periodic_ThetaCoupled()) {
+
+        /*--- Find the value of Lambda L by solving the quadratic equation ---*/
+        const su2double pred_lambda = (- b1_coeff + sqrt(b1_coeff * b1_coeff - 4 * b0_coeff * b2_coeff))/(2 * b0_coeff);
+        if (!config->GetDiscrete_Adjoint())
+          SPvals.Streamwise_Periodic_LambdaL -= 0.01 * (SPvals.Streamwise_Periodic_LambdaL - pred_lambda);
+        else
+          SPvals.Streamwise_Periodic_LambdaL = pred_lambda;
+
+        config->SetStreamwise_Periodic_LamdaL(SPvals.Streamwise_Periodic_LambdaL);
+      }
     } // if isothermal
   } // if energy
 }

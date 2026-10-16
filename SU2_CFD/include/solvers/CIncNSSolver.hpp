@@ -100,10 +100,29 @@ class CIncNSSolver final : public CIncEulerSolver {
    *        i.e. computes lambda and normalises theta itself.
    */
   bool StreamwisePeriodicThetaLocal(const CConfig *config) const {
-    return config->GetEnergy_Equation() && config->GetStreamwise_Periodic_ExpDecay();
+    return config->GetEnergy_Equation() && config->GetStreamwise_Periodic_ExpDecay() &&
+           !config->GetStreamwise_Periodic_ThetaCoupled();
   }
 
+  su2double LambdaCoeffs[3] = {0.0};  /*!< \brief b0, b1, b2 of the lambda balance, from the last Preprocessing. */
+
 public:
+  /*!
+   * \brief Lambda balance coefficients of the fluid, b0 lambda^2 + b1 lambda + b2 (b2 from isothermal walls).
+   */
+  void GetStreamwisePeriodicLambdaCoeffs(const CGeometry *geometry, const CConfig *config,
+                                         su2double *coeffs) const override {
+    for (int i = 0; i < 3; i++) coeffs[i] = LambdaCoeffs[i];
+  }
+
+  /*!
+   * \brief Set lambda in the solver values (used by the source term) and in the config (restart, output).
+   */
+  void SetStreamwisePeriodicLambda(CConfig *config, su2double lambda) override {
+    SPvals.Streamwise_Periodic_LambdaL = lambda;
+    config->SetStreamwise_Periodic_LamdaL(lambda);
+  }
+
   /*!
    * \brief Volume integral of theta and of 1 over the domain, summed over all ranks.
    */

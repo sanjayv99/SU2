@@ -351,6 +351,69 @@ void CHeatSolver::Source_Residual(CGeometry *geometry, CSolver **solver_containe
   END_SU2_OMP_FOR
 }
 
+void CHeatSolver::ScaleStreamwisePeriodicTheta(su2double factor) {
+  for (auto iPoint = 0ul; iPoint < nPoint; iPoint++)
+    nodes->SetSolution(iPoint, 0, factor * nodes->GetSolution(iPoint, 0));
+}
+
+void CHeatSolver::GetStreamwisePeriodicLambdaCoeffs(const CGeometry *geometry, const CConfig *config,
+                                                    su2double *coeffs) const {
+
+  const su2double* translation = config->GetStreamwise_Periodic_Translation();
+  const su2double norm = GeometryToolbox::Norm(nDim, translation);
+  su2double t_hat[MAXNDIM] = {0.0};
+  for (unsigned short iDim = 0; iDim < nDim; iDim++) t_hat[iDim] = translation[iDim] / norm;
+
+  const su2double rho_cp_solid = config->GetMaterialDensity(0) * config->GetSpecific_Heat_Cp();
+  const su2double k_solid = config->GetThermalDiffusivity() * rho_cp_solid;
+
+  /*--- Volume terms: the sums of the two source terms of Source_Residual. ---*/
+  su2double local[4] = {0.0, 0.0, 0.0, 0.0};  // S0, S1, I, W_i
+  for (auto iPoint = 0ul; iPoint < nPointDomain; iPoint++) {
+    const su2double volume = geometry->nodes->GetVolume(iPoint);
+    su2double dtheta_dx = 0.0;
+    for (unsigned short iDim = 0; iDim < nDim; iDim++)
+      dtheta_dx += t_hat[iDim] * nodes->GetGradient(iPoint, 0, iDim);
+    local[0] += volume * k_solid * nodes->GetSolution(iPoint, 0);
+    local[1] += volume * k_solid * dtheta_dx;
+  }
+
+  for (auto iMarker = 0u; iMarker < config->GetnMarker_All(); iMarker++) {
+
+    const auto kind = config->GetMarker_All_KindBC(iMarker);
+
+    for (auto iVertex = 0ul; iVertex < geometry->nVertex[iMarker]; iVertex++) {
+      const auto iPoint = geometry->vertex[iMarker][iVertex]->GetNode();
+      if (!geometry->nodes->GetDomain(iPoint)) continue;
+      const auto* Normal = geometry->vertex[iMarker][iVertex]->GetNormal();
+
+      if (kind == CHT_WALL_INTERFACE) {
+        /*--- The lambda term of the interface flux, as in BC_ConjugateHeat_Interface. ---*/
+        const su2double k_fluid = GetConjugateHeatVariable(iMarker, iVertex, 4);
+        local[2] += (k_fluid - k_solid) * GeometryToolbox::DotProduct(nDim, Normal, t_hat) *
+                    nodes->GetTemperature(iPoint);
+      }
+      else if (kind == ISOTHERMAL) {
+        /*--- Heat into the sink, the same expression as IsothermalBoundaryCondition (weak). ---*/
+        const su2double Twall = config->GetIsothermal_Temperature(config->GetMarker_All_TagBound(iMarker)) /
+                                config->GetTemperature_Ref();
+        const auto Point_Normal = geometry->vertex[iMarker][iVertex]->GetNormal_Neighbor();
+        const su2double dist_ij = GeometryToolbox::Distance(nDim, geometry->nodes->GetCoord(iPoint),
+                                                            geometry->nodes->GetCoord(Point_Normal));
+        const su2double Area = GeometryToolbox::Norm(nDim, Normal);
+        local[3] += k_solid * (nodes->GetTemperature(Point_Normal) - Twall) / dist_ij * Area;
+      }
+    }
+  }
+
+  su2double global[4];
+  SU2_MPI::Allreduce(local, global, 4, MPI_DOUBLE, MPI_SUM, SU2_MPI::GetComm());
+
+  coeffs[0] = global[0];
+  coeffs[1] = -2.0 * global[1] + global[2];
+  coeffs[2] = -global[3];
+}
+
 void CHeatSolver::Set_Heatflux_Areas(CGeometry *geometry, CConfig *config) {
 
   BEGIN_SU2_OMP_SAFE_GLOBAL_ACCESS {

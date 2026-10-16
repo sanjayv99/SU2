@@ -67,6 +67,19 @@ protected:
    */
   void Corrector(unsigned short val_iZone);
 
+  bool streamwise_theta_coupled = false;  /*!< \brief CHT with the decaying temperature formulation. */
+  unsigned short streamwise_theta_fluid_zone = 0; /*!< \brief Fluid zone of the decaying formulation. */
+
+  /*!
+   * \brief Coupling step of the decaying (self-similar) temperature formulation across zones (CHT).
+   *        Normalises theta in all zones of the formulation by ONE factor (fluid volume mean), recomputes their
+   *        primitives and gradients, sums their lambda balance coefficients, and sets one lambda in all of them.
+   *        Called once per outer iteration before the transfers (primal), and at the start of the transfer
+   *        section of every recording (adjoint), so lambda and the normalisation are on the tape.
+   * \param[in] adjoint - Set lambda to the root of the balance (no relaxation).
+   */
+  void StreamwisePeriodicThetaCoupling(bool adjoint);
+
   /*!
    * \brief Run a Block Gauss-Seidel iteration in all physical zones.
    */

@@ -1093,6 +1093,7 @@ private:
   su2double Streamwise_Periodic_LambdaL;            /*!< /brief Exp coefficient for iso-thermal BCs Streamwise Periodic. */
   bool Streamwise_Periodic_ThetaNormalize;          /*!< \brief Rescale theta to a unit fluid volume mean every iteration. */
   bool Streamwise_Periodic_ExpDecay;                /*!< \brief Energy variable is theta of the decaying (self-similar) formulation. */
+  bool Streamwise_Periodic_ThetaCoupled = false;    /*!< \brief Lambda and theta normalisation are handled by the multizone driver. */
 
   su2double Streamwise_Periodic_Translation_X;             /*!< \brief STREAMWISE_PERIODIC_TRANSLATION option, 0 = take MARKER_PERIODIC. */
   su2double Streamwise_Periodic_Translation[3] = {0.0};    /*!< \brief Periodic translation used by the flow physics. */
@@ -6373,6 +6374,17 @@ public:
    *        the lambda terms of the conduction equation.
    */
   bool GetStreamwise_Periodic_ExpDecay(void) const { return Streamwise_Periodic_ExpDecay; }
+
+  /*!
+   * \brief Whether lambda and the theta normalisation of this zone are computed by the multizone driver from all
+   *        zones of the decaying formulation (CHT), instead of by the zone itself.
+   */
+  bool GetStreamwise_Periodic_ThetaCoupled(void) const { return Streamwise_Periodic_ThetaCoupled; }
+
+  /*!
+   * \brief Mark this zone as coupled for lambda and the theta normalisation. Set by the multizone driver.
+   */
+  void SetStreamwise_Periodic_ThetaCoupled(bool val) { Streamwise_Periodic_ThetaCoupled = val; }
 
   /*!
    * \brief Periodic translation of the current design, used by the streamwise periodic flow terms.

@@ -4361,6 +4361,29 @@ public:
   virtual void ScaleStreamwisePeriodicTheta(su2double factor) { }
 
   /*!
+   * \brief Contribution of this zone to the lambda balance of the decaying temperature formulation,
+   *        coeffs[0] lambda^2 + coeffs[1] lambda + coeffs[2]. Summed over all zones of the formulation, the
+   *        balance is the sum of the implemented energy residuals over those zones. Globally reduced.
+   *        Requires up to date primitives and gradients (call Preprocessing first).
+   * \param[in] geometry - Geometrical definition of the problem.
+   * \param[in] config - Definition of the particular problem.
+   * \param[out] coeffs - The three coefficients, in conductivity units [W/K per unit theta].
+   */
+  virtual void GetStreamwisePeriodicLambdaCoeffs(const CGeometry *geometry, const CConfig *config,
+                                                 su2double *coeffs) const {
+    coeffs[0] = 0.0; coeffs[1] = 0.0; coeffs[2] = 0.0;
+  }
+
+  /*!
+   * \brief Set lambda of the decaying temperature formulation in this zone.
+   * \param[in] config - Definition of the particular problem.
+   * \param[in] lambda - Decay rate [1/m].
+   */
+  virtual void SetStreamwisePeriodicLambda(CConfig *config, su2double lambda) {
+    config->SetStreamwise_Periodic_LamdaL(lambda);
+  }
+
+  /*!
    * \brief Save snapshot or POD data using libROM
    * \param[in] geometry - Geometrical definition of the problem.
    * \param[in] config - Definition of the particular problem.

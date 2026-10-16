@@ -854,6 +854,10 @@ void CDiscAdjMultizoneDriver::InitializeCrossTerms() {
 
 void CDiscAdjMultizoneDriver::HandleDataTransfer() {
 
+  /*--- Decaying temperature formulation across zones: lambda and the theta normalisation depend on all zones,
+        so they belong to the coupling (transfer) section of the tape, before the interface data is transferred. ---*/
+  StreamwisePeriodicThetaCoupling(true);
+
   for(iZone = 0; iZone < nZone; iZone++) {
 
     /*--- In principle, the mesh does not need to be updated ---*/

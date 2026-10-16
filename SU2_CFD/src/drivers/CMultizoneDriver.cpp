@@ -94,6 +94,32 @@ CMultizoneDriver::CMultizoneDriver(char* confFile, unsigned short val_nZone, SU2
   /*--- If the problem has CHT properties ---*/
   if (fluid_zone && heat_zone) cht = true;
 
+  /*--- CHT with the decaying temperature formulation: lambda and the theta normalisation become driver tasks. ---*/
+  unsigned short nFluidDecay = 0, nSolidDecay = 0;
+  for (iZone = 0; iZone < nZone; iZone++) {
+    if (!config_container[iZone]->GetStreamwise_Periodic_ExpDecay()) continue;
+    if (config_container[iZone]->GetFluidProblem()) { nFluidDecay++; streamwise_theta_fluid_zone = iZone; }
+    if (config_container[iZone]->GetHeatProblem()) nSolidDecay++;
+  }
+  if (nSolidDecay > 0) {
+    if (nFluidDecay != 1)
+      SU2_MPI::Error("A solid zone with STREAMWISE_PERIODIC_EXP_DECAY needs exactly one fluid zone with the decaying "
+                     "temperature formulation (STREAMWISE_PERIODIC_EXP_DECAY= YES).", CURRENT_FUNCTION);
+    if (driver_config->GetKind_MZSolver() != ENUM_MULTIZONE::MZ_BLOCK_GAUSS_SEIDEL)
+      SU2_MPI::Error("The decaying temperature formulation with CHT needs MULTIZONE_SOLVER= BLOCK_GAUSS_SEIDEL.",
+                     CURRENT_FUNCTION);
+    streamwise_theta_coupled = true;
+    const auto* fluid_config = config_container[streamwise_theta_fluid_zone];
+    for (iZone = 0; iZone < nZone; iZone++) {
+      if (!config_container[iZone]->GetStreamwise_Periodic_ExpDecay()) continue;
+      config_container[iZone]->SetStreamwise_Periodic_ThetaCoupled(true);
+      if (iZone != streamwise_theta_fluid_zone) {
+        config_container[iZone]->SetStreamwise_Periodic_TranslationVector(fluid_config->GetStreamwise_Periodic_Translation());
+        config_container[iZone]->SetStreamwise_Periodic_LamdaL(fluid_config->GetStreamwise_Periodic_LamdaL());
+      }
+    }
+  }
+
   /*----------------------------------------------------*/
   /*- Define if a prefixed motion is imposed in a zone -*/
   /*----------------------------------------------------*/
@@ -300,6 +326,9 @@ void CMultizoneDriver::RunGaussSeidel() {
   /*--- Loop over the number of outer iterations ---*/
   for (auto iOuter_Iter = 0ul; iOuter_Iter < driver_config->GetnOuter_Iter(); iOuter_Iter++) {
 
+    /*--- Decaying temperature formulation across zones: one lambda and one normalisation for all of them. ---*/
+    StreamwisePeriodicThetaCoupling(false);
+
     /*--- Loop over the number of zones (IZONE) ---*/
     for (iZone = 0; iZone < nZone; iZone++) {
 
@@ -336,6 +365,76 @@ void CMultizoneDriver::RunGaussSeidel() {
 
   }
 
+}
+
+void CMultizoneDriver::StreamwisePeriodicThetaCoupling(bool adjoint) {
+
+  if (!streamwise_theta_coupled) return;
+
+  const auto fZone = streamwise_theta_fluid_zone;
+  auto main_solver = [&](unsigned short jZone) {
+    auto solvers0 = solver_container[jZone][INST_0][MESH_0];
+    return config_container[jZone]->GetFluidProblem() ? solvers0[FLOW_SOL] : solvers0[HEAT_SOL];
+  };
+  auto decay_zone = [&](unsigned short jZone) {
+    return config_container[jZone]->GetStreamwise_Periodic_ExpDecay();
+  };
+
+  /*--- 1. Normalise theta with ONE factor in all zones, so the interface stays consistent. The fluid volume mean is
+          the reference: solid values are a small fraction of the fluid values. ---*/
+
+  if (config_container[fZone]->GetStreamwise_Periodic_ThetaNormalize()) {
+    su2double sums[2];
+    main_solver(fZone)->GetStreamwisePeriodicThetaSums(geometry_container[fZone][INST_0][MESH_0], sums);
+    const su2double factor = sums[1] / sums[0];
+    for (unsigned short jZone = 0; jZone < nZone; jZone++)
+      if (decay_zone(jZone)) main_solver(jZone)->ScaleStreamwisePeriodicTheta(factor);
+  }
+
+  /*--- 2. Primitives and gradients from the (scaled) solution, needed by the coefficients and by the transfers. ---*/
+
+  for (unsigned short jZone = 0; jZone < nZone; jZone++) {
+    if (!decay_zone(jZone)) continue;
+    auto solvers0 = solver_container[jZone][INST_0][MESH_0];
+    auto geometry0 = geometry_container[jZone][INST_0][MESH_0];
+    const bool fluid = config_container[jZone]->GetFluidProblem();
+    SU2_OMP_PARALLEL_(if(main_solver(jZone)->GetHasHybridParallel())) {
+      if (fluid)
+        solvers0[FLOW_SOL]->Preprocessing(geometry0, solvers0, config_container[jZone], MESH_0, NO_RK_ITER,
+                                          RUNTIME_FLOW_SYS, true);
+      else
+        solvers0[HEAT_SOL]->Preprocessing(geometry0, solvers0, config_container[jZone], MESH_0, NO_RK_ITER,
+                                          RUNTIME_HEAT_SYS, true);
+    }
+    END_SU2_OMP_PARALLEL
+  }
+
+  /*--- 3. Lambda from the balance summed over all zones of the formulation:
+          (b0_f + S0) lambda^2 + (b1_f - 2 S1 + I) lambda - W_i = 0. Exactly one positive root. ---*/
+
+  su2double total[3] = {0.0, 0.0, 0.0};
+  for (unsigned short jZone = 0; jZone < nZone; jZone++) {
+    if (!decay_zone(jZone)) continue;
+    su2double coeffs[3];
+    main_solver(jZone)->GetStreamwisePeriodicLambdaCoeffs(geometry_container[jZone][INST_0][MESH_0],
+                                                         config_container[jZone], coeffs);
+    for (int i = 0; i < 3; i++) total[i] += coeffs[i];
+  }
+  /*--- At a physical state A > 0 (theta > 0) and C < 0 (heat flows into the sink), so there is exactly one
+        positive root. Early in a coupled transient a zone can overshoot (e.g. the solid below theta = 0 next to
+        the sink), C changes sign and the root does not exist; keep lambda for that outer iteration. ---*/
+  su2double lambda = config_container[fZone]->GetStreamwise_Periodic_LamdaL();
+  const su2double discriminant = total[1] * total[1] - 4.0 * total[0] * total[2];
+  if ((total[0] > 0.0) && (total[2] < 0.0) && (discriminant >= 0.0)) {
+    const su2double pred_lambda = (-total[1] + sqrt(discriminant)) / (2.0 * total[0]);
+
+    /*--- Same relaxation as the single zone update in the primal; the recorded map uses the root itself. ---*/
+    if (adjoint) lambda = pred_lambda;
+    else lambda -= 0.01 * (lambda - pred_lambda);
+  }
+
+  for (unsigned short jZone = 0; jZone < nZone; jZone++)
+    if (decay_zone(jZone)) main_solver(jZone)->SetStreamwisePeriodicLambda(config_container[jZone], lambda);
 }
 
 void CMultizoneDriver::RunJacobi() {
