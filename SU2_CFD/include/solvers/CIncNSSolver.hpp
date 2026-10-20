@@ -124,6 +124,13 @@ public:
   }
 
   /*!
+   * \brief Heat balance terms of the fluid at a CHT interface, see CSolver::GetCHTHeatBalance. Q_IF is the heat the
+   *        weak interface condition removes, Q_SINK and Q_DECAY come from the lambda coefficients of the last
+   *        Preprocessing.
+   */
+  void GetCHTHeatBalance(const CGeometry *geometry, const CConfig *config, su2double *vals) const override;
+
+  /*!
    * \brief Volume integral of theta and of 1 over the domain, summed over all ranks.
    */
   void GetStreamwisePeriodicThetaSums(const CGeometry *geometry, su2double *sums) const override;

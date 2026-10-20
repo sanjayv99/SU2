@@ -55,6 +55,8 @@ protected:
 
   string bgs_res_name; //!< Block-Gauss Seidel residual name
   bool write_zone;     //!< Boolean indicating whether the individual zones write to screen
+  bool cht_balance = false;        //!< A fluid and a solid zone report the CHT heat balance (CHT_Q_IF)
+  bool cht_balance_decay = false;  //!< ... and all of them the decaying formulation terms (CHT_ZONE_BALANCE)
 
 public:
 

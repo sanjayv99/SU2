@@ -111,6 +111,36 @@ void CMultizoneOutput::LoadMultizoneHistoryData(const COutput* const* output, co
     }
   }
   SetHistoryOutputValue("COMBO", comboValue);
+
+  /*--- CHT heat balance across zones. Q_IF of the fluid (out) and of the solid (in) cancel on a conforming
+        interface; the difference is the term the lambda quadratic of the driver does not contain. ---*/
+
+  if (cht_balance) {
+    su2double Q_IF_fluid = 0.0, Q_IF_solid = 0.0, Q_sink = 0.0, quadratic = 0.0;
+
+    for (unsigned short iZone = 0; iZone < nZone; iZone++) {
+      const auto& fields = output[iZone]->GetHistoryFields();
+      if (fields.find("CHT_Q_IF") == fields.end()) continue;
+
+      const su2double Q_IF = fields.at("CHT_Q_IF").value;
+      if (config[iZone]->GetFluidProblem()) Q_IF_fluid += Q_IF;
+      else Q_IF_solid += Q_IF;
+
+      if (cht_balance_decay) {
+        const su2double Q_lambda = (fields.find("CHT_Q_LAMBDA") != fields.end()) ? fields.at("CHT_Q_LAMBDA").value : 0.0;
+        Q_sink += fields.at("CHT_Q_SINK").value;
+        quadratic += fields.at("CHT_Q_DECAY").value + Q_lambda - fields.at("CHT_Q_SINK").value;
+      }
+    }
+
+    /*--- Normalise by the heat into the sink (decaying formulation), else by the heat through the interface. ---*/
+    su2double Q_ref = cht_balance_decay ? Q_sink : Q_IF_solid;
+    Q_ref = fabs(Q_ref);
+    if (Q_ref < EPS) Q_ref = 1.0;
+
+    SetHistoryOutputValue("CHT_IF_IMBALANCE", (Q_IF_fluid - Q_IF_solid) / Q_ref);
+    if (cht_balance_decay) SetHistoryOutputValue("CHT_CELL_BALANCE", quadratic / Q_ref);
+  }
 }
 
 void CMultizoneOutput::SetMultizoneHistoryOutputFields(const COutput* const* output, const CConfig* const* config) {
@@ -185,6 +215,31 @@ void CMultizoneOutput::SetMultizoneHistoryOutputFields(const COutput* const* out
     }
   }
   AddHistoryOutput("COMBO", "ComboObj", ScreenOutputFormat::SCIENTIFIC, "COMBO", "Combined obj. function value.", HistoryFieldType::COEFFICIENT);
+
+  /*--- CHT heat balance across zones, when a fluid and a solid zone both report CHT_Q_IF. ---*/
+
+  bool fluid_cht = false, solid_cht = false;
+  cht_balance_decay = true;
+  for (unsigned short iZone = 0; iZone < nZone; iZone++) {
+    const auto& fields = output[iZone]->GetHistoryFields();
+    if (fields.find("CHT_Q_IF") == fields.end()) continue;
+    if (config[iZone]->GetFluidProblem()) fluid_cht = true;
+    else solid_cht = true;
+    if (fields.find("CHT_ZONE_BALANCE") == fields.end()) cht_balance_decay = false;
+  }
+  cht_balance = fluid_cht && solid_cht;
+  cht_balance_decay = cht_balance && cht_balance_decay;
+
+  if (cht_balance) {
+    AddHistoryOutput("CHT_IF_IMBALANCE", "IF_Imbal", ScreenOutputFormat::SCIENTIFIC, "CHT_BALANCE",
+                     "(Q_IF fluid - Q_IF solid) / reference heat: interface heat lost between the zones, zero on a "
+                     "conforming interface at convergence", HistoryFieldType::COEFFICIENT);
+  }
+  if (cht_balance_decay) {
+    AddHistoryOutput("CHT_CELL_BALANCE", "CellBal", ScreenOutputFormat::SCIENTIFIC, "CHT_BALANCE",
+                     "Lambda quadratic of the driver at the current lambda / heat into the sinks. At convergence it "
+                     "equals CHT_IF_IMBALANCE", HistoryFieldType::COEFFICIENT);
+  }
 }
 
 bool CMultizoneOutput::WriteScreenHeader(const CConfig *config) {

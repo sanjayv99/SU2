@@ -30,6 +30,18 @@
 #include "../../../Common/include/geometry/CGeometry.hpp"
 #include "../../include/solvers/CSolver.hpp"
 
+namespace {
+/*--- CHT heat balance outputs: the solid has a CHT interface with the Robin coupling. Uses the config file markers,
+      the output fields are set before the geometry. ---*/
+bool CHTBalanceSolid(const CConfig* config) {
+  if (config->GetKind_CHT_Coupling() != CHT_COUPLING::DIRECT_TEMPERATURE_ROBIN_HEATFLUX) return false;
+  for (auto iMarker = 0u; iMarker < config->GetnMarker_CfgFile(); iMarker++)
+    if (config->GetMarker_CfgFile_KindBC(config->GetMarker_CfgFile_TagBound(iMarker)) == CHT_WALL_INTERFACE)
+      return true;
+  return false;
+}
+}  // namespace
+
 CHeatOutput::CHeatOutput(CConfig *config, unsigned short nDim) : CFVMOutput(config, nDim, false) {
 
   /*--- Set the default history fields if nothing is set in the config file ---*/
@@ -88,6 +100,18 @@ void CHeatOutput::LoadHistoryData(CConfig *config, CGeometry *geometry, CSolver 
   SetHistoryOutputValue("LINSOL_RESIDUAL", log10(heat_solver->GetResLinSolver()));
   SetHistoryOutputValue("CFL_NUMBER", config->GetCFL(MESH_0));
 
+  if (CHTBalanceSolid(config)) {
+    su2double cht[4];
+    heat_solver->GetCHTHeatBalance(geometry, config, cht);
+    SetHistoryOutputValue("CHT_Q_IF", cht[0]);
+    if (config->GetStreamwise_Periodic_ExpDecay()) {
+      SetHistoryOutputValue("CHT_Q_LAMBDA", cht[1]);
+      SetHistoryOutputValue("CHT_Q_SINK", cht[2]);
+      SetHistoryOutputValue("CHT_Q_DECAY", cht[3]);
+      SetHistoryOutputValue("CHT_ZONE_BALANCE", cht[3] + cht[1] + cht[0] - cht[2]);
+    }
+  }
+
   ComputeSimpleCustomOutputs(config);
 
   /*--- Keep this as last, since it uses the history values that were set. ---*/
@@ -108,6 +132,16 @@ void CHeatOutput::SetHistoryOutputFields(CConfig *config){
   AddHistoryOutput("MAXIMUM_HEATFLUX", "MaxHF", ScreenOutputFormat::SCIENTIFIC, "HEAT", "Maximum heatflux on all surfaces defined in MARKER_MONITORING", HistoryFieldType::COEFFICIENT);
   AddHistoryOutput("AVG_TEMPERATURE", "AvgTemp", ScreenOutputFormat::SCIENTIFIC, "HEAT", "Average temperature on all surfaces defined in MARKER_MONITORING", HistoryFieldType::COEFFICIENT);
   AddHistoryOutput("CFL_NUMBER", "CFL number", ScreenOutputFormat::SCIENTIFIC, "CFL_NUMBER", "Current value of the CFL number");
+
+  if (CHTBalanceSolid(config)) {
+    AddHistoryOutput("CHT_Q_IF", "Q_IF", ScreenOutputFormat::SCIENTIFIC, "CHT_BALANCE", "Heat into the solid through the CHT interfaces by the Robin exchange term", HistoryFieldType::COEFFICIENT);
+    if (config->GetStreamwise_Periodic_ExpDecay()) {
+      AddHistoryOutput("CHT_Q_LAMBDA", "Q_Lambda", ScreenOutputFormat::SCIENTIFIC, "CHT_BALANCE", "Heat into the solid by the lambda term of the interface flux (decaying formulation)", HistoryFieldType::COEFFICIENT);
+      AddHistoryOutput("CHT_Q_SINK", "Q_Sink", ScreenOutputFormat::SCIENTIFIC, "CHT_BALANCE", "Heat out of the solid through isothermal walls (decaying formulation)", HistoryFieldType::COEFFICIENT);
+      AddHistoryOutput("CHT_Q_DECAY", "Q_Decay", ScreenOutputFormat::SCIENTIFIC, "CHT_BALANCE", "Volume terms of the decaying formulation in the solid", HistoryFieldType::COEFFICIENT);
+      AddHistoryOutput("CHT_ZONE_BALANCE", "ZoneBal", ScreenOutputFormat::SCIENTIFIC, "CHT_BALANCE", "Solid heat balance Q_DECAY + Q_LAMBDA + Q_IF - Q_SINK, zero at convergence", HistoryFieldType::COEFFICIENT);
+    }
+  }
 
   AddHistoryOutput("COMBO", "ComboObj", ScreenOutputFormat::SCIENTIFIC, "COMBO", "Combined obj. function value.", HistoryFieldType::COEFFICIENT);
 }

@@ -414,6 +414,49 @@ void CIncNSSolver::GetStreamwise_Periodic_Properties(const CGeometry *geometry,
 }
 
 
+void CIncNSSolver::GetCHTHeatBalance(const CGeometry *geometry, const CConfig *config, su2double *vals) const {
+
+  for (int i = 0; i < 4; i++) vals[i] = 0.0;
+  if (!config->GetEnergy_Equation()) return;
+
+  const su2double Temperature_Ref = config->GetTemperature_Ref();
+
+  /*--- Q_IF: the heat the weak interface condition of BC_ConjugateHeat_Interface removes from the fluid,
+        k (T_normal - T_conjugate) / dist * Area, with T_conjugate the solid wall temperature of the last transfer.
+        With the strong condition (CHT_WEAK_INTERFACE= NO, no decay) this is NOT the heat the fluid loses, which
+        is the discarded wall residual; the output is only registered for the weak condition. ---*/
+
+  su2double Q_IF_local = 0.0;
+  for (auto iMarker = 0u; iMarker < config->GetnMarker_All(); iMarker++) {
+    if (config->GetMarker_All_KindBC(iMarker) != CHT_WALL_INTERFACE) continue;
+
+    for (auto iVertex = 0ul; iVertex < geometry->nVertex[iMarker]; iVertex++) {
+      const auto iPoint = geometry->vertex[iMarker][iVertex]->GetNode();
+      if (!geometry->nodes->GetDomain(iPoint)) continue;
+
+      const auto Point_Normal = geometry->vertex[iMarker][iVertex]->GetNormal_Neighbor();
+      const su2double Area = GeometryToolbox::Norm(nDim, geometry->vertex[iMarker][iVertex]->GetNormal());
+      const su2double dist_ij = GeometryToolbox::Distance(nDim, geometry->nodes->GetCoord(iPoint),
+                                                          geometry->nodes->GetCoord(Point_Normal));
+      const su2double Tconjugate = GetConjugateHeatVariable(iMarker, iVertex, 0) / Temperature_Ref;
+
+      Q_IF_local += nodes->GetThermalConductivity(iPoint) * (nodes->GetTemperature(Point_Normal) - Tconjugate) /
+                    dist_ij * Area;
+    }
+  }
+  SU2_MPI::Allreduce(&Q_IF_local, &vals[0], 1, MPI_DOUBLE, MPI_SUM, SU2_MPI::GetComm());
+
+  /*--- Q_SINK and Q_DECAY from the lambda balance: b0 lambda^2 + b1 lambda + b2, with b2 = -(heat out through
+        isothermal walls). The fluid has no interface lambda term, Q_LAMBDA = 0. ---*/
+
+  if (config->GetStreamwise_Periodic_ExpDecay()) {
+    const su2double lambda = config->GetStreamwise_Periodic_LamdaL();
+    vals[2] = -LambdaCoeffs[2];
+    vals[3] = LambdaCoeffs[0] * lambda * lambda + LambdaCoeffs[1] * lambda;
+  }
+}
+
+
 void CIncNSSolver::GetStreamwisePeriodicThetaSums(const CGeometry *geometry, su2double *sums) const {
 
   su2double local[2] = {0.0, 0.0};

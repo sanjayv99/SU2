@@ -31,6 +31,20 @@
 #include "../../../Common/include/geometry/CGeometry.hpp"
 #include "../../include/solvers/CSolver.hpp"
 
+namespace {
+/*--- CHT heat balance outputs: the fluid has a CHT interface with the weak condition (decaying formulation or
+      CHT_WEAK_INTERFACE). Uses the config file markers, the output fields are set before the geometry. ---*/
+bool CHTBalanceFluid(const CConfig* config) {
+  if (!config->GetEnergy_Equation()) return false;
+  if (config->GetKind_CHT_Coupling() != CHT_COUPLING::DIRECT_TEMPERATURE_ROBIN_HEATFLUX) return false;
+  if (!config->GetStreamwise_Periodic_ExpDecay() && !config->GetCHT_Weak_Interface()) return false;
+  for (auto iMarker = 0u; iMarker < config->GetnMarker_CfgFile(); iMarker++)
+    if (config->GetMarker_CfgFile_KindBC(config->GetMarker_CfgFile_TagBound(iMarker)) == CHT_WALL_INTERFACE)
+      return true;
+  return false;
+}
+}  // namespace
+
 CFlowIncOutput::CFlowIncOutput(CConfig *config, unsigned short nDim) : CFlowOutput(config, nDim, false) {
 
   turb_model = config->GetKind_Turb_Model();
@@ -184,6 +198,15 @@ void CFlowIncOutput::SetHistoryOutputFields(CConfig *config){
     }
   }
 
+  if (CHTBalanceFluid(config)) {
+    AddHistoryOutput("CHT_Q_IF", "Q_IF", ScreenOutputFormat::SCIENTIFIC, "CHT_BALANCE", "Heat out of the fluid through the CHT interfaces, as the weak interface condition applies it", HistoryFieldType::COEFFICIENT);
+    if (config->GetStreamwise_Periodic_ExpDecay()) {
+      AddHistoryOutput("CHT_Q_SINK", "Q_Sink", ScreenOutputFormat::SCIENTIFIC, "CHT_BALANCE", "Heat out of the fluid through isothermal walls (decaying formulation)", HistoryFieldType::COEFFICIENT);
+      AddHistoryOutput("CHT_Q_DECAY", "Q_Decay", ScreenOutputFormat::SCIENTIFIC, "CHT_BALANCE", "Volume terms of the decaying formulation in the fluid, b0 lambda^2 + b1 lambda", HistoryFieldType::COEFFICIENT);
+      AddHistoryOutput("CHT_ZONE_BALANCE", "ZoneBal", ScreenOutputFormat::SCIENTIFIC, "CHT_BALANCE", "Fluid heat balance Q_DECAY - Q_SINK - Q_IF, zero at convergence", HistoryFieldType::COEFFICIENT);
+    }
+  }
+
   AddAnalyzeSurfaceOutput(config);
 
   AddAerodynamicCoefficients(config);
@@ -269,6 +292,17 @@ void CFlowIncOutput::LoadHistoryData(CConfig *config, CGeometry *geometry, CSolv
     if (config->GetStreamwise_Periodic_ExpDecay()) {
       SetHistoryOutputValue("STREAMWISE_LAMBDAL", flow_solver->GetStreamwisePeriodicValues().Streamwise_Periodic_LambdaL);
       SetHistoryOutputValue("STREAMWISE_THETA_MEAN", flow_solver->GetStreamwisePeriodicValues().Streamwise_Periodic_ThetaScaling);
+    }
+  }
+
+  if (CHTBalanceFluid(config)) {
+    su2double cht[4];
+    flow_solver->GetCHTHeatBalance(geometry, config, cht);
+    SetHistoryOutputValue("CHT_Q_IF", cht[0]);
+    if (config->GetStreamwise_Periodic_ExpDecay()) {
+      SetHistoryOutputValue("CHT_Q_SINK", cht[2]);
+      SetHistoryOutputValue("CHT_Q_DECAY", cht[3]);
+      SetHistoryOutputValue("CHT_ZONE_BALANCE", cht[3] - cht[2] - cht[0]);
     }
   }
 

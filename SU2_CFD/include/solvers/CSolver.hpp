@@ -4384,6 +4384,27 @@ public:
   }
 
   /*!
+   * \brief Heat balance terms of a zone with a CHT interface (CHT_COUPLING_METHOD= DIRECT_TEMPERATURE_ROBIN_HEATFLUX),
+   *        evaluated with exactly the expressions the boundary conditions and source terms apply, so the numbers of
+   *        the fluid and the solid zone can be compared. Globally reduced. Units of the lambda balance coefficients.
+   *        vals[0] Q_IF:     heat through the CHT interfaces by the Robin exchange term. Fluid: out of the zone,
+   *                          solid: into the zone. On a conforming interface both zones give the same number.
+   *        vals[1] Q_LAMBDA: heat into the zone by the lambda term of the interface flux (solid, decaying formulation).
+   *        vals[2] Q_SINK:   heat out of the zone through isothermal walls (decaying formulation).
+   *        vals[3] Q_DECAY:  volume terms of the decaying formulation, i.e. the zone's lambda balance without the two
+   *                          terms above.
+   *        Zone balance (zero at convergence): fluid Q_DECAY - Q_SINK - Q_IF, solid Q_DECAY + Q_LAMBDA + Q_IF - Q_SINK.
+   *        The driver's lambda quadratic is the sum over zones of Q_DECAY + Q_LAMBDA - Q_SINK, i.e. it assumes the
+   *        fluid and solid Q_IF cancel.
+   * \param[in] geometry - Geometrical definition of the problem.
+   * \param[in] config - Definition of the particular problem.
+   * \param[out] vals - The four terms above.
+   */
+  virtual void GetCHTHeatBalance(const CGeometry *geometry, const CConfig *config, su2double *vals) const {
+    for (int i = 0; i < 4; i++) vals[i] = 0.0;
+  }
+
+  /*!
    * \brief Save snapshot or POD data using libROM
    * \param[in] geometry - Geometrical definition of the problem.
    * \param[in] config - Definition of the particular problem.

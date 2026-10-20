@@ -234,6 +234,12 @@ public:
                                          su2double *coeffs) const override;
 
   /*!
+   * \brief Heat balance terms of the solid at a CHT interface, see CSolver::GetCHTHeatBalance. Q_IF is the Robin
+   *        term of BC_ConjugateHeat_Interface, Q_LAMBDA its lambda term, Q_SINK the weak isothermal walls.
+   */
+  void GetCHTHeatBalance(const CGeometry *geometry, const CConfig *config, su2double *vals) const override;
+
+  /*!
    * \brief Impose the Navier-Stokes boundary condition (strong).
    * \param[in] geometry - Geometrical definition of the problem.
    * \param[in] solver_container - Container vector with all the solutions.

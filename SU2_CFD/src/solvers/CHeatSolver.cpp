@@ -414,6 +414,65 @@ void CHeatSolver::GetStreamwisePeriodicLambdaCoeffs(const CGeometry *geometry, c
   coeffs[2] = -global[3];
 }
 
+void CHeatSolver::GetCHTHeatBalance(const CGeometry *geometry, const CConfig *config, su2double *vals) const {
+
+  for (int i = 0; i < 4; i++) vals[i] = 0.0;
+  if (flow || !heat_equation) return;
+
+  const su2double Temperature_Ref = config->GetTemperature_Ref();
+  const su2double rho_cp_solid = config->GetMaterialDensity(0) * config->GetSpecific_Heat_Cp();
+  const su2double k_solid = config->GetThermalDiffusivity() * rho_cp_solid;
+  const bool exp_decay = config->GetStreamwise_Periodic_ExpDecay();
+
+  su2double t_hat[MAXNDIM] = {0.0};
+  if (exp_decay) {
+    const su2double* translation = config->GetStreamwise_Periodic_Translation();
+    const su2double norm = GeometryToolbox::Norm(nDim, translation);
+    for (unsigned short iDim = 0; iDim < nDim; iDim++) t_hat[iDim] = translation[iDim] / norm;
+  }
+
+  /*--- The two interface terms of BC_ConjugateHeat_Interface, as heat INTO the solid (conductivity units, i.e.
+        the residual times rho*cp of the solid):
+        Robin:  (k_f/dist_f) (T_normal_f - T_wall) Area, fluid values of the last transfer,
+        lambda: (k_f - k_s) lambda (n . t_hat) Area theta_w, summed here without lambda. ---*/
+
+  su2double local[2] = {0.0, 0.0}, global[2] = {0.0, 0.0};
+  for (auto iMarker = 0u; iMarker < config->GetnMarker_All(); iMarker++) {
+    if (config->GetMarker_All_KindBC(iMarker) != CHT_WALL_INTERFACE) continue;
+
+    for (auto iVertex = 0ul; iVertex < geometry->nVertex[iMarker]; iVertex++) {
+      const auto iPoint = geometry->vertex[iMarker][iVertex]->GetNode();
+      if (!geometry->nodes->GetDomain(iPoint)) continue;
+
+      const auto* Normal = geometry->vertex[iMarker][iVertex]->GetNormal();
+      const su2double Area = GeometryToolbox::Norm(nDim, Normal);
+      const su2double Tinterface = nodes->GetTemperature(iPoint);
+      const su2double Tnormal_Conjugate = GetConjugateHeatVariable(iMarker, iVertex, 3) / Temperature_Ref;
+      const su2double conductivity_over_dist = GetConjugateHeatVariable(iMarker, iVertex, 2);
+
+      local[0] += conductivity_over_dist * (Tnormal_Conjugate - Tinterface) * Area;
+
+      if (exp_decay) {
+        const su2double k_fluid = GetConjugateHeatVariable(iMarker, iVertex, 4);
+        local[1] += (k_fluid - k_solid) * GeometryToolbox::DotProduct(nDim, Normal, t_hat) * Tinterface;
+      }
+    }
+  }
+  SU2_MPI::Allreduce(local, global, 2, MPI_DOUBLE, MPI_SUM, SU2_MPI::GetComm());
+
+  vals[0] = global[0];
+
+  if (exp_decay) {
+    /*--- Q_SINK and Q_DECAY from the lambda coefficients, so the zone balance uses the driver's own numbers. ---*/
+    su2double coeffs[3];
+    GetStreamwisePeriodicLambdaCoeffs(geometry, config, coeffs);
+    const su2double lambda = config->GetStreamwise_Periodic_LamdaL();
+    vals[1] = lambda * global[1];
+    vals[2] = -coeffs[2];
+    vals[3] = coeffs[0] * lambda * lambda + coeffs[1] * lambda - vals[1];
+  }
+}
+
 void CHeatSolver::Set_Heatflux_Areas(CGeometry *geometry, CConfig *config) {
 
   BEGIN_SU2_OMP_SAFE_GLOBAL_ACCESS {
