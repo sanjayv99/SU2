@@ -775,7 +775,9 @@ void CIncNSSolver::BC_ConjugateHeat_Interface(CGeometry *geometry, CSolver **sol
     if (implicit) {
       for (unsigned short iVar = 1; iVar <= nDim; iVar++)
         Jacobian.DeleteValsRowi(iPoint*nVar+iVar);
-      if (energy && !exp_decay) Jacobian.DeleteValsRowi(iPoint*nVar+nDim+1);
+      /*--- Only the strong temperature condition replaces the energy row. The weak one keeps it and adds its
+            diagonal term below (DeleteValsRowi would leave a bare 1 without time term or neighbour coupling). ---*/
+      if (energy && !weak_cht) Jacobian.DeleteValsRowi(iPoint*nVar+nDim+1);
     }
 
     if (!energy) continue;
