@@ -3318,6 +3318,17 @@ void CIncEulerSolver::SetFreeStream_Solution(const CConfig *config){
 
 }
 
+void CIncEulerSolver::ResetSolutionExtraInput() {
+
+  /*--- In MASSFLOW mode SPvals.Streamwise_Periodic_PressureDrop is registered as an input only when the solution
+   variables are recorded, and the discrete adjoint never assigns it afterwards (SPvals = SPvalsUpdated is primal
+   only). Without this reset it carries the identifier of the last solution recording into the geometric recording.
+   There that identifier belongs to an unrelated variable, and the reverse sweep adds the pressure drop adjoint to
+   it. In PRESSURE_DROP mode the value is assigned again inside the recording, so the reset is harmless. ---*/
+
+  AD::ResetInput(SPvals.Streamwise_Periodic_PressureDrop);
+}
+
 unsigned long CIncEulerSolver::RegisterSolutionExtra(bool input, const CConfig* config) {
   if (config->GetKind_Streamwise_Periodic() == ENUM_STREAMWISE_PERIODIC::MASSFLOW) {
     if (input) AD::RegisterInput(SPvals.Streamwise_Periodic_PressureDrop);

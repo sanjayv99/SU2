@@ -442,4 +442,9 @@ public:
    * \param[in] config - The particular config.
    */
   void ExtractAdjoint_SolutionExtra(su2activevector& adj_sol, const CConfig* config) final;
+
+  /*!
+   * \brief Make the input copy of the streamwise periodic pressure drop passive.
+   */
+  void ResetSolutionExtraInput() final;
 };

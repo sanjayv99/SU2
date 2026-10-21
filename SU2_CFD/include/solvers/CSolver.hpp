@@ -3604,6 +3604,11 @@ public:
   virtual void ExtractAdjoint_SolutionExtra(su2activevector& adj_sol, const CConfig* config) {}
 
   /*!
+   * \brief Make the input copy of the extra solution passive. Called at the start of every recording.
+   */
+  virtual void ResetSolutionExtraInput() {}
+
+  /*!
    * \brief  A virtual member.
    * \param[in] geometry - Geometrical definition of the problem.
    * \param[in] config - Definition of the particular problem.

@@ -150,6 +150,12 @@ void CDiscAdjSolver::SetRecording(CGeometry* geometry, CConfig *config){
 
   RegisterVariables(geometry, config, true);
 
+  /*--- The input copy of the extra solution (the streamwise periodic pressure drop) is registered only by the
+   recordings of the solution variables. Make it passive here, at the start of every recording, so that the
+   geometric recording never reads an identifier left over from a previous tape. ---*/
+
+  SU2_OMP_SAFE_GLOBAL_ACCESS(direct_solver->ResetSolutionExtraInput();)
+
 }
 
 void CDiscAdjSolver::RegisterSolution(CGeometry *geometry, CConfig *config) {
