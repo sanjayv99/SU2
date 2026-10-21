@@ -495,9 +495,16 @@ bool CDiscAdjMultizoneDriver::EvaluateObjectiveFunctionGradient() {
 
     for (unsigned short iSol=0; iSol < MAX_SOLS; iSol++) {
       auto solver = solver_container[iZone][INST_0][MESH_0][iSol];
-      if (solver && solver->GetAdjoint())
+      if (solver && solver->GetAdjoint()) {
         for (unsigned short iVar=0; iVar < solver->GetnVar(); ++iVar)
           rhs_norm += solver->GetRes_RMS(iVar);
+
+        /*--- The extra variables (the pressure drop in MASSFLOW mode) count as well: STREAMWISE_PERIODIC_DP
+              depends ONLY on the extra variable, so without this the gradient looked zero and the adjoint
+              iteration was skipped. ExtractAdjoint_SolutionExtra reduces over ranks, so this is global. ---*/
+        for (const auto& extra : solver->GetNodes()->GetSolutionExtra())
+          rhs_norm += fabs(extra);
+      }
     }
   }
 
@@ -719,6 +726,17 @@ void CDiscAdjMultizoneDriver::SetObjFunction(RECORDING kind_recording) {
 
       case MAIN_SOLVER::DISC_ADJ_EULER:     case MAIN_SOLVER::DISC_ADJ_NAVIER_STOKES:     case MAIN_SOLVER::DISC_ADJ_RANS:
       case MAIN_SOLVER::DISC_ADJ_INC_EULER: case MAIN_SOLVER::DISC_ADJ_INC_NAVIER_STOKES: case MAIN_SOLVER::DISC_ADJ_INC_RANS:
+
+      /*--- In MASSFLOW mode the STREAMWISE_PERIODIC_DP objective reads the pressure drop from the config, and
+              only Source_Residual writes it there. Here the objective is recorded BEFORE the zone iterations, so
+              the config still holds the value of the previous recording, which is not on this tape, and the
+              objective has no derivative. Hand it the registered input (the pressure drop extra variable)
+              instead, as the singlezone driver effectively does by evaluating the objective after the
+              iteration. At convergence the input equals the updated value, so J does not change. ---*/
+        if (config->GetKind_Streamwise_Periodic() == ENUM_STREAMWISE_PERIODIC::MASSFLOW) {
+          config->SetStreamwise_Periodic_PressureDrop(
+              solvers[FLOW_SOL]->GetStreamwisePeriodicValues().Streamwise_Periodic_PressureDrop);
+        }
 
         solvers[FLOW_SOL]->Pressure_Forces(geometry, config);
         solvers[FLOW_SOL]->Momentum_Forces(geometry, config);
