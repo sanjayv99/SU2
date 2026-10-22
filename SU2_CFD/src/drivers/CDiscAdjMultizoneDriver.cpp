@@ -236,7 +236,7 @@ bool CDiscAdjMultizoneDriver::Iterate(unsigned short iZone, unsigned long iInner
 
   eval_transfer = (eval_transfer || (iInnerIter == nInnerIter[iZone]-1)) && !KrylovMode;
 
-  ComputeAdjoints(iZone, eval_transfer);
+  ComputeAdjoints(iZone, eval_transfer || streamwise_theta_coupled);
 
   /*--- Extracting adjoints for solvers in iZone w.r.t. to outputs in iZone (diagonal part). ---*/
 
