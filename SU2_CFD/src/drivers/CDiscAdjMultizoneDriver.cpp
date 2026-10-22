@@ -566,6 +566,11 @@ void CDiscAdjMultizoneDriver::EvaluateSensitivities(unsigned long Iter, bool for
     else
       solvers[IDX_SOL]->SetSensitivity(geometry, config);
 
+    if (config->GetFluidProblem()) {
+      solvers[ADJFLOW_SOL]->ExtractAdjoint_Variables(geometry, config);
+      if (force_writing) output_container[iZone]->SetHistoryOutput(geometry, solvers, config);
+    }
+
     iteration_container[iZone][INST_0]->Postprocess(output_container[iZone], integration_container, geometry_container,
                                                     solver_container, numerics_container, config_container,
                                                     surface_movement, grid_movement, FFDBox, iZone, INST_0);

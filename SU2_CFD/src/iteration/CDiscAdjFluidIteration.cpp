@@ -443,6 +443,15 @@ void CDiscAdjFluidIteration::RegisterInput(CSolver***** solver, CGeometry**** ge
     /*--- Boundary displacements ---*/
     solvers0[ADJMESH_SOL]->RegisterVariables(geometry0, config[iZone]);
   }
+
+  if ((kind_recording == RECORDING::MESH_COORDS || kind_recording == RECORDING::MESH_DEFORM) &&
+    config[iZone]->GetMultizone_Problem() && config[iZone]->GetFluidProblem()) {
+      solvers0[ADJFLOW_SOL]->RegisterVariables(geometry0, config[iZone]);
+
+      if (turbulent && !config[iZone]->GetFrozen_Visc_Disc()) {
+        solvers0[ADJTURB_SOL]->RegisterVariables(geometry0, config[iZone]);
+      }
+    }
   }
   END_SU2_OMP_PARALLEL
 }
