@@ -817,7 +817,23 @@ void CDiscAdjMultizoneDriver::ComputeAdjoints(unsigned short iZone, bool eval_tr
   }
 #endif
 
-  AD::ClearAdjoints();
+  const unsigned short enter_izone = iZone*2+1 + ITERATION_READY;
+  const unsigned short leave_izone = iZone*2 + ITERATION_READY;
+
+  /*--- With the decaying temperature coupling, zero only the adjoints this evaluation uses: everything before the
+   *    zone sections (registered inputs, dependencies, objective, transfer) and the section of iZone. The reverse
+   *    sweep zeroes the adjoint of every statement it evaluates, so only inputs and data left in these ranges can
+   *    carry over. The sections of the other zones are not read here, and are cleared when their own zone is
+   *    evaluated. The full clear at the end of every outer iteration and before every recording is unchanged.
+   *    Clearing the whole tape (mostly the fluid) dominated the cost of the solid's inner iterations. ---*/
+
+  if (streamwise_theta_coupled) {
+    AD::ClearAdjoints(TRANSFER, START);
+    AD::ClearAdjoints(enter_izone, leave_izone);
+  }
+  else {
+    AD::ClearAdjoints();
+  }
 
   /*--- Initialize the adjoints in iZone ---*/
 
@@ -825,9 +841,6 @@ void CDiscAdjMultizoneDriver::ComputeAdjoints(unsigned short iZone, bool eval_tr
                                                         config_container, iZone, INST_0);
 
   /*--- Interpret the stored information by calling the corresponding routine of the AD tool. ---*/
-
-  const unsigned short enter_izone = iZone*2+1 + ITERATION_READY;
-  const unsigned short leave_izone = iZone*2 + ITERATION_READY;
 
   AD::ComputeAdjoint(enter_izone, leave_izone);
 

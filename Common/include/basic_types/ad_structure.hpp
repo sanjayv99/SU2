@@ -128,6 +128,13 @@ inline void ComputeAdjoint() {}
 inline void ComputeAdjoint(unsigned short enter, unsigned short leave) {}
 
 /*!
+ * \brief Zero the adjoints of the tape section between two stored tape positions.
+ * \param[in] enter - Later position (as in ComputeAdjoint).
+ * \param[in] leave - Earlier position.
+ */
+inline void ClearAdjoints(unsigned short enter, unsigned short leave) {}
+
+/*!
  * \brief Computes the adjoints, i.e., the derivatives of the output with respect to the input variables, using forward
  * tape evaluation.
  */
@@ -444,6 +451,14 @@ FORCEINLINE void ComputeAdjoint(unsigned short enter, unsigned short leave) {
   AD::getTape().evaluate(TapePositions[enter].first, TapePositions[leave].first);
 #else
   AD::getTape().evaluate(TapePositions[enter], TapePositions[leave]);
+#endif
+}
+
+FORCEINLINE void ClearAdjoints(unsigned short enter, unsigned short leave) {
+#if defined(HAVE_OPDI)
+  AD::getTape().clearAdjoints(TapePositions[enter].first, TapePositions[leave].first);
+#else
+  AD::getTape().clearAdjoints(TapePositions[enter], TapePositions[leave]);
 #endif
 }
 
