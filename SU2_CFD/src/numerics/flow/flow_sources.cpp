@@ -772,8 +772,15 @@ CNumerics::ResidualType<> CSourceIncStreamwise_Periodic::ComputeResidual(const C
       
       su2double u_i = GeometryToolbox::DotProduct(nDim, Streamwise_Coord_Vector, &V_i[1])/sqrt(norm2_translation);
       su2double temp_i = V_i[nDim+1];
-      su2double term1 = 2 * Thermal_Conductivity_i * dot_product;
-      su2double term2 = - SPvals.Streamwise_Periodic_LambdaL * Thermal_Conductivity_i * temp_i;
+
+      /*--- Total conductivity kappa = k + cp mu_t / Pr_t, the same kappa as in the viscous flux
+            (flow_diffusion.cpp). Substituting T = exp(-lambda x_s) theta into div(kappa grad T)
+            gives 2 lambda kappa (t.grad theta) and lambda^2 kappa theta, so both terms need the
+            TOTAL kappa. The third piece, lambda theta (t.grad kappa_t), is the turbulent term below. ---*/
+      const su2double kappa_i = V_i[nDim+6] + (turbulent ? V_i[nDim+7] * V_i[nDim+5] / Prandtl_Turb : 0.0);
+
+      su2double term1 = 2 * kappa_i * dot_product;
+      su2double term2 = - SPvals.Streamwise_Periodic_LambdaL * kappa_i * temp_i;
       su2double term3 = - temp_i * u_i * DensityInc_i *  config->GetSpecific_Heat_Cp();
       scalar_factor = SPvals.Streamwise_Periodic_LambdaL * (term1 + term2 + term3);
       // dot_product = 1.0;
