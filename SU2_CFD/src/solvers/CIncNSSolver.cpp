@@ -332,9 +332,9 @@ void CIncNSSolver::GetStreamwise_Periodic_Properties(const CGeometry *geometry,
       Volume_TempS_Local += volume * Temp;
 
       /*--- Total conductivity, the same kappa as the viscous flux and the isothermal source term. ---*/
-      const su2double kappa = nodes->GetThermalConductivity(iPoint) +
-                              (turbulent ? nodes->GetSpecificHeatCp(iPoint) * nodes->GetEddyViscosity(iPoint) /
-                                           config->GetPrandtl_Turb() : 0.0);
+      su2double kappa = nodes->GetThermalConductivity(iPoint);
+      if (turbulent)
+        kappa += nodes->GetSpecificHeatCp(iPoint) * nodes->GetEddyViscosity(iPoint) / config->GetPrandtl_Turb();
 
       Volume_Temp_Local += volume * Temp * kappa;
 

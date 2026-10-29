@@ -777,7 +777,8 @@ CNumerics::ResidualType<> CSourceIncStreamwise_Periodic::ComputeResidual(const C
             (flow_diffusion.cpp). Substituting T = exp(-lambda x_s) theta into div(kappa grad T)
             gives 2 lambda kappa (t.grad theta) and lambda^2 kappa theta, so both terms need the
             TOTAL kappa. The third piece, lambda theta (t.grad kappa_t), is the turbulent term below. ---*/
-      const su2double kappa_i = V_i[nDim+6] + (turbulent ? V_i[nDim+7] * V_i[nDim+5] / Prandtl_Turb : 0.0);
+      su2double kappa_i = V_i[nDim+6];
+      if (turbulent) kappa_i += V_i[nDim+7] * V_i[nDim+5] / Prandtl_Turb;
 
       su2double term1 = 2 * kappa_i * dot_product;
       su2double term2 = - SPvals.Streamwise_Periodic_LambdaL * kappa_i * temp_i;
